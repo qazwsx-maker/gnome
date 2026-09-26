@@ -1,0 +1,520 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GNOME — ภูตดูแลสวน · แพลนโปรเจค IoT</title>
+<meta name="description" content="แผนโปรเจค GNOME: ระบบ IoT สวนดอกไม้ในบ้าน ESP32 nodes + Mac mini server — สถาปัตยกรรม, timeline, รายการอุปกรณ์และงบประมาณ">
+<style>
+:root{
+  color-scheme:light;
+  --page:#f9f9f7; --surface:#fcfcfb; --ink:#0b0b0b; --ink2:#52514e; --muted:#898781;
+  --grid:#e1e0d9; --axis:#c3c2b7; --border:rgba(11,11,11,.10);
+  --s1:#2a78d6; --s2:#eb6834; --seq250:#86b6ef; --seq350:#5598e7; --seq450:#2a78d6; --seq550:#1c5cab; --seq650:#104281;
+  --good:#0ca30c; --warn:#fab219; --serious:#ec835a; --critical:#d03b3b;
+  --leaf:#1f7a3a;
+}
+@media (prefers-color-scheme:dark){
+  :root:where(:not([data-theme="light"])){
+    color-scheme:dark;
+    --page:#0d0d0d; --surface:#1a1a19; --ink:#fff; --ink2:#c3c2b7; --muted:#898781;
+    --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,.10);
+    --s1:#3987e5; --s2:#d95926; --seq250:#184f95; --seq350:#1c5cab; --seq450:#256abf; --seq550:#3987e5; --seq650:#6da7ec;
+    --leaf:#4cc06f;
+  }
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--page);color:var(--ink);font:15px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}
+a{color:var(--s1)}
+h1,h2,h3{line-height:1.25;margin:0 0 .4em}
+h1{font-size:clamp(28px,5vw,44px)}
+h2{font-size:22px;margin-top:0}
+h3{font-size:16px}
+.wrap{max-width:1100px;margin:0 auto;padding:0 20px}
+header.top{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--page) 88%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--border)}
+header.top .wrap{display:flex;align-items:center;gap:16px;height:52px}
+.brand{font-weight:700;letter-spacing:.02em;display:flex;align-items:center;gap:8px}
+.brand .dot{width:10px;height:10px;border-radius:50%;background:var(--leaf)}
+nav{margin-left:auto;display:flex;gap:4px;overflow-x:auto}
+nav a{color:var(--ink2);text-decoration:none;padding:6px 10px;border-radius:8px;white-space:nowrap;font-size:14px}
+nav a:hover{background:var(--surface)}
+section{padding:44px 0 8px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px}
+.hero{padding:56px 0 24px}
+.hero p.lead{font-size:18px;color:var(--ink2);max-width:760px;margin:.4em 0 1.2em}
+.badge{display:inline-flex;align-items:center;gap:6px;font-size:13px;padding:3px 10px;border-radius:999px;border:1px solid var(--border);background:var(--surface);color:var(--ink2)}
+.badge.ok::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--good)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:18px 0}
+.tile{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+.tile .v{font-size:28px;font-weight:600;line-height:1.1}
+.tile .l{color:var(--muted);font-size:13px;margin-top:4px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--grid);vertical-align:top}
+th{color:var(--muted);font-weight:600;font-size:12px;letter-spacing:.03em;text-transform:uppercase}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+.pill{display:inline-block;font-size:12px;padding:1px 8px;border-radius:999px;border:1px solid var(--border);color:var(--ink2);margin:2px 2px 2px 0}
+.lvl{display:inline-flex;align-items:center;gap:6px;font-size:13px}
+.lvl i{width:9px;height:9px;border-radius:50%;display:inline-block}
+.lvl.easy i{background:var(--good)} .lvl.mid i{background:var(--warn)} .lvl.hard i{background:var(--serious)}
+/* architecture */
+.arch{overflow-x:auto}
+.arch svg{width:100%;min-width:720px;height:auto;display:block}
+.arch .box{fill:var(--surface);stroke:var(--axis);stroke-width:1.2;rx:10}
+.arch .box.core{stroke:var(--s1);stroke-width:2}
+.arch .box.node{stroke:var(--leaf)}
+.arch text{fill:var(--ink);font-size:13px;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+.arch text.sub{fill:var(--muted);font-size:11px}
+.arch .wire{stroke:var(--axis);stroke-width:1.6;fill:none;marker-end:url(#arr)}
+.arch .wire.mqtt{stroke:var(--s1)}
+.arch .wire.http{stroke:var(--s2)}
+.arch .lbl{fill:var(--ink2);font-size:11px}
+/* node cards */
+.node{display:flex;flex-direction:column;gap:8px}
+.node .head{display:flex;align-items:baseline;gap:10px}
+.node .id{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--muted)}
+.node ul{margin:0;padding-left:18px}
+.node .rug{border-top:1px dashed var(--grid);padding-top:8px;font-size:13px;color:var(--ink2)}
+/* gantt */
+.gantt{display:grid;grid-template-columns:150px repeat(8,1fr) 60px;gap:6px 0;align-items:center;font-size:13px}
+.gantt .h{color:var(--muted);font-size:12px;text-align:center;padding-bottom:6px;border-bottom:1px solid var(--grid)}
+.gantt .h:first-child,.gantt .h:last-child{text-align:left}
+.gantt .name{padding-right:8px;font-weight:600}
+.gantt .bar{height:22px;border-radius:4px;margin:3px 1px;display:flex;align-items:center;padding:0 8px;color:#fff;font-size:12px;white-space:nowrap;overflow:hidden}
+.gantt .cell{grid-column:span 1}
+.phase-list li{margin-bottom:8px}
+.dod{color:var(--ink2);font-size:13px}
+/* controls */
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--surface)}
+.seg button{border:0;background:transparent;color:var(--ink2);padding:8px 14px;font:inherit;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--page)}
+.toolbar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:14px 0}
+.toolbar .spacer{flex:1}
+button.ghost{border:1px solid var(--border);background:var(--surface);color:var(--ink2);padding:7px 12px;border-radius:10px;font:inherit;cursor:pointer}
+/* bom */
+.bom-node{margin-bottom:22px}
+.bom-node h3{display:flex;align-items:baseline;gap:10px;margin-bottom:6px}
+.bom-node h3 .sum{margin-left:auto;font-variant-numeric:tabular-nums;font-weight:600}
+tr.done td{color:var(--muted);text-decoration:line-through}
+tr.done td.chk{text-decoration:none}
+td.chk{width:34px}
+input[type=checkbox]{width:16px;height:16px;accent-color:var(--leaf)}
+.total{display:flex;flex-wrap:wrap;gap:12px;margin-top:16px}
+.total .tile .v{font-size:24px}
+/* bar chart */
+.chart{margin-top:8px}
+.legend{display:flex;gap:16px;font-size:13px;color:var(--ink2);margin-bottom:10px}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin-right:6px}
+.row{display:grid;grid-template-columns:120px 1fr;gap:10px;align-items:center;margin:8px 0}
+.row .label{font-size:13px;color:var(--ink2)}
+.bars{display:flex;flex-direction:column;gap:2px}
+.bar{height:14px;border-radius:0 4px 4px 0;position:relative;transition:width .3s}
+.bar span{position:absolute;left:calc(100% + 8px);top:-3px;font-size:12px;color:var(--ink2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.bar:hover{filter:brightness(1.08)}
+.axisline{grid-column:2;border-top:1px solid var(--axis);position:relative;height:18px;margin-top:4px}
+.axisline span{position:absolute;top:2px;font-size:11px;color:var(--muted);transform:translateX(-50%)}
+/* risks */
+.risk{display:grid;grid-template-columns:1fr;gap:10px}
+.risk .item{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;display:grid;grid-template-columns:auto 1fr;gap:12px}
+.risk .sev{width:10px;border-radius:5px}
+.risk .sev.critical{background:var(--critical)} .risk .sev.serious{background:var(--serious)} .risk .sev.warning{background:var(--warn)}
+.risk b{display:block}
+.risk .fix{color:var(--ink2);font-size:14px}
+footer{padding:40px 0;color:var(--muted);font-size:13px;border-top:1px solid var(--border);margin-top:40px}
+@media (max-width:700px){.gantt{grid-template-columns:110px repeat(8,1fr) 44px;font-size:12px}.row{grid-template-columns:90px 1fr}}
+@media print{header.top,.toolbar,button{display:none}section{padding:16px 0}.card{break-inside:avoid}}
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <div class="brand"><span class="dot"></span>GNOME</div>
+  <nav>
+    <a href="#feas">ความเป็นไปได้</a><a href="#arch">สถาปัตยกรรม</a><a href="#nodes">Nodes</a><a href="#stack">Stack</a><a href="#plan">แผนงาน</a><a href="#bom">อุปกรณ์/งบ</a><a href="#risk">ความเสี่ยง</a>
+    <a href="https://github.com/qazwsx-maker/gnome" rel="noopener">GitHub</a>
+  </nav>
+</div></header>
+
+<main class="wrap">
+
+<section class="hero" id="top">
+  <span class="badge ok">Feasible · แพลนฉบับ 2026-09-26</span>
+  <h1>GNOME — ภูตดูแลสวน</h1>
+  <p class="lead">ระบบ IoT สำหรับสวนดอกไม้เล็กในบ้าน: ESP32 nodes 5 ตัวผ่าน WiFi 2.4G เข้า server กลางบน Mac mini ควบคุมน้ำหยด พ่นหมอก พัดลม อ่านอุณหภูมิ ความชื้นอากาศ ความชื้นดิน แสง และมีกล้อง AI คอยดูสวน · เฟสแรก: กระถาง 10 ใบบนซุ้มโค้งยกพื้น มีสแลนพรางแดด น้ำต่อจากก๊อกตรง</p>
+  <div class="tiles">
+    <div class="tile"><div class="v">5</div><div class="l">nodes (water · airflow · air · ground · cam)</div></div>
+    <div class="tile"><div class="v">8 <span class="small muted">สัปดาห์</span></div><div class="l">แผนงาน 5 phase ทำเสาร์-อาทิตย์</div></div>
+    <div class="tile"><div class="v" id="tile-budget">—</div><div class="l">งบประหยัด (฿)</div></div>
+    <div class="tile"><div class="v" id="tile-rugged">—</div><div class="l">งบระดับทน — แนะนำ (฿)</div></div>
+  </div>
+  <p class="small muted">เอกสารฉบับเต็ม: <a href="https://github.com/qazwsx-maker/gnome/blob/main/docs/PLAN.md">docs/PLAN.md</a> · ราคาเป็นค่าประเมินจาก Shopee/Lazada/Arduitronics ก.ย. 2026 ควรเช็คก่อนสั่งซื้อ</p>
+</section>
+
+<section id="feas">
+  <h2>1 · ความเป็นไปได้</h2>
+  <div class="card">
+    <p><b>ทำได้แน่นอน</b> ทุก node เป็นของที่ชุมชน ESP32 ทำกันเป็นมาตรฐาน ความเสี่ยงจริงไม่ได้อยู่ที่ซอฟต์แวร์ แต่อยู่ที่ <b>ฮาร์ดแวร์ในสวนที่มีพ่นหมอก</b> และ <b>ความปลอดภัยของระบบรดน้ำเมื่อ WiFi หลุด</b></p>
+    <table>
+      <thead><tr><th>หัวข้อ</th><th>ความยาก</th><th>หมายเหตุ</th></tr></thead>
+      <tbody>
+        <tr><td>Sensor node (อุณหภูมิ/ความชื้น/แสง)</td><td><span class="lvl easy"><i></i>ง่าย</span></td><td>ใช้ ESPHome ได้เลย ไม่ต้องเขียน firmware</td></tr>
+        <tr><td>Ground sensor (ความชื้นดินหลายจุด)</td><td><span class="lvl mid"><i></i>กลาง</span></td><td>ตัวเซ็นเซอร์คือจุดอ่อน ต้อง calibrate ทีละกระถาง</td></tr>
+        <tr><td>Water controller (solenoid 2 ชุด)</td><td><span class="lvl mid"><i></i>กลาง</span></td><td>ต้องมี fail-safe ในตัว node (max-on timer) ห้ามพึ่ง server อย่างเดียว</td></tr>
+        <tr><td>Airflow (พัดลม 220 V)</td><td><span class="lvl easy"><i></i>ง่าย</span></td><td>ESP32 + relay คุมเต้ารับในกล่องปิด แยกฝั่ง 220 V ชัดเจน วงจรต้องมี RCD</td></tr>
+        <tr><td>Camera + AI</td><td><span class="lvl hard"><i></i>กลาง-ยาก</span></td><td>ESP32-CAM ภาพแย่ตอนกลางคืน; YOLO บน M4 ไหว; "หนู" ไม่มีใน COCO ต้องใช้ motion + VLM</td></tr>
+        <tr><td>Server: status/logs/webapp/automation/Discord</td><td><span class="lvl mid"><i></i>กลาง</span></td><td>สแต็คที่มีอยู่แล้วบน Mac mini รองรับหมด</td></tr>
+        <tr><td>Public access + login</td><td><span class="lvl easy"><i></i>ง่าย</span></td><td>Cloudflare Tunnel + Access (มี cloudflared อยู่แล้ว) ไม่ต้อง forward port</td></tr>
+      </tbody>
+    </table>
+    <p class="small muted" style="margin-top:12px">สภาพ Mac mini ที่ตรวจพบ: M4 · 16 GB · macOS 26.4 · Docker 28 · Node 25 · Python 3.14 · PlatformIO · cloudflared · ollama · PostgreSQL 17 (Homebrew) — <b>ดิสก์เหลือ 4.6 GB</b> ต้องทำ retention ตั้งแต่วันแรก</p>
+  </div>
+</section>
+
+<section id="arch">
+  <h2>2 · สถาปัตยกรรม</h2>
+  <div class="card arch">
+    <svg viewBox="0 0 960 400" role="img" aria-label="แผนภาพสถาปัตยกรรม GNOME">
+      <defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--axis)"/></marker></defs>
+      <!-- nodes column -->
+      <text x="20" y="28" class="sub">ESP32 NODES · WiFi 2.4G · ESPHome</text>
+      <g>
+        <rect class="box node" x="20" y="44" width="170" height="46"/><text x="34" y="64">water</text><text x="34" y="80" class="sub">relay×2 → solenoid drip / mist</text>
+        <rect class="box node" x="20" y="102" width="170" height="46"/><text x="34" y="122">airflow</text><text x="34" y="138" class="sub">relay 10 A → เต้ารับ → พัดลม 220 V</text>
+        <rect class="box node" x="20" y="160" width="170" height="46"/><text x="34" y="180">air</text><text x="34" y="196" class="sub">SHT31 + BH1750</text>
+        <rect class="box node" x="20" y="218" width="170" height="46"/><text x="34" y="238">ground</text><text x="34" y="254" class="sub">soil probes ×3–6 (RS485/ADC1)</text>
+        <rect class="box node" x="20" y="300" width="170" height="46"/><text x="34" y="320">cam1</text><text x="34" y="336" class="sub">ESP32-CAM / XIAO S3 · snapshot</text>
+      </g>
+      <!-- wires to MQTT -->
+      <path class="wire mqtt" d="M190,67 H260 V150 H300"/>
+      <path class="wire mqtt" d="M190,125 H260"/>
+      <path class="wire mqtt" d="M190,183 H260"/>
+      <path class="wire mqtt" d="M190,241 H260 V150"/>
+      <text x="200" y="160" class="lbl">MQTT</text>
+      <!-- broker -->
+      <rect class="box" x="300" y="122" width="140" height="56"/><text x="314" y="145">Mosquitto</text><text x="314" y="162" class="sub">MQTT broker · LWT · auth</text>
+      <path class="wire mqtt" d="M440,150 H500"/>
+      <!-- core -->
+      <rect class="box core" x="500" y="90" width="190" height="120"/><text x="514" y="112">gnome-core</text>
+      <text x="514" y="130" class="sub">TypeScript · Fastify · mqtt.js</text>
+      <text x="514" y="148" class="sub">ingest → DB · node health</text>
+      <text x="514" y="166" class="sub">rules engine (cron/threshold)</text>
+      <text x="514" y="184" class="sub">REST + WebSocket · Discord</text>
+      <!-- db -->
+      <rect class="box" x="740" y="90" width="190" height="56"/><text x="754" y="112">PostgreSQL 17</text><text x="754" y="130" class="sub">มีอยู่แล้ว · retention 14 d raw</text>
+      <path class="wire" d="M690,118 H740"/>
+      <!-- web -->
+      <rect class="box" x="740" y="164" width="190" height="56"/><text x="754" y="186">gnome-web</text><text x="754" y="204" class="sub">Next.js · status · กราฟ · rules</text>
+      <path class="wire" d="M690,182 H740"/>
+      <!-- discord -->
+      <rect class="box" x="500" y="240" width="190" height="44"/><text x="514" y="262">Discord webhook</text><text x="514" y="277" class="sub">offline · threshold · รดน้ำสรุป · กล้อง</text>
+      <path class="wire" d="M595,210 V240"/>
+      <!-- vision -->
+      <rect class="box" x="300" y="300" width="190" height="56"/><text x="314" y="322">gnome-vision</text><text x="314" y="340" class="sub">Python · YOLO11n · ollama VLM</text>
+      <path class="wire http" d="M190,323 H300"/><text x="210" y="315" class="lbl">HTTP snapshot</text>
+      <path class="wire" d="M490,323 H595 V284"/>
+      <!-- cloudflare -->
+      <rect class="box" x="740" y="300" width="190" height="56"/><text x="754" y="322">Cloudflare Tunnel + Access</text><text x="754" y="340" class="sub">Google login · ไม่เปิด port</text>
+      <path class="wire" d="M835,300 V220"/>
+      <text x="754" y="380" class="lbl">🌐 internet → มือถือนอกบ้าน</text>
+      <!-- mac mini frame label -->
+      <text x="300" y="28" class="sub">MAC MINI M4 · Docker Compose + LaunchAgents</text>
+      <rect x="292" y="36" width="646" height="336" fill="none" stroke="var(--grid)" stroke-dasharray="4 4" rx="14"/>
+    </svg>
+    <div class="grid2" style="margin-top:14px">
+      <div>
+        <h3>MQTT topic contract</h3>
+        <pre class="small" style="margin:0;background:var(--page);padding:12px;border-radius:8px;overflow:auto">gnome/&lt;node&gt;/status                    retained online|offline (LWT)
+gnome/&lt;node&gt;/sensor/&lt;name&gt;/state       ค่า sensor ทุก 30 s (ดิน 60 s)
+gnome/&lt;node&gt;/switch/&lt;name&gt;/command     ON|OFF   ← server สั่ง
+gnome/&lt;node&gt;/switch/&lt;name&gt;/state       ON|OFF   → node ยืนยัน
+gnome/&lt;node&gt;/debug                     rssi · uptime · heap · ip</pre>
+      </div>
+      <div>
+        <h3>ตัวอย่าง rule (JSON ใน Postgres)</h3>
+        <pre class="small" style="margin:0;background:var(--page);padding:12px;border-radius:8px;overflow:auto">{ "name": "รดน้ำเช้า",
+  "trigger": { "type":"cron", "expr":"0 6 * * *", "tz":"Asia/Bangkok" },
+  "conditions": [ { "sensor":"ground.soil_median", "op":"&lt;", "value":45 } ],
+  "actions": [
+    { "switch":"water.drip", "state":"ON",
+      "until": { "sensor":"ground.soil_median", "op":"&gt;=", "value":60 },
+      "max_minutes": 8 },
+    { "discord": "รดน้ำเสร็จ {duration} นาที ดิน {soil}%" } ] }</pre>
+        <p class="small muted" style="margin:8px 0 0">"until + max_minutes" = feedback stop point จากความชื้นดินพร้อมเพดานเวลา · interlock: drip↔mist ห้ามเปิดพร้อมกัน, mist ห้ามเปิดถ้า RH &gt; 85 %</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="nodes">
+  <h2>3 · Nodes และการทำให้ทน (ruggedization)</h2>
+  <p class="muted small">หลักทั่วไป: กล่อง IP65 + cable gland · ติดพ้นแนวละอองหมอก · ซิลิกาเจล + breather vent · เคลือบบอร์ด · drip loop ทุกสาย · จ่าย 12 V DC จากในบ้าน (ยกเว้นพัดลม) · router ใกล้มาก ไม่ต้อง mesh node</p>
+  <div class="grid3" id="node-cards"></div>
+</section>
+
+<section id="stack">
+  <h2>4 · Tech stack</h2>
+  <div class="card">
+    <table>
+      <thead><tr><th>ส่วน</th><th>เทคโนโลยี</th><th>เหตุผล</th></tr></thead>
+      <tbody>
+        <tr><td>Node firmware</td><td><b>ESPHome</b> (MQTT mode) · PlatformIO เฉพาะที่จำเป็น</td><td>reconnect/OTA/watchdog/driver ครบ, <code>max_on_time</code> + interlock บนสวิตช์ = fail-safe ฟรี · PlatformIO ต้อง pin pioarduino URL</td></tr>
+        <tr><td>Broker</td><td>Eclipse Mosquitto 2 (Docker) + user/password</td><td>เบา, LWT, retained</td></tr>
+        <tr><td>DB</td><td>PostgreSQL 17 ที่รันอยู่แล้ว</td><td>ไม่กินดิสก์เพิ่ม · ~10k แถว/วัน เล็กมาก · downsample 30 s → 5 min → daily</td></tr>
+        <tr><td>gnome-core</td><td>TypeScript · Node 25 · Fastify · mqtt.js · Drizzle</td><td>ingest, node health (heartbeat 90 s), rules engine, Discord, REST + WS</td></tr>
+        <tr><td>gnome-web</td><td>Next.js · Recharts</td><td>สแต็คเดียวกับ meesook-web · status, กราฟ, ควบคุมมือ, ตั้ง rule, กล้อง</td></tr>
+        <tr><td>gnome-vision</td><td>Python 3.14 · ultralytics YOLO11n (CPU) · ollama VLM</td><td>snapshot 3–5 s → motion diff → YOLO (person/bird/cat/dog) → VLM บรรยาย → Discord + รูป</td></tr>
+        <tr><td>Remote + auth</td><td>Cloudflare Tunnel + Access (Google login)</td><td>ไม่เปิด port, ไม่ต้องเขียน login เอง, ฟรี ≤ 50 users</td></tr>
+        <tr><td>Process</td><td>LaunchAgents / <code>docker compose</code> restart</td><td>ตั้ง <code>pmset -a sleep 0</code> · UPS · Discord heartbeat ทุกเช้า</td></tr>
+      </tbody>
+    </table>
+    <p class="small" style="margin:12px 0 0"><b>ทางลัด:</b> Home Assistant + ESPHome + Frigate ให้ฟีเจอร์ server ครบใน 1 วัน แต่ปรับแต่งยากกว่า · firmware ของ node เหมือนกันจึงเปลี่ยนใจได้ทีหลัง</p>
+  </div>
+</section>
+
+<section id="plan">
+  <h2>5 · แผนงาน 8 สัปดาห์</h2>
+  <div class="card">
+    <div class="gantt" id="gantt"></div>
+    <ol class="phase-list" id="phase-list" style="margin-top:20px"></ol>
+    <p class="small muted"><b>ซื้อของรอบแรก (สัปดาห์ 1):</b> ESP32-DevKitC ×2, ESP32-C3 ×1, SHT31, BH1750, soil sensor ตามทางเลือกที่เลือก, relay 2 ch, solenoid ×2, PSU 12 V, กล่อง IP65 ×3, gland, buck ×2 — ใช้ถึง Phase 2 · camera / UPS สั่งช้าลงได้</p>
+  </div>
+</section>
+
+<section id="bom">
+  <h2>6 · รายการอุปกรณ์และงบประมาณ</h2>
+  <div class="toolbar">
+    <div class="seg" role="group" aria-label="ระดับงบ">
+      <button id="tier-budget" aria-pressed="false">งบประหยัด</button>
+      <button id="tier-rugged" aria-pressed="true">ระดับทน (แนะนำ)</button>
+    </div>
+    <span class="small muted">ติ๊ก ☑ เมื่อซื้อแล้ว — บันทึกไว้ในเบราว์เซอร์นี้</span>
+    <div class="spacer"></div>
+    <button class="ghost" id="csv">ดาวน์โหลด CSV</button>
+    <button class="ghost" id="reset">ล้างที่ติ๊ก</button>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-bottom:2px">งบต่อ node · เทียบสองระดับ</h3>
+    <p class="small muted" style="margin:0 0 10px">บาท · ไม่รวมพัดลม กล้อง IP สำรอง และค่าติดตั้งท่อ</p>
+    <div class="legend"><span><i style="background:var(--s1)"></i>งบประหยัด</span><span><i style="background:var(--s2)"></i>ระดับทน</span></div>
+    <div class="chart" id="chart"></div>
+  </div>
+
+  <div id="bom-list" style="margin-top:16px"></div>
+
+  <div class="total" id="totals"></div>
+
+  <div class="card" style="margin-top:16px">
+    <h3>จ่ายเพิ่มตรงไหนคุ้ม</h3>
+    <ol style="margin:0 0 8px;padding-left:20px">
+      <li><b>RS485 soil sensor</b> แทน capacitive แผ่นทองแดง — ชิ้นที่พังในสวนบ่อยสุด</li>
+      <li><b>SHT31 แบบ probe กันน้ำ / PTFE cap</b> — ไม่ใช้ DHT22 ที่ตายเร็วในความชื้นสูง</li>
+      <li><b>UPS</b> ให้ Mac mini + router — server คือสมองของทั้งสวน</li>
+      <li><b>วาล์วทองเหลือง</b> — ทนแรงดัน/ทนแดดกว่าพลาสติก</li>
+    </ol>
+    <p class="small muted" style="margin:0">ไม่ต้องจ่ายเพิ่ม: บอร์ด ESP32 (ของถูกใช้ได้ดี ซื้อสำรองแทน), relay module</p>
+  </div>
+</section>
+
+<section id="risk">
+  <h2>7 · ความเสี่ยงหลักและวิธีรับมือ</h2>
+  <div class="risk" id="risk-list"></div>
+  <div class="card" style="margin-top:16px">
+    <h3>โจทย์จากเจ้าของสวน (ตอบ 2026-09-26) และผลต่อแพลน</h3>
+    <ol style="margin:0;padding-left:20px">
+      <li><b>น้ำต่อจากก๊อกตรง ไม่ต้องมีปั๊ม</b> → ตัดปั๊มหมอกออก · ใช้หัวหมอกไมโครแรงดันก๊อก · ต้องมี filter + regulator หน้าวาล์ว</li>
+      <li><b>กระถาง 10 ใบ บนซุ้มโค้งยกพื้น + สแลนพรางแดด</b> → น้ำหยด 10 หัว, หมอก 6–8 หัวตามแนวซุ้ม, soil probe สุ่ม 3–5 ใบ · เดินสาย/ท่อตามโครงซุ้ม กล่องทุกใบยกสูงพ้นแนวหมอก · สแลนช่วยลดอุณหภูมิและทำให้ BH1750 อ่านค่าแสงหลังพราง</li>
+      <li><b>มีปลั๊ก 220 V ใกล้สวนแล้ว</b> → ตัดปลั๊กพ่วง outdoor ออก · <b>ต้องเช็คว่าวงจรนั้นมีเบรกเกอร์กันดูด (RCD)</b> ถ้าไม่มีให้ติดปลั๊กกันดูดแบบเสียบ (≈ 400–600 ฿) ก่อนต่ออะไรทั้งสิ้น</li>
+      <li><b>router ใกล้มาก</b> → ตัด mesh node ออก</li>
+      <li><b>พัดลมบ้าน 220 V ใช้ relay คุมเต้ารับ</b> → airflow node = ESP32-C3 + relay 10 A + เต้ารับติดกล่อง ในกล่องกันน้ำ แยกโซน 220 V/5 V, relay ตัดสาย L, มีฟิวส์ · พัดลมบ้านมอเตอร์ ~50–70 W กระแสสตาร์ทต่ำ relay 10 A พอ</li>
+    </ol>
+  </div>
+</section>
+
+</main>
+<footer><div class="wrap">GNOME · ภูตดูแลสวน — แพลนฉบับ 2026-09-26 · <a href="https://github.com/qazwsx-maker/gnome">github.com/qazwsx-maker/gnome</a> · ราคาเป็นค่าประเมิน ควรเช็คก่อนซื้อ</div></footer>
+
+<script>
+// ---------- DATA ----------
+const NODES = [
+  {id:'water', name:'Water controller', role:'น้ำหยด + พ่นหมอก', parts:['ESP32-DevKitC','relay 2 ch optocoupled (หรือ MOSFET)','solenoid 12 V DC NC ½" ×2 — ไฟดับ = ปิด','Mean Well LRS-50-12 + buck 12→5 V','flyback diode/TVS คร่อมคอยล์','น้ำต่อจากก๊อกตรง (2–3 bar) ไม่ต้องมีปั๊ม · น้ำหยด 10 หัว (1 หัว/กระถาง) + หัวหมอกไมโคร 6–8 หัวตามแนวซุ้ม'],
+   rug:'firmware: max_on_time 10 นาทีทุกสวิตช์ · interlock drip↔mist · MQTT หลุด > 2 นาที ปิดหมด · ใส่ filter + pressure regulator หน้าวาล์วเสมอ · เดินท่อ/สายตามโครงซุ้ม ทำ drip loop ก่อนเข้ากล่อง'},
+  {id:'airflow', name:'Airflow controller', role:'พัดลมบ้าน 220 V ผ่านเต้ารับที่ relay คุม', parts:['ESP32-C3 SuperMini','relay 1 ch 10 A/250 V optocoupled ขั้วสกรู (ระดับทน: relay module 30 A)','AC-DC 5 V module (HLK-PM01) จ่ายไฟ ESP32 จากสาย 220 V เส้นเดียวกัน','เต้ารับติดกล่อง + ฝาครอบกันน้ำ','ฟิวส์ 5 A + สาย VCT 2×1.5 + กล่องกันน้ำสำหรับ 220 V'],
+   rug:'ฝั่ง 220 V กับฝั่ง 3.3/5 V แยกโซนในกล่อง เว้นระยะ ≥ 6 mm · relay ตัด L (สายไฟ) ไม่ใช่ N · มีฟิวส์ก่อน relay · วงจรต้องมี RCD/เบรกเกอร์กันดูด · ปิดฝากล่องก่อนจ่ายไฟทุกครั้ง · สลับเป็น Sonoff S26R2 flash ESPHome ได้ถ้าไม่อยากประกอบ 220 V เอง'},
+  {id:'air', name:'Air sensor', role:'อุณหภูมิ · ความชื้น · แสง', parts:['ESP32-C3 SuperMini','SHT31 (PTFE cap หรือรุ่น probe กันน้ำ) — ไม่ใช้ DHT22','BH1750 lux (ต้องมีช่องใสหันขึ้นฟ้า)','อะแดปเตอร์ 5 V 2 A'],
+   rug:'ทำ radiation shield (จานซ้อน / ท่อ PVC เจาะรู) กันแดดตรงเพื่อให้อุณหภูมิไม่เพี้ยน · ส่งค่าทุก 30 s'},
+  {id:'ground', name:'Ground sensor', role:'ความชื้นดินหลายกระถาง · stop point รดน้ำ', parts:['ESP32-DevKitC — ใช้ ADC1 เท่านั้น (GPIO 32/33/34/35/36/39 = 6 หัว) เฉลี่ย 32 sample','กระถาง 10 ใบ → สุ่มปัก 3–5 ใบ (กระถางริม/กลาง/ใต้หัวหมอก)','A (งบ): capacitive v2.0 ×5 เคลือบอีพ็อกซี่ อายุ ~1 ปี ค่า relative','B (ทน): RS485 soil moisture+temp ×3 ผ่าน MAX485 — กันน้ำสนิท ค่า absolute %','สาย 4 core กันน้ำ + ขั้ว DC กันน้ำ'],
+   rug:'server ใช้ median ของทุกหัว + hysteresis · calibrate แห้ง/เปียกทีละหัว · เพดานเวลารดน้ำเสมอ'},
+  {id:'cam1', name:'Camera', role:'ภาพ → AI บน server', parts:['A: ESP32-CAM AI-Thinker + MB (ถูก, กลางคืนมองไม่เห็น, WiFi อ่อน)','B: XIAO ESP32S3 Sense (ภาพ/WiFi ดีกว่า)','C สำรอง: กล้อง IP RTSP outdoor (Tapo) — night vision + IP66 ในตัว'],
+   rug:'ESPHome esp32_camera + snapshot endpoint ให้ server ดึง · motion diff → YOLO11n → VLM · เก็บเฉพาะเฟรม event ≤ 500 MB'},
+  {id:'server', name:'Server กลาง', role:'Mac mini M4 (มีแล้ว)', parts:['Mosquitto · gnome-core · gnome-web · gnome-vision','PostgreSQL 17 ที่รันอยู่','Cloudflare Tunnel + Access','UPS 600–800 VA (แนะนำ)'],
+   rug:'pmset -a sleep 0 · LaunchAgent restart · retention: raw 14 วัน → 5 นาที 1 ปี → รายวันตลอด · pg_dump รายวันไป Drive · ดิสก์เหลือ 4.6 GB ต้องล้างก่อนเริ่ม'}
+];
+
+const PHASES = [
+  {n:'0 Foundation', from:1, to:1, step:'--seq250', work:'repo ~/gnome (monorepo firmware/ core/ web/ vision/ infra/), Mosquitto, schema Postgres, ingest MQTT→DB, Discord webhook, ESP32 ตัวเดียวบนโต๊ะ + SHT31', dod:'เห็นกราฟอุณหภูมิบนโต๊ะ + Discord แจ้ง "node online"'},
+  {n:'1 Sense', from:2, to:3, step:'--seq350', work:'ประกอบ air + ground ลงกล่อง ติดตั้งจริง, calibrate soil ทุกหัว, หน้า Status (online/offline/RSSI/last seen) + กราฟ 24 h/7 d, retention job', dod:'ข้อมูลไหลจากสวนต่อเนื่อง 7 วันไม่หลุด'},
+  {n:'2 Act', from:4, to:5, step:'--seq450', work:'water node พร้อม max_on_time/interlock ทดสอบด้วยถัง, ปุ่มสั่งมือบนเว็บ, airflow (ประกอบกล่อง relay + เต้ารับ ทดสอบด้วยหลอดไฟก่อน), automation แรก: cron เช้า-เย็น + soil stop point', dod:'รดน้ำอัตโนมัติ 1 สัปดาห์ไม่มี over-water · ถอด WiFi แล้ววาล์วปิดเองใน ≤ 10 นาที'},
+  {n:'3 Reach', from:6, to:6, step:'--seq550', work:'Cloudflare Tunnel + Access (Google login), หน้าตั้ง rule (ฟอร์ม), Discord: node offline > 5 min, ค่าเกินเกณฑ์, สรุปรดน้ำรายวัน', dod:'เปิดจากมือถือนอกบ้านได้ผ่าน login'},
+  {n:'4 Watch', from:7, to:8, step:'--seq650', work:'cam1 + gnome-vision: motion → YOLO11n → VLM (ollama) → Discord แนบรูป; หน้าดูกล้อง/เหตุการณ์', dod:'แจ้งเตือน "มีคน/นก" พร้อมรูป · false positive < 3/วัน'},
+  {n:'5 Harden', from:9, to:9, step:'--muted', work:'รีวิว 1 เดือน: ตัวไหนพัง/ชื้น, ปรับ threshold ตามฤดู, backup pg_dump → Drive, ตั้งชื่อโหนดตามธีมภูต', dod:'รายงานสรุปหลังใช้งานจริง 30 วัน', ongoing:true}
+];
+
+// item: {node, name, qty, b:unitPriceBudget|null, r:unitPriceRugged|null, bName?, rName?, note?}
+const BOM = [
+  {node:'water', name:'ESP32-DevKitC 38 pin', qty:1, b:180, r:180},
+  {node:'water', name:'Relay 2 ch 5 V optocoupled', qty:1, b:80, r:80},
+  {node:'water', name:'Solenoid 12 V NC ½"', qty:2, b:180, r:350, bName:'Solenoid 12 V NC ½" พลาสติก', rName:'Solenoid 12 V NC ½" ทองเหลือง'},
+  {node:'water', name:'Mean Well LRS-50-12', qty:1, b:400, r:400},
+  {node:'water', name:'Buck 12→5 V (MP1584)', qty:1, b:50, r:50},
+  {node:'water', name:'กล่อง IP65 + gland + terminal', qty:1, b:350, r:350},
+  {node:'water', name:'Inline filter + pressure regulator + ข้อต่อ ½"', qty:1, b:350, r:350},
+  {node:'water', name:'ชุดน้ำหยด (สาย 4/7 + หัว 20 จุด)', qty:1, b:350, r:350},
+  {node:'water', name:'หัวพ่นหมอก ×10 + สาย', qty:1, b:200, r:200},
+  {node:'airflow', name:'ESP32-C3 SuperMini', qty:1, b:90, r:90},
+  {node:'airflow', name:'Relay 1 ch 10 A/250 V optocoupled', qty:1, b:60, r:150, bName:'Relay 1 ch 10 A/250 V optocoupled ขั้วสกรู', rName:'Relay module 30 A/250 V (Omron/Songle) optocoupled'},
+  {node:'airflow', name:'AC-DC 5 V module (HLK-PM01)', qty:1, b:100, r:100},
+  {node:'airflow', name:'เต้ารับติดกล่อง + ฝาครอบกันน้ำ', qty:1, b:150, r:150},
+  {node:'airflow', name:'กล่องกันน้ำสำหรับงาน 220 V + gland', qty:1, b:200, r:350, bName:'กล่องพลาสติกกันน้ำ + gland', rName:'กล่อง IP66 หนา + gland + รางแยกโซน'},
+  {node:'airflow', name:'ฟิวส์ 5 A + ขั้ว + สาย VCT 2×1.5', qty:1, b:100, r:100},
+  {node:'air', name:'ESP32-C3 SuperMini', qty:1, b:90, r:90},
+  {node:'air', name:'SHT31', qty:1, b:180, r:350, bName:'SHT31 breakout', rName:'SHT30/31 waterproof probe'},
+  {node:'air', name:'BH1750 lux', qty:1, b:70, r:70},
+  {node:'air', name:'กล่อง IP65 เล็ก + gland + วัสดุ radiation shield', qty:1, b:250, r:250},
+  {node:'air', name:'อะแดปเตอร์ 5 V 2 A + สาย', qty:1, b:120, r:120},
+  {node:'ground', name:'ESP32-DevKitC 38 pin', qty:1, b:180, r:180},
+  {node:'ground', name:'Capacitive soil v2.0 + อีพ็อกซี่', qty:5, b:70, r:null},
+  {node:'ground', name:'RS485 soil moisture + temp', qty:3, b:null, r:500},
+  {node:'ground', name:'MAX485 module', qty:1, b:null, r:50},
+  {node:'ground', name:'สาย 4 core กันน้ำ + ขั้วต่อ DC กันน้ำ', qty:1, b:300, r:300},
+  {node:'ground', name:'กล่อง IP65 + gland', qty:1, b:250, r:250},
+  {node:'ground', name:'อะแดปเตอร์ 12 V 2 A + buck', qty:1, b:200, r:200},
+  {node:'cam1', name:'บอร์ดกล้อง + เคสกันน้ำ', qty:1, b:400, r:900, bName:'ESP32-CAM + MB + เคสกันน้ำ', rName:'XIAO ESP32S3 Sense + เคส'},
+  {node:'cam1', name:'อะแดปเตอร์ 5 V 2 A', qty:1, b:120, r:120},
+  {node:'server', name:'UPS 600–800 VA (Mac mini + router)', qty:1, b:null, r:1800},
+  {node:'server', name:'สายไฟ/สัญญาณ · Wago · heat shrink · สเปรย์เคลือบ PCB · ซิลิกาเจล', qty:1, b:600, r:600},
+  {node:'server', name:'ESP32 สำรอง 1 ตัว + sensor สำรอง', qty:1, b:400, r:400},
+];
+const NODE_LABEL = {water:'water — น้ำหยด/หมอก', airflow:'airflow — พัดลม', air:'air — อากาศ/แสง', ground:'ground — ความชื้นดิน', cam1:'cam1 — กล้อง', server:'ส่วนกลาง'};
+const EXCLUDED = 'ไม่รวม: พัดลมบ้าน (มีแล้ว), โครงซุ้มโค้งยกพื้น + สแลนพรางแดด (งานโครงสร้างของเจ้าของ), กล้อง IP สำรอง (≈ 1,500), ค่าติดตั้งท่อ';
+
+const RISKS = [
+  {sev:'critical', t:'WiFi หลุดตอนวาล์วเปิด', e:'น้ำท่วมกระถาง', f:'max_on_time ใน firmware + ปิดเมื่อ MQTT หลุด + วาล์ว NC'},
+  {sev:'critical', t:'220 V ในที่ชื้น', e:'อันตรายถึงชีวิต', f:'smart plug สำเร็จรูป + RCD + ปลั๊กกันน้ำ · ห้ามต่อ relay 220 V ลอย'},
+  {sev:'serious', t:'ความชื้นเข้ากล่อง', e:'บอร์ดพัง / ค่าเพี้ยน', f:'IP65 + gland + ซิลิกาเจล + เคลือบบอร์ด + ติดพ้นแนวหมอก'},
+  {sev:'serious', t:'Soil sensor drift / สนิม', e:'รดน้ำผิดเวลา', f:'RS485 หรือเคลือบอีพ็อกซี่ · median หลายหัว · เพดานเวลาเสมอ'},
+  {sev:'serious', t:'Mac mini หลับ / ดับ', e:'ระบบมืดทั้งสวน', f:'pmset sleep 0 · UPS · LaunchAgent restart · Discord heartbeat ทุกเช้า'},
+  {sev:'serious', t:'ดิสก์เต็ม (เหลือ 4.6 GB)', e:'DB หยุดเขียน', f:'retention 14 วัน raw · ภาพเฉพาะ event ≤ 500 MB · ล้างดิสก์ก่อนเริ่ม'},
+  {sev:'warning', t:'ESP32 ADC ไม่เป็นเชิงเส้น', e:'ค่าดินกระโดด', f:'ADC1 เท่านั้น · attenuation 11 dB · เฉลี่ย 32 sample · calibrate ต่อหัว'},
+  {sev:'warning', t:'ESP32-CAM ภาพแย่กลางคืน', e:'AI มองไม่เห็น', f:'IR LED เสริม หรือสลับเป็น IP cam RTSP (แผน C)'},
+  {sev:'warning', t:'Cloudflare Tunnel ล่ม', e:'เข้าจากนอกไม่ได้', f:'automation อยู่ใน LAN ทั้งหมด ไม่พึ่งอินเทอร์เน็ต · Discord ส่งเมื่อเน็ตกลับ'},
+  {sev:'warning', t:'หัวหมอกตันจากตะกรัน/ตะกอนน้ำประปา', e:'หมอกไม่ออก น้ำหยดเป็นสาย', f:'inline filter 120 mesh หน้าวาล์ว · ถอดล้างหัวด้วยน้ำส้มสายชูทุกเดือน · rule เตือนถ้าความชื้นอากาศไม่ขึ้นหลังพ่น'},
+];
+
+// ---------- RENDER ----------
+const fmt = n => n.toLocaleString('th-TH');
+const $ = s => document.querySelector(s);
+
+// node cards
+$('#node-cards').innerHTML = NODES.map(n => `
+  <div class="card node">
+    <div class="head"><h3 style="margin:0">${n.name}</h3><span class="id">${n.id}</span></div>
+    <div class="small muted">${n.role}</div>
+    <ul class="small">${n.parts.map(p=>`<li>${p}</li>`).join('')}</ul>
+    <div class="rug">🛡 ${n.rug}</div>
+  </div>`).join('');
+
+// gantt
+{
+  const g = $('#gantt');
+  let h = '<div class="h">Phase</div>' + Array.from({length:8},(_,i)=>`<div class="h">W${i+1}</div>`).join('') + '<div class="h">ต่อเนื่อง</div>';
+  for (const p of PHASES) {
+    h += `<div class="name">${p.n}</div>`;
+    for (let w=1; w<=8; w++) {
+      if (w===p.from && !p.ongoing) h += `<div class="cell" style="grid-column:span ${p.to-p.from+1}"><div class="bar" style="background:var(${p.step})" title="${p.n}: สัปดาห์ ${p.from}${p.to>p.from?'–'+p.to:''}">${p.to-p.from+1>1?'สัปดาห์ '+p.from+'–'+p.to:'W'+p.from}</div></div>`;
+      else if (w>p.from && w<=p.to) continue;
+      else h += `<div class="cell"></div>`;
+    }
+    h += p.ongoing ? `<div class="cell"><div class="bar" style="background:var(--muted)" title="ต่อเนื่อง">∞</div></div>` : `<div class="cell"></div>`;
+  }
+  g.innerHTML = h;
+  $('#phase-list').innerHTML = PHASES.map(p=>`<li><b>${p.n}</b> — ${p.work}<div class="dod">✔ Done เมื่อ: ${p.dod}</div></li>`).join('');
+}
+
+// BOM
+const KEY='gnome-bom-v1';
+let tier = localStorage.getItem(KEY+':tier') || 'rugged';
+let done = new Set(JSON.parse(localStorage.getItem(KEY)||'[]'));
+const itemKey = (it,i) => `${it.node}:${i}`;
+const price = (it,t) => t==='budget' ? it.b : it.r;
+const nameFor = (it,t) => t==='budget' ? (it.bName||it.name) : (it.rName||it.name);
+
+function totals(t){ const by={}; let sum=0; BOM.forEach(it=>{const p=price(it,t); if(p==null)return; const v=p*it.qty; by[it.node]=(by[it.node]||0)+v; sum+=v;}); return {by,sum}; }
+
+function renderBOM(){
+  $('#tier-budget').setAttribute('aria-pressed', tier==='budget');
+  $('#tier-rugged').setAttribute('aria-pressed', tier==='rugged');
+  const nodes = Object.keys(NODE_LABEL);
+  let html='';
+  let grand=0, remaining=0;
+  for (const n of nodes){
+    const rows = BOM.map((it,i)=>({it,i})).filter(x=>x.it.node===n && price(x.it,tier)!=null);
+    let sub=0;
+    const body = rows.map(({it,i})=>{
+      const p=price(it,tier), v=p*it.qty; sub+=v; const k=itemKey(it,i); const isDone=done.has(k); if(!isDone) remaining+=v;
+      return `<tr class="${isDone?'done':''}"><td class="chk"><input type="checkbox" data-k="${k}" ${isDone?'checked':''} aria-label="ซื้อแล้ว"></td><td>${nameFor(it,tier)}${it.note?` <span class="pill">${it.note}</span>`:''}</td><td class="num">${it.qty}</td><td class="num">${fmt(p)}</td><td class="num">${fmt(v)}</td></tr>`;
+    }).join('');
+    grand+=sub;
+    html += `<div class="card bom-node"><h3>${NODE_LABEL[n]}<span class="sum">${fmt(sub)} ฿</span></h3>
+      <table><thead><tr><th></th><th>รายการ</th><th class="num">จำนวน</th><th class="num">ราคา/หน่วย</th><th class="num">รวม</th></tr></thead><tbody>${body}</tbody></table></div>`;
+  }
+  $('#bom-list').innerHTML = html;
+  const other = totals(tier==='budget'?'rugged':'budget').sum;
+  $('#totals').innerHTML = `
+    <div class="tile"><div class="v">${fmt(grand)} ฿</div><div class="l">รวม${tier==='budget'?'งบประหยัด':'ระดับทน'}</div></div>
+    <div class="tile"><div class="v">${fmt(remaining)} ฿</div><div class="l">ยังไม่ได้ซื้อ (${done.size} รายการติ๊กแล้ว)</div></div>
+    <div class="tile"><div class="v">${fmt(other)} ฿</div><div class="l">อีกระดับ (${tier==='budget'?'ทน':'ประหยัด'}) เพื่อเทียบ</div></div>
+    <div class="tile" style="flex:1 1 260px"><div class="l">${EXCLUDED}</div></div>`;
+  document.querySelectorAll('#bom-list input[type=checkbox]').forEach(cb=>cb.addEventListener('change',e=>{
+    const k=e.target.dataset.k; e.target.checked?done.add(k):done.delete(k);
+    localStorage.setItem(KEY, JSON.stringify([...done])); renderBOM();
+  }));
+}
+$('#tier-budget').onclick=()=>{tier='budget';localStorage.setItem(KEY+':tier',tier);renderBOM();};
+$('#tier-rugged').onclick=()=>{tier='rugged';localStorage.setItem(KEY+':tier',tier);renderBOM();};
+$('#reset').onclick=()=>{ if(confirm('ล้างรายการที่ติ๊กทั้งหมด?')){done.clear();localStorage.removeItem(KEY);renderBOM();} };
+$('#csv').onclick=()=>{
+  const rows=[['node','item','qty','unit_price_thb','total_thb','tier']];
+  BOM.forEach(it=>{const p=price(it,tier); if(p==null)return; rows.push([it.node,nameFor(it,tier),it.qty,p,p*it.qty,tier]);});
+  const csv='﻿'+rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'})); a.download=`gnome-bom-${tier}.csv`; a.click();
+};
+
+// chart: grouped horizontal bars, budget vs rugged per node
+{
+  const b=totals('budget').by, r=totals('rugged').by;
+  const max=Math.max(...Object.keys(NODE_LABEL).map(n=>Math.max(b[n]||0,r[n]||0)));
+  const nice=Math.ceil(max/1000)*1000;
+  let h='';
+  for (const n of Object.keys(NODE_LABEL)){
+    const bv=b[n]||0, rv=r[n]||0;
+    h+=`<div class="row"><div class="label">${NODE_LABEL[n].split(' — ')[0]}</div><div class="bars">
+      <div class="bar" style="width:${bv/nice*100}%;background:var(--s1)" title="งบประหยัด · ${NODE_LABEL[n]}: ${fmt(bv)} ฿"><span>${fmt(bv)}</span></div>
+      <div class="bar" style="width:${rv/nice*100}%;background:var(--s2)" title="ระดับทน · ${NODE_LABEL[n]}: ${fmt(rv)} ฿"><span>${fmt(rv)}</span></div></div></div>`;
+  }
+  h+=`<div class="row" style="margin-top:0"><div></div><div class="axisline">${[0,.25,.5,.75,1].map(f=>`<span style="left:${f*100}%">${fmt(nice*f)}</span>`).join('')}</div></div>`;
+  $('#chart').innerHTML=h;
+  $('#tile-budget').textContent=fmt(totals('budget').sum);
+  $('#tile-rugged').textContent=fmt(totals('rugged').sum);
+}
+
+// risks
+$('#risk-list').innerHTML = RISKS.map(r=>`<div class="item"><div class="sev ${r.sev}" title="${r.sev}"></div><div><b>${r.sev==='critical'?'🔴':r.sev==='serious'?'🟠':'🟡'} ${r.t} <span class="muted small">→ ${r.e}</span></b><div class="fix">${r.f}</div></div></div>`).join('');
+
+renderBOM();
+</script>
+</body>
+</html>

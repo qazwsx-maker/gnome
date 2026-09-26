@@ -14,6 +14,13 @@
   --good:#0ca30c; --warn:#fab219; --serious:#ec835a; --critical:#d03b3b;
   --leaf:#1f7a3a;
 }
+:root[data-theme="dark"]{
+    color-scheme:dark;
+    --page:#0d0d0d; --surface:#1a1a19; --ink:#fff; --ink2:#c3c2b7; --muted:#898781;
+    --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,.10);
+    --s1:#3987e5; --s2:#d95926; --seq250:#184f95; --seq350:#1c5cab; --seq450:#256abf; --seq550:#3987e5; --seq650:#6da7ec;
+    --leaf:#4cc06f;
+}
 @media (prefers-color-scheme:dark){
   :root:where(:not([data-theme="light"])){
     color-scheme:dark;
@@ -23,9 +30,14 @@
     --leaf:#4cc06f;
   }
 }
-*{box-sizing:border-box}
+*{box-sizing:border-box;min-width:0}
 html{scroll-behavior:smooth}
-body{margin:0;background:var(--page);color:var(--ink);font:15px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}
+html,body{overflow-x:clip}
+body{margin:0;background:var(--page);color:var(--ink);font:15px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif;overflow-wrap:anywhere}
+.tbl{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -4px;padding:0 4px}
+.tbl table{min-width:560px}
+.tbl.wide table,.tbl.bom table{min-width:680px}
+.scroll-hint{display:none;font-size:12px;color:var(--muted);margin:6px 0 0}
 a{color:var(--s1)}
 h1,h2,h3{line-height:1.25;margin:0 0 .4em}
 h1{font-size:clamp(28px,5vw,44px)}
@@ -34,10 +46,12 @@ h3{font-size:16px}
 .wrap{max-width:1100px;margin:0 auto;padding:0 20px}
 header.top{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--page) 88%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--border)}
 header.top .wrap{display:flex;align-items:center;gap:16px;height:52px}
-.brand{font-weight:700;letter-spacing:.02em;display:flex;align-items:center;gap:8px}
+.brand{font-weight:700;letter-spacing:.02em;display:flex;align-items:center;gap:8px;flex:none;white-space:nowrap}
 .brand .dot{width:10px;height:10px;border-radius:50%;background:var(--leaf)}
-nav{margin-left:auto;display:flex;gap:4px;overflow-x:auto}
-nav a{color:var(--ink2);text-decoration:none;padding:6px 10px;border-radius:8px;white-space:nowrap;font-size:14px}
+nav{margin-left:auto;display:flex;gap:4px;overflow-x:auto;flex:1 1 auto;min-width:0;justify-content:flex-end;scrollbar-width:none}
+nav::-webkit-scrollbar{display:none}
+#theme{flex:none}
+nav a{flex:none;color:var(--ink2);text-decoration:none;padding:6px 10px;border-radius:8px;white-space:nowrap;font-size:14px}
 nav a:hover{background:var(--surface)}
 section{padding:44px 0 8px}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px}
@@ -80,11 +94,11 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:now
 .node ul{margin:0;padding-left:18px}
 .node .rug{border-top:1px dashed var(--grid);padding-top:8px;font-size:13px;color:var(--ink2)}
 /* gantt */
-.gantt{display:grid;grid-template-columns:150px repeat(8,1fr) 60px;gap:6px 0;align-items:center;font-size:13px}
+.gantt{display:grid;grid-template-columns:150px repeat(8,minmax(0,1fr)) 60px;gap:6px 0;align-items:center;font-size:13px}
 .gantt .h{color:var(--muted);font-size:12px;text-align:center;padding-bottom:6px;border-bottom:1px solid var(--grid)}
 .gantt .h:first-child,.gantt .h:last-child{text-align:left}
 .gantt .name{padding-right:8px;font-weight:600}
-.gantt .bar{height:22px;border-radius:4px;margin:3px 1px;display:flex;align-items:center;padding:0 8px;color:#fff;font-size:12px;white-space:nowrap;overflow:hidden}
+.gantt .bar{height:22px;border-radius:4px;margin:3px 1px;display:flex;align-items:center;padding:0 8px;color:#fff;font-size:12px;white-space:nowrap;overflow:hidden;min-width:0}
 .gantt .cell{grid-column:span 1}
 .phase-list li{margin-bottom:8px}
 .dod{color:var(--ink2);font-size:13px}
@@ -106,7 +120,7 @@ input[type=checkbox]{width:16px;height:16px;accent-color:var(--leaf)}
 .total{display:flex;flex-wrap:wrap;gap:12px;margin-top:16px}
 .total .tile .v{font-size:24px}
 /* bar chart */
-.chart{margin-top:8px}
+.chart{margin-top:8px;padding-right:56px}
 .legend{display:flex;gap:16px;font-size:13px;color:var(--ink2);margin-bottom:10px}
 .legend i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin-right:6px}
 .row{display:grid;grid-template-columns:120px 1fr;gap:10px;align-items:center;margin:8px 0}
@@ -116,7 +130,8 @@ input[type=checkbox]{width:16px;height:16px;accent-color:var(--leaf)}
 .bar span{position:absolute;left:calc(100% + 8px);top:-3px;font-size:12px;color:var(--ink2);font-variant-numeric:tabular-nums;white-space:nowrap}
 .bar:hover{filter:brightness(1.08)}
 .axisline{grid-column:2;border-top:1px solid var(--axis);position:relative;height:18px;margin-top:4px}
-.axisline span{position:absolute;top:2px;font-size:11px;color:var(--muted);transform:translateX(-50%)}
+.axisline span{position:absolute;top:2px;font-size:11px;color:var(--muted);transform:translateX(-50%);white-space:nowrap}
+.axisline span:last-child{transform:translateX(-100%)}
 /* risks */
 .risk{display:grid;grid-template-columns:1fr;gap:10px}
 .risk .item{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;display:grid;grid-template-columns:auto 1fr;gap:12px}
@@ -125,7 +140,50 @@ input[type=checkbox]{width:16px;height:16px;accent-color:var(--leaf)}
 .risk b{display:block}
 .risk .fix{color:var(--ink2);font-size:14px}
 footer{padding:40px 0;color:var(--muted);font-size:13px;border-top:1px solid var(--border);margin-top:40px}
-@media (max-width:700px){.gantt{grid-template-columns:110px repeat(8,1fr) 44px;font-size:12px}.row{grid-template-columns:90px 1fr}}
+@media (max-width:700px){
+  body{font-size:14px}
+  .wrap{padding:0 14px}
+  section{padding:32px 0 4px}
+  .card{padding:14px;border-radius:12px}
+  .hero{padding:28px 0 12px}
+  .hero p.lead{font-size:16px}
+  .tile .v{font-size:24px}
+  .gantt{grid-template-columns:repeat(8,minmax(0,1fr)) 34px;gap:2px 0;font-size:11px}
+  .gantt .h:first-child{display:none}
+  .gantt .name{grid-column:1 / -1;padding:10px 0 2px;font-size:13px}
+  .gantt .bar{height:18px;padding:0 6px;font-size:11px}
+  .row{grid-template-columns:78px 1fr}
+  .chart{padding-right:48px}
+  .toolbar{gap:8px}
+  .toolbar .spacer{display:none}
+  .scroll-hint{display:block}
+  .tbl.stack{margin:0;padding:0}
+  .tbl.stack table{min-width:0}
+  .tbl.stack thead{display:none}
+  .tbl.stack tr{display:block;padding:10px 0;border-bottom:1px solid var(--grid)}
+  .tbl.stack td{display:block;border:0;padding:1px 0}
+  .tbl.stack td:first-child{font-weight:600;padding-bottom:3px}
+  .tbl.stack + .scroll-hint{display:none}
+  .tbl.bom{margin:0;padding:0}
+  .tbl.bom table{min-width:0}
+  .tbl.bom thead{display:none}
+  .tbl.bom tr{display:grid;grid-template-columns:26px minmax(0,1fr) auto;column-gap:8px;row-gap:2px;padding:9px 0;border-bottom:1px solid var(--grid);align-items:start}
+  .tbl.bom td{display:block;border:0;padding:0}
+  .tbl.bom td.chk{grid-row:1 / 3;padding-top:2px}
+  .tbl.bom td.name{grid-column:2;grid-row:1}
+  .tbl.bom td.tot{grid-column:3;grid-row:1;font-weight:600;white-space:nowrap}
+  .tbl.bom td.shop{grid-column:2;grid-row:2;font-size:12px}
+  .tbl.bom td.qty{display:none}
+  .tbl.bom td.unit{grid-column:3;grid-row:2;font-size:12px;color:var(--muted);text-align:right;white-space:nowrap}
+  .tbl.bom td.unit[data-qty]:not([data-qty="1"])::before{content:attr(data-qty) " × "}
+  .tbl.bom tr.done td{text-decoration:line-through}
+  .tbl.bom tr.done td.chk{text-decoration:none}
+  nav{justify-content:flex-start}
+  .arch svg{min-width:680px}
+  pre{font-size:12px}
+  .risk .item{padding:10px 12px}
+  footer{padding:24px 0}
+}
 @media print{header.top,.toolbar,button{display:none}section{padding:16px 0}.card{break-inside:avoid}}
 </style>
 </head>
@@ -136,6 +194,7 @@ footer{padding:40px 0;color:var(--muted);font-size:13px;border-top:1px solid var
     <a href="#feas">ความเป็นไปได้</a><a href="#arch">สถาปัตยกรรม</a><a href="#nodes">Nodes</a><a href="#stack">Stack</a><a href="#plan">แผนงาน</a><a href="#bom">อุปกรณ์/งบ</a><a href="#risk">ความเสี่ยง</a><a href="#shops">แหล่งซื้อ</a>
     <a href="https://github.com/qazwsx-maker/gnome" rel="noopener">GitHub</a>
   </nav>
+  <button id="theme" class="ghost" style="padding:5px 9px;font-size:13px" title="สลับโหมดสว่าง/มืด" aria-label="สลับธีม">◐</button>
 </div></header>
 
 <main class="wrap">
@@ -157,7 +216,7 @@ footer{padding:40px 0;color:var(--muted);font-size:13px;border-top:1px solid var
   <h2>1 · ความเป็นไปได้</h2>
   <div class="card">
     <p><b>ทำได้แน่นอน</b> ทุก node เป็นของที่ชุมชน ESP32 ทำกันเป็นมาตรฐาน ความเสี่ยงจริงไม่ได้อยู่ที่ซอฟต์แวร์ แต่อยู่ที่ <b>ฮาร์ดแวร์ในสวนที่มีพ่นหมอก</b> และ <b>ความปลอดภัยของระบบรดน้ำเมื่อ WiFi หลุด</b></p>
-    <table>
+    <div class="tbl stack"><table>
       <thead><tr><th>หัวข้อ</th><th>ความยาก</th><th>หมายเหตุ</th></tr></thead>
       <tbody>
         <tr><td>Sensor node (อุณหภูมิ/ความชื้น/แสง)</td><td><span class="lvl easy"><i></i>ง่าย</span></td><td>ใช้ ESPHome ได้เลย ไม่ต้องเขียน firmware</td></tr>
@@ -168,7 +227,7 @@ footer{padding:40px 0;color:var(--muted);font-size:13px;border-top:1px solid var
         <tr><td>Server: status/logs/webapp/automation/Discord</td><td><span class="lvl mid"><i></i>กลาง</span></td><td>สแต็คที่มีอยู่แล้วบน Mac mini รองรับหมด</td></tr>
         <tr><td>Public access + login</td><td><span class="lvl easy"><i></i>ง่าย</span></td><td>Cloudflare Tunnel + Access (มี cloudflared อยู่แล้ว) ไม่ต้อง forward port</td></tr>
       </tbody>
-    </table>
+    </table></div><p class="scroll-hint">← เลื่อนตารางซ้าย-ขวาได้</p>
     <p class="small muted" style="margin-top:12px">สภาพ Mac mini ที่ตรวจพบ: M4 · 16 GB · macOS 26.4 · Docker 28 · Node 25 · Python 3.14 · PlatformIO · cloudflared · ollama · PostgreSQL 17 (Homebrew) — <b>ดิสก์เหลือ 4.6 GB</b> ต้องทำ retention ตั้งแต่วันแรก</p>
   </div>
 </section>
@@ -257,7 +316,7 @@ gnome/&lt;node&gt;/debug                     rssi · uptime · heap · ip</pre>
 <section id="stack">
   <h2>4 · Tech stack</h2>
   <div class="card">
-    <table>
+    <div class="tbl stack"><table>
       <thead><tr><th>ส่วน</th><th>เทคโนโลยี</th><th>เหตุผล</th></tr></thead>
       <tbody>
         <tr><td>Node firmware</td><td><b>ESPHome</b> (MQTT mode) · PlatformIO เฉพาะที่จำเป็น</td><td>reconnect/OTA/watchdog/driver ครบ, <code>max_on_time</code> + interlock บนสวิตช์ = fail-safe ฟรี · PlatformIO ต้อง pin pioarduino URL</td></tr>
@@ -269,7 +328,7 @@ gnome/&lt;node&gt;/debug                     rssi · uptime · heap · ip</pre>
         <tr><td>Remote + auth</td><td>Cloudflare Tunnel + Access (Google login)</td><td>ไม่เปิด port, ไม่ต้องเขียน login เอง, ฟรี ≤ 50 users</td></tr>
         <tr><td>Process</td><td>LaunchAgents / <code>docker compose</code> restart</td><td>ตั้ง <code>pmset -a sleep 0</code> · UPS · Discord heartbeat ทุกเช้า</td></tr>
       </tbody>
-    </table>
+    </table></div><p class="scroll-hint">← เลื่อนตารางซ้าย-ขวาได้</p>
     <p class="small" style="margin:12px 0 0"><b>ทางลัด:</b> Home Assistant + ESPHome + Frigate ให้ฟีเจอร์ server ครบใน 1 วัน แต่ปรับแต่งยากกว่า · firmware ของ node เหมือนกันจึงเปลี่ยนใจได้ทีหลัง</p>
   </div>
 </section>
@@ -338,7 +397,7 @@ gnome/&lt;node&gt;/debug                     rssi · uptime · heap · ip</pre>
   <h2>8 · แหล่งซื้อ — บ้านหม้อเดินดูของได้ + ออนไลน์</h2>
   <div class="card">
     <h3>ร้านที่บ้านหม้อ / ใกล้บ้านหม้อ</h3>
-    <table>
+    <div class="tbl stack"><table>
       <thead><tr><th>ร้าน</th><th>ที่อยู่ / ติดต่อ</th><th>ซื้ออะไรสำหรับ GNOME</th></tr></thead>
       <tbody>
         <tr><td><b>Electronics Source (ES)</b></td><td>77 ถ.บ้านหม้อ พระนคร 10200 · 02-000-9208 · <a href="https://www.es.co.th/">es.co.th</a></td><td>relay, Mean Well, กล่อง/ขั้วต่อ, ฟิวส์, สาย — สต็อกกว้างสุดในย่าน · บอร์ด ESP32 ถามหน้าร้าน</td></tr>
@@ -347,7 +406,7 @@ gnome/&lt;node&gt;/debug                     rssi · uptime · heap · ip</pre>
         <tr><td><b>ModuleMore</b></td><td>083-171-0868 · LINE @modulemore · <a href="https://www.modulemore.com/">modulemore.com</a> — ติดแท็ก "บ้านหม้อ" แต่ไม่ระบุที่อยู่ <b>โทรถามก่อนไป</b></td><td>ESP32, relay, MAX485, HLK-PM01, soil sensor — ครบสายโมดูล ถ้ามีหน้าร้านจริง</td></tr>
         <tr><td class="muted">นัฐพงษ์ (NPE)</td><td class="muted">119 ถ.อัษฎางค์</td><td class="muted">เช็คแล้ว: ร้านเครื่องเสียง/PA ไม่มีโมดูล IoT</td></tr>
       </tbody>
-    </table>
+    </table></div><p class="scroll-hint">← เลื่อนตารางซ้าย-ขวาได้</p>
     <p class="small" style="margin:12px 0 0"><b>แผนวันเดินบ้านหม้อ:</b> relay · Mean Well LRS-50-12 · กล่องกันน้ำ · cable gland · ฟิวส์+ขั้ว · สาย VCT · เต้ารับติดกล่อง · Wago/terminal · ซิลิกาเจล · สเปรย์เคลือบ PCB — ซื้อได้ครบ · <b>บอร์ด ESP32 + เซ็นเซอร์</b> สั่งออนไลน์ (Arduitronics / ArtronShop / Cybertice) แน่นอนกว่า · <b>น้ำหยด/หมอก/กรอง</b> ไทวัสดุหรือร้านเกษตร</p>
     <p class="small muted" style="margin:8px 0 0">มีหน้าร้านแต่ไม่ใช่บ้านหม้อ: ThaiEasyElec (66/3 ถ.เทศบาลรังสรรค์เหนือ ลาดยาว จตุจักร · 089-514-8111) มีบอร์ด+เซ็นเซอร์ครบ · Gravitech (รังสิต) · รายการราคาจริงทั้งหมดพร้อมลิงก์อยู่ใน <a href="https://github.com/qazwsx-maker/gnome/blob/main/docs/SOURCING.md">docs/SOURCING.md</a></p>
   </div>
@@ -502,12 +561,12 @@ function renderBOM(){
     const body = rows.map(({it,i})=>{
       const p=price(it,tier), v=p*it.qty; sub+=v; const k=itemKey(it,i); const isDone=done.has(k); if(!isDone) remaining+=v;
       const sc=srcFor(it,tier);
-      const srcCell = sc ? `<a href="${sc.url}" rel="noopener" title="${sc.shop}">${sc.shop.split(' ').slice(0,2).join(' ')} ↗</a>` : `<span class="muted">ประเมิน</span>`;
-      return `<tr class="${isDone?'done':''}"><td class="chk"><input type="checkbox" data-k="${k}" ${isDone?'checked':''} aria-label="ซื้อแล้ว"></td><td>${nameFor(it,tier)}${it.note?` <span class="pill">${it.note}</span>`:''}</td><td class="small">${srcCell}</td><td class="num">${it.qty}</td><td class="num">${sc?'<b>'+fmt(p)+'</b>':'≈'+fmt(p)}</td><td class="num">${fmt(v)}</td></tr>`;
+      const srcCell = sc ? `<a href="${sc.url}" rel="noopener" title="${sc.shop}">${sc.shop.split(/ [·(]/)[0].split(' ').slice(0,2).join(' ')} ↗</a>` : `<span class="muted">ประเมิน</span>`;
+      return `<tr class="${isDone?'done':''}"><td class="chk"><input type="checkbox" data-k="${k}" ${isDone?'checked':''} aria-label="ซื้อแล้ว"></td><td class="name">${nameFor(it,tier)}${it.note?` <span class="pill">${it.note}</span>`:''}</td><td class="small shop">${srcCell}</td><td class="num qty">${it.qty}</td><td class="num unit" data-qty="${it.qty}">${sc?'<b>'+fmt(p)+'</b>':'≈'+fmt(p)}</td><td class="num tot">${fmt(v)}</td></tr>`;
     }).join('');
     grand+=sub;
     html += `<div class="card bom-node"><h3>${NODE_LABEL[n]}<span class="sum">${fmt(sub)} ฿</span></h3>
-      <table><thead><tr><th></th><th>รายการ</th><th>ร้าน</th><th class="num">จำนวน</th><th class="num">ราคา/หน่วย</th><th class="num">รวม</th></tr></thead><tbody>${body}</tbody></table></div>`;
+      <div class="tbl bom"><table><thead><tr><th></th><th>รายการ</th><th>ร้าน</th><th class="num">จำนวน</th><th class="num">ราคา/หน่วย</th><th class="num">รวม</th></tr></thead><tbody>${body}</tbody></table></div></div>`;
   }
   $('#bom-list').innerHTML = html;
   const other = totals(tier==='budget'?'rugged':'budget').sum;
@@ -553,6 +612,9 @@ $('#csv').onclick=()=>{
 $('#risk-list').innerHTML = RISKS.map(r=>`<div class="item"><div class="sev ${r.sev}" title="${r.sev}"></div><div><b>${r.sev==='critical'?'🔴':r.sev==='serious'?'🟠':'🟡'} ${r.t} <span class="muted small">→ ${r.e}</span></b><div class="fix">${r.f}</div></div></div>`).join('');
 
 renderBOM();
+// theme toggle: system → explicit light/dark, remembered
+{ const root=document.documentElement, saved=localStorage.getItem('gnome-theme'); if(saved) root.dataset.theme=saved;
+  $('#theme').onclick=()=>{ const dark = root.dataset.theme ? root.dataset.theme==='dark' : matchMedia('(prefers-color-scheme: dark)').matches; const next=dark?'light':'dark'; root.dataset.theme=next; localStorage.setItem('gnome-theme',next); }; }
 </script>
 </body>
 </html>

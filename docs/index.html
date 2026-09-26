@@ -133,7 +133,7 @@ footer{padding:40px 0;color:var(--muted);font-size:13px;border-top:1px solid var
 <header class="top"><div class="wrap">
   <div class="brand"><span class="dot"></span>GNOME</div>
   <nav>
-    <a href="#feas">ความเป็นไปได้</a><a href="#arch">สถาปัตยกรรม</a><a href="#nodes">Nodes</a><a href="#stack">Stack</a><a href="#plan">แผนงาน</a><a href="#bom">อุปกรณ์/งบ</a><a href="#risk">ความเสี่ยง</a>
+    <a href="#feas">ความเป็นไปได้</a><a href="#arch">สถาปัตยกรรม</a><a href="#nodes">Nodes</a><a href="#stack">Stack</a><a href="#plan">แผนงาน</a><a href="#bom">อุปกรณ์/งบ</a><a href="#risk">ความเสี่ยง</a><a href="#shops">แหล่งซื้อ</a>
     <a href="https://github.com/qazwsx-maker/gnome" rel="noopener">GitHub</a>
   </nav>
 </div></header>
@@ -290,7 +290,7 @@ gnome/&lt;node&gt;/debug                     rssi · uptime · heap · ip</pre>
       <button id="tier-budget" aria-pressed="false">งบประหยัด</button>
       <button id="tier-rugged" aria-pressed="true">ระดับทน (แนะนำ)</button>
     </div>
-    <span class="small muted">ติ๊ก ☑ เมื่อซื้อแล้ว — บันทึกไว้ในเบราว์เซอร์นี้</span>
+    <span class="small muted">ติ๊ก ☑ เมื่อซื้อแล้ว — บันทึกไว้ในเบราว์เซอร์นี้ · <b>ตัวหนา</b> = ราคาจริงบนเว็บร้าน (เช็ค 26 ก.ย. 2026) · ≈ = ประเมิน</span>
     <div class="spacer"></div>
     <button class="ghost" id="csv">ดาวน์โหลด CSV</button>
     <button class="ghost" id="reset">ล้างที่ติ๊ก</button>
@@ -334,6 +334,35 @@ gnome/&lt;node&gt;/debug                     rssi · uptime · heap · ip</pre>
   </div>
 </section>
 
+<section id="shops">
+  <h2>8 · แหล่งซื้อ — บ้านหม้อเดินดูของได้ + ออนไลน์</h2>
+  <div class="card">
+    <h3>ร้านที่บ้านหม้อ / ใกล้บ้านหม้อ</h3>
+    <table>
+      <thead><tr><th>ร้าน</th><th>ที่อยู่ / ติดต่อ</th><th>ซื้ออะไรสำหรับ GNOME</th></tr></thead>
+      <tbody>
+        <tr><td><b>Electronics Source (ES)</b></td><td>77 ถ.บ้านหม้อ พระนคร 10200 · 02-000-9208 · <a href="https://www.es.co.th/">es.co.th</a></td><td>relay, Mean Well, กล่อง/ขั้วต่อ, ฟิวส์, สาย — สต็อกกว้างสุดในย่าน · บอร์ด ESP32 ถามหน้าร้าน</td></tr>
+        <tr><td><b>SPE บ้านหม้อ</b></td><td>02-225-6494 · LINE @spebanmoh · <a href="https://www.spebanmoh-online.com/">spebanmoh-online.com</a></td><td>Omron relay, Mean Well (82 รายการ), cable gland, ขั้วต่อกันน้ำ SP16/SP28, สายไฟ — "ฝั่งไฟฟ้า" ของทุก node</td></tr>
+        <tr><td><b>บ้านหม้อ อิเล็กทรอนิกส์</b></td><td>ซอยบ้านหม้อ ใกล้ปากคลองตลาด · 095-826-1946 · LINE @MYELECTRONIC · ทุกวัน 9:30–22:00</td><td>relay/SSR, PSU, อะแดปเตอร์, สาย, อุปกรณ์บัดกรี — เปิดดึก</td></tr>
+        <tr><td><b>ModuleMore</b></td><td>083-171-0868 · LINE @modulemore · <a href="https://www.modulemore.com/">modulemore.com</a> — ติดแท็ก "บ้านหม้อ" แต่ไม่ระบุที่อยู่ <b>โทรถามก่อนไป</b></td><td>ESP32, relay, MAX485, HLK-PM01, soil sensor — ครบสายโมดูล ถ้ามีหน้าร้านจริง</td></tr>
+        <tr><td class="muted">นัฐพงษ์ (NPE)</td><td class="muted">119 ถ.อัษฎางค์</td><td class="muted">เช็คแล้ว: ร้านเครื่องเสียง/PA ไม่มีโมดูล IoT</td></tr>
+      </tbody>
+    </table>
+    <p class="small" style="margin:12px 0 0"><b>แผนวันเดินบ้านหม้อ:</b> relay · Mean Well LRS-50-12 · กล่องกันน้ำ · cable gland · ฟิวส์+ขั้ว · สาย VCT · เต้ารับติดกล่อง · Wago/terminal · ซิลิกาเจล · สเปรย์เคลือบ PCB — ซื้อได้ครบ · <b>บอร์ด ESP32 + เซ็นเซอร์</b> สั่งออนไลน์ (Arduitronics / ArtronShop / Cybertice) แน่นอนกว่า · <b>น้ำหยด/หมอก/กรอง</b> ไทวัสดุหรือร้านเกษตร</p>
+    <p class="small muted" style="margin:8px 0 0">มีหน้าร้านแต่ไม่ใช่บ้านหม้อ: ThaiEasyElec (66/3 ถ.เทศบาลรังสรรค์เหนือ ลาดยาว จตุจักร · 089-514-8111) มีบอร์ด+เซ็นเซอร์ครบ · Gravitech (รังสิต) · รายการราคาจริงทั้งหมดพร้อมลิงก์อยู่ใน <a href="https://github.com/qazwsx-maker/gnome/blob/main/docs/SOURCING.md">docs/SOURCING.md</a></p>
+  </div>
+  <div class="card" style="margin-top:16px">
+    <h3>ราคาจริงที่ต่างจากประเมิน</h3>
+    <ul style="margin:0;padding-left:20px">
+      <li><b>RS485 soil sensor 1,300–1,400 ฿/หัว</b> แพงกว่าประเมินเกือบ 3 เท่า → ระดับทนใช้ 2 หัว RS485 (ริม/กลาง) + capacitive 2 หัวเสริม</li>
+      <li><b>SHT30 หัวกันน้ำ 150 ฿</b> (SmartP) ถูกกว่าประเมินมาก · รุ่นเกรดฟาร์ม ArtronShop 469 ฿ มีขายึด ทนกว่า</li>
+      <li><b>โดมตะวัน BH1750 กันน้ำ 280 ฿</b> ตัดงานทำช่องใสเอง — แนะนำสำหรับกลางแจ้ง</li>
+      <li><b>Solenoid ทองเหลือง 482 ฿</b> แพงกว่าประเมิน · พลาสติก 110 ฿ ถูกกว่า</li>
+      <li><b>กล่อง IP65 F1 140 ฿</b> ถูกกว่าประเมิน · <b>UPS 800 VA ≈ 2,000–2,400 ฿</b> สูงกว่าประเมิน</li>
+    </ul>
+  </div>
+</section>
+
 </main>
 <footer><div class="wrap">GNOME · ภูตดูแลสวน — แพลนฉบับ 2026-09-26 · <a href="https://github.com/qazwsx-maker/gnome">github.com/qazwsx-maker/gnome</a> · ราคาเป็นค่าประเมิน ควรเช็คก่อนซื้อ</div></footer>
 
@@ -364,38 +393,44 @@ const PHASES = [
 ];
 
 // item: {node, name, qty, b:unitPriceBudget|null, r:unitPriceRugged|null, bName?, rName?, note?}
+// item: {node, name, qty, b:unitPriceBudget|null, r:unitPriceRugged|null, bName?, rName?, note?, src?:{shop,url,note?}, bSrc?, rSrc?}
+// ราคาที่มี src = ราคาจริงบนหน้าเว็บร้าน (เช็ค 2026-09-26) · ไม่มี src = ประเมิน
 const BOM = [
-  {node:'water', name:'ESP32-DevKitC 38 pin', qty:1, b:180, r:180},
-  {node:'water', name:'Relay 2 ch 5 V optocoupled', qty:1, b:80, r:80},
-  {node:'water', name:'Solenoid 12 V NC ½"', qty:2, b:180, r:350, bName:'Solenoid 12 V NC ½" พลาสติก', rName:'Solenoid 12 V NC ½" ทองเหลือง'},
-  {node:'water', name:'Mean Well LRS-50-12', qty:1, b:400, r:400},
-  {node:'water', name:'Buck 12→5 V (MP1584)', qty:1, b:50, r:50},
-  {node:'water', name:'กล่อง IP65 + gland + terminal', qty:1, b:350, r:350},
-  {node:'water', name:'Inline filter + pressure regulator + ข้อต่อ ½"', qty:1, b:350, r:350},
-  {node:'water', name:'ชุดน้ำหยด (สาย 4/7 + หัว 20 จุด)', qty:1, b:350, r:350},
-  {node:'water', name:'หัวพ่นหมอก ×10 + สาย', qty:1, b:200, r:200},
-  {node:'airflow', name:'ESP32-C3 SuperMini', qty:1, b:90, r:90},
-  {node:'airflow', name:'Relay 1 ch 10 A/250 V optocoupled', qty:1, b:60, r:150, bName:'Relay 1 ch 10 A/250 V optocoupled ขั้วสกรู', rName:'Relay module 30 A/250 V (Omron/Songle) optocoupled'},
-  {node:'airflow', name:'AC-DC 5 V module (HLK-PM01)', qty:1, b:100, r:100},
-  {node:'airflow', name:'เต้ารับติดกล่อง + ฝาครอบกันน้ำ', qty:1, b:150, r:150},
-  {node:'airflow', name:'กล่องกันน้ำสำหรับงาน 220 V + gland', qty:1, b:200, r:350, bName:'กล่องพลาสติกกันน้ำ + gland', rName:'กล่อง IP66 หนา + gland + รางแยกโซน'},
-  {node:'airflow', name:'ฟิวส์ 5 A + ขั้ว + สาย VCT 2×1.5', qty:1, b:100, r:100},
-  {node:'air', name:'ESP32-C3 SuperMini', qty:1, b:90, r:90},
-  {node:'air', name:'SHT31', qty:1, b:180, r:350, bName:'SHT31 breakout', rName:'SHT30/31 waterproof probe'},
-  {node:'air', name:'BH1750 lux', qty:1, b:70, r:70},
-  {node:'air', name:'กล่อง IP65 เล็ก + gland + วัสดุ radiation shield', qty:1, b:250, r:250},
+  {node:'water', name:'ESP32-DevKitC 38 pin (ESP32-32D)', qty:1, b:185, r:185, src:{shop:'Arduitronics', url:'https://www.arduitronics.com/product/6451'}},
+  {node:'water', name:'Relay 2 ch 5 V 10 A optocoupled', qty:1, b:75, r:75, src:{shop:'Arduitronics', url:'https://www.arduitronics.com/product/641'}},
+  {node:'water', name:'Solenoid 12 V NC ½"', qty:2, b:110, r:482, bName:'Solenoid 12 V NC ½" พลาสติก+โลหะ', rName:'Solenoid 12 V NC ½" ทองเหลือง 10 bar', bSrc:{shop:'MCU City (หมด — หาแบบเดียวกันบน Shopee)', url:'https://www.mcucity.com/product/1291'}, rSrc:{shop:'Thai Solar System', url:'https://www.thaisolarsystem.com/product/626'}},
+  {node:'water', name:'Mean Well LRS-50-12 (12 V 4.2 A)', qty:1, b:424, r:424, src:{shop:'Sirichai Electric · หรือ SPE บ้านหม้อ', url:'https://sirichaielectric.com/product_in/LRS-50-12-MEANWELL-SWITCHING-POWER-SUPPLY'}},
+  {node:'water', name:'MP1584 buck 7–24 V → 5 V', qty:1, b:100, r:100, src:{shop:'Arduitronics (Shopee ≈ 40)', url:'https://www.arduitronics.com/product/2714'}},
+  {node:'water', name:'กล่องกันน้ำ ABS F1 200×120×75 IP65', qty:1, b:140, r:140, src:{shop:'Mikroelec · หรือ ES/SPE บ้านหม้อ', url:'https://www.mikroelec.com/product/1640'}},
+  {node:'water', name:'Cable gland PG9 ×4 + terminal block', qty:1, b:100, r:100, note:'บ้านหม้อ'},
+  {node:'water', name:'Inline filter + pressure regulator + ข้อต่อ ½"', qty:1, b:350, r:350, note:'ไทวัสดุ/ร้านเกษตร'},
+  {node:'water', name:'ชุดน้ำหยด 20 หัวปรับได้ + สาย 4/7 15 m + ข้อต่อ', qty:1, b:250, r:250, src:{shop:'Deetisud (หมด — แบบเดียวกันมีบน Shopee)', url:'https://www.deetisud.com/product/764'}},
+  {node:'water', name:'ชุดพ่นหมอก 11 หัว 3 ทาง + สาย 10 m', qty:1, b:259, r:259, src:{shop:'ไทเกษตร', url:'https://thaikaset.co.th/product/mist-system/'}},
+  {node:'airflow', name:'ESP32-C3 Super Mini (บัดกรีแล้ว)', qty:1, b:125, r:125, src:{shop:'Cybertice', url:'https://www.cybertice.com/product/5725'}},
+  {node:'airflow', name:'Relay 1 ch optocoupled', qty:1, b:60, r:95, bName:'Relay 1 ch 5 V 10 A/250 V optocoupled', rName:'Relay 1 ch 5 V 30 A/250 V optocoupled H/L trigger', rSrc:{shop:'Arduitronics', url:'https://www.arduitronics.com/product/3693'}},
+  {node:'airflow', name:'HLK-PM01 AC-DC 220 V → 5 V 3 W', qty:1, b:130, r:130, src:{shop:'EAK Electronic (AllNewStep 90 แต่หมด)', url:'https://www.allnewstep.com/product/1052'}},
+  {node:'airflow', name:'เต้ารับติดกล่อง + ฝาครอบกันน้ำ', qty:1, b:150, r:150, note:'บ้านหม้อ/ไทวัสดุ'},
+  {node:'airflow', name:'กล่องกันน้ำ ABS F1 200×120×75 IP65 (แยกกล่องเฉพาะ 220 V)', qty:1, b:140, r:140, src:{shop:'Mikroelec · หรือ ES/SPE บ้านหม้อ', url:'https://www.mikroelec.com/product/1640'}},
+  {node:'airflow', name:'ฟิวส์ 5 A + ขั้ว + สาย VCT 2×1.5 + gland', qty:1, b:120, r:120, note:'บ้านหม้อ'},
+  {node:'air', name:'ESP32-C3 Super Mini (บัดกรีแล้ว)', qty:1, b:125, r:125, src:{shop:'Cybertice', url:'https://www.cybertice.com/product/5725'}},
+  {node:'air', name:'SHT3x', qty:1, b:120, r:469, bName:'SHT31 breakout', rName:'SHT30 หัวกันน้ำ I2C เกรดฟาร์ม + ขายึด (SmartP 150 ถูกกว่าแต่เกรดต่ำกว่า)', bSrc:{shop:'Cybertice', url:'https://www.cybertice.com/product/5659'}, rSrc:{shop:'ArtronShop', url:'https://www.artronshop.co.th/product/448'}},
+  {node:'air', name:'BH1750', qty:1, b:120, r:280, bName:'BH1750 พร้อมฝาครอบ', rName:'โดมตะวัน BH1750 กันน้ำ สาย 1 m บอร์ดเคลือบอีพ็อกซี่', bSrc:{shop:'ArtronShop', url:'https://www.artronshop.co.th/product/384'}, rSrc:{shop:'ArtronShop', url:'https://www.artronshop.co.th/product/588'}},
+  {node:'air', name:'กล่องกันน้ำ ABS F1 200×120×75 IP65', qty:1, b:140, r:140, src:{shop:'Mikroelec · หรือ ES/SPE บ้านหม้อ', url:'https://www.mikroelec.com/product/1640'}},
+  {node:'air', name:'gland + วัสดุ radiation shield (จานซ้อน/ท่อ PVC)', qty:1, b:100, r:100},
   {node:'air', name:'อะแดปเตอร์ 5 V 2 A + สาย', qty:1, b:120, r:120},
-  {node:'ground', name:'ESP32-DevKitC 38 pin', qty:1, b:180, r:180},
-  {node:'ground', name:'Capacitive soil v2.0 + อีพ็อกซี่', qty:5, b:70, r:null},
-  {node:'ground', name:'RS485 soil moisture + temp', qty:3, b:null, r:500},
-  {node:'ground', name:'MAX485 module', qty:1, b:null, r:50},
-  {node:'ground', name:'สาย 4 core กันน้ำ + ขั้วต่อ DC กันน้ำ', qty:1, b:300, r:300},
-  {node:'ground', name:'กล่อง IP65 + gland', qty:1, b:250, r:250},
+  {node:'ground', name:'ESP32-DevKitC 38 pin (ESP32-32D)', qty:1, b:185, r:185, src:{shop:'Arduitronics', url:'https://www.arduitronics.com/product/6451'}},
+  {node:'ground', name:'Capacitive soil moisture (analog) + อีพ็อกซี่', qty:5, b:118, r:null, src:{shop:'ArtronShop (Shopee ≈ 40–60)', url:'https://www.artronshop.co.th/product/184'}},
+  {node:'ground', name:'RS485 soil moisture + temp IP68 SUS316 สาย 2 m', qty:2, b:null, r:1400, src:{shop:'ArtronShop (Miniature Solution 1,295)', url:'https://www.artronshop.co.th/product/406'}},
+  {node:'ground', name:'Capacitive soil moisture เสริม (กระถางที่เหลือ)', qty:2, b:null, r:118, src:{shop:'ArtronShop', url:'https://www.artronshop.co.th/product/184'}},
+  {node:'ground', name:'MAX485 TTL↔RS485', qty:1, b:null, r:50, src:{shop:'Arduitronics', url:'https://www.arduitronics.com/product/692'}},
+  {node:'ground', name:'สาย 4 core กันน้ำ + ขั้วต่อ DC กันน้ำ', qty:1, b:300, r:300, note:'SPE บ้านหม้อ'},
+  {node:'ground', name:'กล่องกันน้ำ ABS F1 200×120×75 IP65 + gland', qty:1, b:180, r:180, src:{shop:'Mikroelec · หรือ ES/SPE บ้านหม้อ', url:'https://www.mikroelec.com/product/1640'}},
   {node:'ground', name:'อะแดปเตอร์ 12 V 2 A + buck', qty:1, b:200, r:200},
-  {node:'cam1', name:'บอร์ดกล้อง + เคสกันน้ำ', qty:1, b:400, r:900, bName:'ESP32-CAM + MB + เคสกันน้ำ', rName:'XIAO ESP32S3 Sense + เคส'},
+  {node:'cam1', name:'บอร์ดกล้อง', qty:1, b:340, r:990, bName:'ESP32-CAM + OV2640 (ไม่มีบอร์ด MB)', rName:'XIAO ESP32S3 Sense (ปกติ 1,050)', bSrc:{shop:'Arduitronics', url:'https://www.arduitronics.com/product/2670'}, rSrc:{shop:'O.R. Technology', url:'https://www.ortech-online.com/product/5610'}},
+  {node:'cam1', name:'อุปกรณ์เสริมกล้อง', qty:1, b:170, r:100, bName:'บอร์ด ESP32-CAM-MB (โปรแกรม) + เคสกันน้ำ', rName:'เคสกันน้ำ'},
   {node:'cam1', name:'อะแดปเตอร์ 5 V 2 A', qty:1, b:120, r:120},
-  {node:'server', name:'UPS 600–800 VA (Mac mini + router)', qty:1, b:null, r:1800},
-  {node:'server', name:'สายไฟ/สัญญาณ · Wago · heat shrink · สเปรย์เคลือบ PCB · ซิลิกาเจล', qty:1, b:600, r:600},
+  {node:'server', name:'UPS 800 VA (Mac mini + router)', qty:1, b:null, r:2020, rName:'UPS CyberPower UT800EG 800 VA/480 W (APC BV800I ≈ 2,400)', src:{shop:'ตัวแทน CyberPower', url:'https://www.thailandups.com/CYBERPOWER.html'}},
+  {node:'server', name:'สายไฟ/สัญญาณ · Wago · heat shrink · สเปรย์เคลือบ PCB · ซิลิกาเจล', qty:1, b:600, r:600, note:'บ้านหม้อ'},
   {node:'server', name:'ESP32 สำรอง 1 ตัว + sensor สำรอง', qty:1, b:400, r:400},
 ];
 const NODE_LABEL = {water:'water — น้ำหยด/หมอก', airflow:'airflow — พัดลม', air:'air — อากาศ/แสง', ground:'ground — ความชื้นดิน', cam1:'cam1 — กล้อง', server:'ส่วนกลาง'};
@@ -451,6 +486,7 @@ let done = new Set(JSON.parse(localStorage.getItem(KEY)||'[]'));
 const itemKey = (it,i) => `${it.node}:${i}`;
 const price = (it,t) => t==='budget' ? it.b : it.r;
 const nameFor = (it,t) => t==='budget' ? (it.bName||it.name) : (it.rName||it.name);
+const srcFor = (it,t) => (t==='budget' ? it.bSrc : it.rSrc) || it.src || null;
 
 function totals(t){ const by={}; let sum=0; BOM.forEach(it=>{const p=price(it,t); if(p==null)return; const v=p*it.qty; by[it.node]=(by[it.node]||0)+v; sum+=v;}); return {by,sum}; }
 
@@ -465,11 +501,13 @@ function renderBOM(){
     let sub=0;
     const body = rows.map(({it,i})=>{
       const p=price(it,tier), v=p*it.qty; sub+=v; const k=itemKey(it,i); const isDone=done.has(k); if(!isDone) remaining+=v;
-      return `<tr class="${isDone?'done':''}"><td class="chk"><input type="checkbox" data-k="${k}" ${isDone?'checked':''} aria-label="ซื้อแล้ว"></td><td>${nameFor(it,tier)}${it.note?` <span class="pill">${it.note}</span>`:''}</td><td class="num">${it.qty}</td><td class="num">${fmt(p)}</td><td class="num">${fmt(v)}</td></tr>`;
+      const sc=srcFor(it,tier);
+      const srcCell = sc ? `<a href="${sc.url}" rel="noopener" title="${sc.shop}">${sc.shop.split(' ').slice(0,2).join(' ')} ↗</a>` : `<span class="muted">ประเมิน</span>`;
+      return `<tr class="${isDone?'done':''}"><td class="chk"><input type="checkbox" data-k="${k}" ${isDone?'checked':''} aria-label="ซื้อแล้ว"></td><td>${nameFor(it,tier)}${it.note?` <span class="pill">${it.note}</span>`:''}</td><td class="small">${srcCell}</td><td class="num">${it.qty}</td><td class="num">${sc?'<b>'+fmt(p)+'</b>':'≈'+fmt(p)}</td><td class="num">${fmt(v)}</td></tr>`;
     }).join('');
     grand+=sub;
     html += `<div class="card bom-node"><h3>${NODE_LABEL[n]}<span class="sum">${fmt(sub)} ฿</span></h3>
-      <table><thead><tr><th></th><th>รายการ</th><th class="num">จำนวน</th><th class="num">ราคา/หน่วย</th><th class="num">รวม</th></tr></thead><tbody>${body}</tbody></table></div>`;
+      <table><thead><tr><th></th><th>รายการ</th><th>ร้าน</th><th class="num">จำนวน</th><th class="num">ราคา/หน่วย</th><th class="num">รวม</th></tr></thead><tbody>${body}</tbody></table></div>`;
   }
   $('#bom-list').innerHTML = html;
   const other = totals(tier==='budget'?'rugged':'budget').sum;
@@ -487,8 +525,8 @@ $('#tier-budget').onclick=()=>{tier='budget';localStorage.setItem(KEY+':tier',ti
 $('#tier-rugged').onclick=()=>{tier='rugged';localStorage.setItem(KEY+':tier',tier);renderBOM();};
 $('#reset').onclick=()=>{ if(confirm('ล้างรายการที่ติ๊กทั้งหมด?')){done.clear();localStorage.removeItem(KEY);renderBOM();} };
 $('#csv').onclick=()=>{
-  const rows=[['node','item','qty','unit_price_thb','total_thb','tier']];
-  BOM.forEach(it=>{const p=price(it,tier); if(p==null)return; rows.push([it.node,nameFor(it,tier),it.qty,p,p*it.qty,tier]);});
+  const rows=[['node','item','qty','unit_price_thb','total_thb','tier','shop','url']];
+  BOM.forEach(it=>{const p=price(it,tier); if(p==null)return; const sc=srcFor(it,tier)||{}; rows.push([it.node,nameFor(it,tier),it.qty,p,p*it.qty,tier,sc.shop||'ประเมิน',sc.url||'']);});
   const csv='﻿'+rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
   const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'})); a.download=`gnome-bom-${tier}.csv`; a.click();
 };

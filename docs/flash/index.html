@@ -66,6 +66,15 @@ table{width:100%;border-collapse:collapse;font-size:14px}td,th{text-align:left;p
       <span slot="not-allowed">ต้องเปิดผ่าน HTTPS</span>
     </esp-web-install-button>
   </div>
+  <div class="card" style="border-color:#c98500">
+    <h3>Watcher — ESP32-CAM <span class="pill">camera node</span></h3>
+    <p class="muted">ถ่ายภาพส่งเข้า Hut ทุก 60 วิ (ตั้งได้) · ดูสดที่ <code>http://&lt;ip&gt;:81/stream</code> · ไฟแฟลช GPIO4 · flash ผ่านบอร์ด ESP32-CAM-MB (micro USB) ถ้าไม่ติดกด IO0 ค้าง + RST</p>
+    <esp-web-install-button manifest="../firmware/cam/manifest.json">
+      <button slot="activate">ติดตั้ง GnomeOS Watcher</button>
+      <span slot="unsupported">เบราว์เซอร์นี้ไม่รองรับ Web Serial — ใช้ Chrome/Edge บนคอมพิวเตอร์</span>
+      <span slot="not-allowed">ต้องเปิดผ่าน HTTPS</span>
+    </esp-web-install-button>
+  </div>
   <div class="card">
     <h3>Keeper — ESP32 DevKit + relay module <span class="pill">controller node</span></h3>
     <p class="muted">ESP32 DevKit ต่อ relay module แยก (drip GPIO26, mist GPIO27 active-low) สูงสุด 4 ตัว พร้อม max-on timer, interlock และ failsafe</p>

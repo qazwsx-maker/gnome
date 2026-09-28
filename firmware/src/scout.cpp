@@ -1,4 +1,4 @@
-#if !defined(GNOME_ROLE_KEEPER)
+#if !defined(GNOME_ROLE_KEEPER) && !defined(GNOME_ROLE_CAM)
 // GnomeOS Scout — sensor node
 #include "gnome.h"
 #include <Wire.h>

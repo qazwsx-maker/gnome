@@ -12,7 +12,7 @@ bool displayPresent() { return u8 != nullptr; }
 
 void displaySetup() {
   if (u8) { delete u8; u8 = nullptr; }
-  if (cfg.oled == "none") return;
+  if (cfg.oled == "none" || cfg.i2cSda < 0) return;
   Wire.begin(cfg.i2cSda, cfg.i2cScl);
   uint8_t addr = 0;
   for (uint8_t a : {0x3C, 0x3D}) { Wire.beginTransmission(a); if (Wire.endTransmission() == 0) { addr = a; break; } }

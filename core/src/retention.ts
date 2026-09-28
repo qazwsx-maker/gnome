@@ -1,6 +1,7 @@
 // Retention (docs/PLAN.md 2.5): raw -> 5-min rollup after 1 h, raw 14 d, 5m 365 d, events 90 d.
 import { config } from './config.ts';
 import { logger } from './log.ts';
+import { camRetention } from './cam.ts';
 import { query } from './db.ts';
 
 const log = logger('retention');
@@ -30,7 +31,8 @@ export async function retentionJob(): Promise<void> {
     const b = await query(`DELETE FROM readings_5m WHERE ts < now() - ($1 || ' days')::interval`, [config.retention5mDays]);
     const c = await query(`DELETE FROM events WHERE ts < now() - ($1 || ' days')::interval`, [config.retentionEventsDays]);
     const d = await query(`DELETE FROM switch_log WHERE ts < now() - interval '365 days'`);
-    log.info(`rollup ${n} buckets; deleted raw=${a.rowCount} 5m=${b.rowCount} events=${c.rowCount} switch_log=${d.rowCount}`);
+    const cam = await camRetention();
+    log.info(`rollup ${n} buckets; deleted raw=${a.rowCount} 5m=${b.rowCount} events=${c.rowCount} switch_log=${d.rowCount}; cam thinned=${cam.thinned} expired=${cam.expired}`);
   } catch (e) {
     log.error('job failed', (e as Error).message);
   }

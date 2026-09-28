@@ -23,6 +23,10 @@ export const config = {
   discordWebhookUrl: process.env.DISCORD_WEBHOOK_URL || '',
   publicDir: process.env.PUBLIC_DIR || new URL('../public/', import.meta.url).pathname,
   sqlDir: process.env.SQL_DIR || new URL('../sql/', import.meta.url).pathname,
+  // Watcher snapshots on disk
+  camDir: process.env.CAM_DIR || new URL('../../infra/data/cam/', import.meta.url).pathname,
+  camFullDays: num(process.env.CAM_FULL_DAYS, 30),   // เก็บทุกภาพกี่วัน
+  camKeepDays: num(process.env.CAM_KEEP_DAYS, 365),  // หลังจากนั้นเหลือ 1 ภาพ/ชม. จนถึงกี่วัน
   // OTA: firmware binaries served at /firmware/<env>/firmware.bin (default = docs/firmware in the repo)
   firmwareDir: process.env.FIRMWARE_DIR || new URL('../../docs/firmware/', import.meta.url).pathname,
   // URL nodes use to reach this server on the LAN

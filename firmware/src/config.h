@@ -5,6 +5,9 @@
 #if defined(GNOME_ROLE_KEEPER)
 #define GNOME_ROLE "keeper"
 #define GNOME_FW_NAME "gnomeos-keeper"
+#elif defined(GNOME_ROLE_CAM)
+#define GNOME_ROLE "cam"
+#define GNOME_FW_NAME "gnomeos-watcher"
 #else
 #define GNOME_ROLE "scout"
 #define GNOME_FW_NAME "gnomeos-scout"
@@ -14,6 +17,13 @@
 #define GNOME_MAX_SOIL 6
 #define GNOME_MAX_SWITCH 4
 #define GNOME_AP_PASS "gnome1234"   // รหัส WiFi ของ node ตอนอยู่โหมดตั้งค่า
+#if defined(GNOME_ROLE_CAM)
+  // ESP32-CAM: LED แดงหลังบอร์ด GPIO33 (active-low), ไม่มี I2C ว่าง (ขา 21/22 เป็นของกล้อง)
+  #define GNOME_LED_PIN 33
+  #define GNOME_LED_INVERT 1
+  #define GNOME_I2C_SDA -1
+  #define GNOME_I2C_SCL -1
+#endif
 #if defined(GNOME_BOARD_S3UNO)
   // ESP32-S3 UNO: RGB WS2812 ที่ IO48, ไม่มี LED ธรรมดา, I2C ที่ IO8/IO9 (ตำแหน่ง SDA/SCL ของ UNO)
   #define GNOME_RGB_PIN 48
@@ -58,6 +68,11 @@ struct Config {
   SwitchCfg sw[GNOME_MAX_SWITCH]; int swCount = 0;
   int failsafeS = 120;
   String oled = "sh1106";   // sh1106 | ssd1306 | none (auto-detect 0x3C/0x3D บน I2C)
+  // Watcher (cam)
+  String hutUrl;            // ว่าง = http://<mqtt_host>:8080
+  String camSize = "svga";  // vga | svga | xga | uxga
+  bool camFlash = false;    // เปิดไฟแฟลช GPIO4 ตอนถ่าย
+  bool camFlip = false;     // กลับภาพ 180°
 };
 
 extern Config cfg;

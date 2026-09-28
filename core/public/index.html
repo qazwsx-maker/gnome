@@ -17,6 +17,7 @@
       <a href="#chart" data-tab="chart">กราฟ</a>
       <a href="#rules" data-tab="rules">กฎอัตโนมัติ</a>
       <a href="#events" data-tab="events">เหตุการณ์</a>
+      <a href="#cam" data-tab="cam">กล้อง</a>
     </nav>
     <span id="ws" class="ws" title="การเชื่อมต่อสด"><span class="dot"></span></span>
     <button id="theme" class="icon" title="สลับธีม" aria-label="สลับธีม">◐</button>
@@ -125,6 +126,11 @@
   </section>
 
   <!-- (d) เหตุการณ์ -->
+  <section id="tab-cam" class="tab">
+    <div class="row-between"><h2>กล้อง (Watcher)</h2><span class="muted small" id="cam-hint"></span></div>
+    <div id="cam-list" class="grid nodes"></div>
+    <p id="cam-empty" class="muted">ยังไม่มีภาพ — flash ESP32-CAM เป็น Watcher แล้วตั้ง MQTT ให้ตรง ภาพจะเข้ามาเองทุก 60 วินาที</p>
+  </section>
   <section id="tab-events" class="tab">
     <div class="row-between">
       <h2>เหตุการณ์ล่าสุด</h2>

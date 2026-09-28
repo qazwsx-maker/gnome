@@ -8,7 +8,7 @@
 |---|---|---|
 | `scout` | **GnomeOS Scout** | sensor node: I2C auto-detect (SHT3x, BH1750, BME280), DHT22 (optional), analog soil ×N (ADC1) |
 | `keeper` | **GnomeOS Keeper** | controller node: relay/switch ×1–4 พร้อม max_on_time, interlock, failsafe |
-| `cam` | **GnomeOS Watcher** (ยังไม่ทำ) | camera node (ESP32-CAM): `/snapshot` `/stream` ทาง HTTP ให้ server ดึง + status/meta/debug ทาง MQTT |
+| `cam` | **GnomeOS Watcher** | camera node (ESP32-CAM): node **POST** JPEG ไป `{hut_url}/api/cam/<node>/snapshot` ทุก `interval_s` · ดูสด `http://<ip>:81/stream`, `http://<ip>:81/snapshot` · `cmd/snap` ถ่ายทันที · `cmd/flash` ON/OFF · meta มี `cam:{stream,snapshot,interval_s,size}` |
 
 ## Topics (prefix `gnome/<node>/`)
 

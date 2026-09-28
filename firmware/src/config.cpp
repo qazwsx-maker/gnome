@@ -27,6 +27,9 @@ static String sanitizeNode(String s) {
 void configSetDefaults() {
   cfg = Config();
   cfg.node = defaultNodeName();
+#if defined(GNOME_ROLE_CAM)
+  cfg.oled = "none"; cfg.intervalS = 60;
+#endif
 #if defined(GNOME_BOARD_RELAYX4)
   // LC Technology ESP32-Relay-X4: relay1-4 = GPIO32/33/25/26 active HIGH, LED GPIO23
   cfg.swCount = 4;
@@ -49,6 +52,7 @@ void configToJson(JsonObject o, bool includeSecrets) {
   if (includeSecrets) o["mqtt_pass"] = cfg.mqttPass; else o["mqtt_pass_set"] = cfg.mqttPass.length() > 0;
   o["interval_s"] = cfg.intervalS; o["i2c_sda"] = cfg.i2cSda; o["i2c_scl"] = cfg.i2cScl; o["dht_pin"] = cfg.dhtPin; o["soil_power_pin"] = cfg.soilPowerPin;
   o["failsafe_s"] = cfg.failsafeS; o["oled"] = cfg.oled; o["board"] = GNOME_BOARD; o["thirsty_pct"] = cfg.thirstyPct; o["hot_c"] = cfg.hotC;
+  o["hut_url"] = cfg.hutUrl; o["cam_size"] = cfg.camSize; o["cam_flash"] = cfg.camFlash; o["cam_flip"] = cfg.camFlip;
   JsonArray soil = o["soil"].to<JsonArray>();
   for (int i = 0; i < cfg.soilCount; i++) { JsonObject s = soil.add<JsonObject>(); s["pin"] = cfg.soil[i].pin; s["dry"] = cfg.soil[i].dry; s["wet"] = cfg.soil[i].wet; s["key"] = cfg.soil[i].key; }
   JsonArray sw = o["switches"].to<JsonArray>();
@@ -76,6 +80,8 @@ bool configApplyJson(JsonObjectConst o) {
   setS("wifi_ssid", cfg.wifiSsid); setS("wifi_pass", cfg.wifiPass);
   setS("mqtt_host", cfg.mqttHost); setI("mqtt_port", cfg.mqttPort); setS("mqtt_user", cfg.mqttUser); setS("mqtt_pass", cfg.mqttPass);
   setI("interval_s", cfg.intervalS); setI("i2c_sda", cfg.i2cSda); setI("i2c_scl", cfg.i2cScl); setI("dht_pin", cfg.dhtPin); setI("soil_power_pin", cfg.soilPowerPin); setI("failsafe_s", cfg.failsafeS); setI("thirsty_pct", cfg.thirstyPct); setI("hot_c", cfg.hotC);
+  setS("hut_url", cfg.hutUrl); if (o["cam_size"].is<const char*>()) { String v = o["cam_size"].as<String>(); if (v == "vga" || v == "svga" || v == "xga" || v == "uxga") { if (v != cfg.camSize) { cfg.camSize = v; changed = true; } } }
+  if (o["cam_flash"].is<bool>()) { cfg.camFlash = o["cam_flash"].as<bool>(); changed = true; } if (o["cam_flip"].is<bool>()) { cfg.camFlip = o["cam_flip"].as<bool>(); changed = true; }
   if (cfg.intervalS < 5) cfg.intervalS = 5; if (cfg.failsafeS < 30) cfg.failsafeS = 30;
   if (o["oled"].is<const char*>()) { String v = o["oled"].as<String>(); if (v != "sh1106" && v != "ssd1306" && v != "none") v = "sh1106"; if (v != cfg.oled) { cfg.oled = v; changed = true; } }
   if (o["soil"].is<JsonArrayConst>()) {

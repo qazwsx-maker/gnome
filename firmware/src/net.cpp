@@ -46,6 +46,9 @@ void ledLoop() {
     uint32_t c = t < identifyUntil ? rgb.Color(40, 40, 40) : ledMode == LED_PORTAL ? rgb.Color(0, 0, 40) : ledMode == LED_WIFI_ONLY ? rgb.Color(40, 24, 0) : rgb.Color(0, 30, 0);
     rgb.setPixelColor(0, on ? c : 0); rgb.show(); }
 #else
+#ifdef GNOME_LED_INVERT
+  on = !on;
+#endif
   if (GNOME_LED_PIN >= 0) digitalWrite(GNOME_LED_PIN, on ? HIGH : LOW);
 #endif
 }

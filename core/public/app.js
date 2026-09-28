@@ -71,6 +71,66 @@
     fillSelectors();
   }
 
+  // ---- (e) กล้อง / Watcher ---------------------------------------------------
+  const camState = { list: [], day: {}, frames: {}, playing: {} };
+  async function renderCam() {
+    try { camState.list = await api('/cam'); } catch (e) { toast('โหลดกล้องไม่ได้: ' + e.message, true); return; }
+    $('#cam-empty').classList.toggle('hidden', camState.list.length > 0);
+    $('#cam-list').innerHTML = camState.list.map((c) => `<article class="card node cam-card ${c.online ? '' : 'offline'}" data-node="${esc(c.node)}">
+      <div class="head"><span class="status-dot ${c.online ? 'on' : ''}"></span><span class="name">${esc(c.node)}</span><span class="badge cam">watcher</span>
+        <span class="muted small" style="margin-left:auto">${c.latest ? esc(ago(c.latest.ts)) : 'ยังไม่มีภาพ'} · ${c.count} ภาพ</span></div>
+      <div class="cam-view"><img class="cam-img" src="${c.latest ? esc(c.latest.url) : ''}" alt="" style="${c.latest ? '' : 'display:none'}"><div class="cam-ts muted small">${c.latest ? esc(fmtTs(c.latest.ts)) : ''}</div></div>
+      <div class="row">
+        <button class="small" data-snap="1" ${c.online ? '' : 'disabled'}>📸 ถ่ายตอนนี้</button>
+        ${c.cam?.stream ? `<a class="btn" href="${esc(c.cam.stream)}" target="_blank" rel="noopener">▶ ดูสด</a>` : ''}
+        <select class="small cam-day" title="เลือกวัน"><option value="">— time-lapse: เลือกวัน —</option></select>
+        <button class="small" data-play="1" disabled>▶ เล่น</button>
+        <span class="muted small cam-prog"></span>
+        ${c.ip ? `<a class="btn" href="http://${esc(c.ip)}/" target="_blank" rel="noopener">⚙ ตั้งค่า</a>` : ''}
+      </div>
+      <div class="film"></div>
+    </article>`).join('');
+    for (const c of camState.list) loadDays(c.node);
+  }
+  async function loadDays(node) {
+    const card = $(`.cam-card[data-node="${node}"]`); if (!card) return;
+    const days = await api(`/cam/${node}/days`).catch(() => []);
+    const sel = $('.cam-day', card);
+    sel.innerHTML = '<option value="">— time-lapse: เลือกวัน —</option>' + days.map((d) => `<option value="${d.day}">${d.day} (${d.count})</option>`).join('');
+    if (days.length) { sel.value = days[0].day; loadFrames(node, days[0].day); }
+  }
+  async function loadFrames(node, day) {
+    const card = $(`.cam-card[data-node="${node}"]`); if (!card) return;
+    const frames = await api(`/cam/${node}/snapshots?day=${day}`).catch(() => []);
+    camState.frames[node] = frames; camState.day[node] = day;
+    $('[data-play]', card).disabled = frames.length < 2;
+    $('.film', card).innerHTML = frames.slice(-40).map((f, i) => `<img src="${esc(f.url)}" title="${esc(fmtTs(f.ts))}" data-i="${frames.length - Math.min(40, frames.length) + i}" loading="lazy">`).join('');
+    $('.cam-prog', card).textContent = `${frames.length} ภาพ`;
+  }
+  function onSnapshot(m) {
+    const card = $(`.cam-card[data-node="${m.node}"]`);
+    if (!card) { if ($('#tab-cam').classList.contains('active')) renderCam(); return; }
+    const img = $('.cam-img', card); img.src = m.url; img.style.display = '';
+    $('.cam-ts', card).textContent = fmtTs(m.ts);
+    const c = camState.list.find((x) => x.node === m.node); if (c) { c.latest = { ts: m.ts, url: m.url }; c.count++; }
+    const today = camState.day[m.node]; if (today && m.ts.startsWith(today) === false) return; if (today) loadFrames(m.node, today);
+  }
+  $('#cam-list').addEventListener('change', (e) => { const sel = e.target.closest('.cam-day'); if (!sel) return; const node = sel.closest('.cam-card').dataset.node; if (sel.value) loadFrames(node, sel.value); });
+  $('#cam-list').addEventListener('click', async (e) => {
+    const card = e.target.closest('.cam-card'); if (!card) return; const node = card.dataset.node;
+    const img = e.target.closest('.film img'); if (img) { const f = camState.frames[node]?.[Number(img.dataset.i)]; if (f) { $('.cam-img', card).src = f.url; $('.cam-ts', card).textContent = fmtTs(f.ts); } return; }
+    const btn = e.target.closest('button'); if (!btn) return;
+    try {
+      if (btn.dataset.snap) { await api(`/nodes/${node}/cmd`, { method: 'POST', body: { cmd: 'snap' } }); toast(`สั่งถ่าย → ${node}`); }
+      else if (btn.dataset.play) {
+        if (camState.playing[node]) { clearInterval(camState.playing[node]); camState.playing[node] = null; btn.textContent = '▶ เล่น'; return; }
+        const frames = camState.frames[node] || []; let i = 0; btn.textContent = '⏸ หยุด';
+        const view = $('.cam-img', card), ts = $('.cam-ts', card), prog = $('.cam-prog', card);
+        camState.playing[node] = setInterval(() => { const f = frames[i]; if (!f) { clearInterval(camState.playing[node]); camState.playing[node] = null; btn.textContent = '▶ เล่น'; return; } view.src = f.url; ts.textContent = fmtTs(f.ts); prog.textContent = `${i + 1}/${frames.length}`; i++; }, 200);
+      }
+    } catch (err) { toast('ผิดพลาด: ' + err.message, true); }
+  });
+
   // ---- (a) status -----------------------------------------------------------
   function renderBanner() {
     const all = [...nodes.values()];
@@ -482,6 +542,7 @@
         case 'status': if (!n) return loadNodes(); n.online = m.online; if (m.online) n.last_seen = m.ts; renderStatus(); break;
         case 'debug': if (!n) return loadNodes(); n.debug = { ...m.debug, ts: m.ts }; if (m.debug.ip) n.ip = m.debug.ip; n.last_seen = m.ts; renderStatus(); break;
         case 'node': loadNodes(); break;
+        case 'snapshot': onSnapshot(m); break;
         case 'event': events.unshift({ id: m.id, ts: m.ts, node: m.node, type: m.event, payload: m.payload }); events = events.slice(0, 200); if ($('#tab-events').classList.contains('active')) renderEvents(); break;
         case 'rules': if ($('#tab-rules').classList.contains('active')) loadRules(); break;
       }
@@ -503,6 +564,7 @@
     try { await loadNodes(); } catch (e) { $('#banner').textContent = 'เชื่อมต่อ server ไม่ได้: ' + e.message; $('#banner').className = 'banner warn'; }
     connectWs();
     const tab = location.hash.replace('#', '');
-    showTab(['status', 'chart', 'rules', 'events'].includes(tab) ? tab : 'status');
+    showTab(['status', 'chart', 'rules', 'events', 'cam'].includes(tab) ? tab : 'status');
+    if (tab === 'cam') renderCam();
   })();
 })();

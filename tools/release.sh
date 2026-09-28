@@ -4,7 +4,7 @@
 #   tools/release.sh              build ด้วยเวอร์ชันปัจจุบันใน platformio.ini
 set -euo pipefail
 cd "$(dirname "$0")/../firmware"
-ENVS=(scout keeper keeper-relayx4 scout-s3)
+ENVS=(scout keeper keeper-relayx4 scout-s3 cam)
 C6_ENVS=(scout-c6)   # ESP32-C6 build ด้วย core dir แยก (pioarduino) — ข้ามถ้ายังไม่เคยติดตั้ง
 if [ -n "${1:-}" ]; then printf '#pragma once\n// เขียนโดย tools/release.sh — อย่าแก้มือ\n#define GNOME_VERSION "%s"\n' "$1" > src/version.h; fi
 VER=$(grep -o '"[0-9.]*"' src/version.h | tr -d '"')

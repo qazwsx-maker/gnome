@@ -10,6 +10,7 @@ import { nodes, nodeToJson, forgetNode } from './state.ts';
 import { mqttConnected, sendSwitch, sendCmd, clearRetained } from './mqtt.ts';
 import { listRules, reloadRules, validateRule, activeRunsJson } from './rules.ts';
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
+import { registerCam } from './cam.ts';
 import { join } from 'node:path';
 
 const log = logger('http');
@@ -30,6 +31,7 @@ export async function startHttp() {
   await app.register(fastifyWebsocket, { options: { maxPayload: 16 * 1024 } });
   await app.register(fastifyStatic, { root: config.publicDir, prefix: '/', index: ['index.html'], cacheControl: false, setHeaders: (res) => { res.setHeader('Cache-Control', 'no-cache'); } });
   if (existsSync(config.firmwareDir)) await app.register(fastifyStatic, { root: config.firmwareDir, prefix: '/firmware/', decorateReply: false, cacheControl: false });
+  await registerCam(app);
 
   app.addHook('onResponse', (req, reply, done) => {
     if (req.url.startsWith('/api/')) log.info(`${req.method} ${req.url} ${reply.statusCode} ${reply.elapsedTime.toFixed(0)}ms`);
@@ -90,7 +92,7 @@ export async function startHttp() {
     const { node } = req.params;
     const cmd = req.body?.cmd;
     if (!NODE_RE.test(node)) return bad(reply, 'bad node');
-    if (!cmd || !['reboot', 'identify', 'config', 'ota'].includes(cmd)) return bad(reply, 'cmd must be reboot|identify|config|ota');
+    if (!cmd || !['reboot', 'identify', 'config', 'ota', 'snap', 'flash', 'rescan'].includes(cmd)) return bad(reply, 'cmd must be reboot|identify|config|ota|snap|flash|rescan');
     if (cmd === 'ota' && typeof req.body.payload !== 'string') return bad(reply, 'ota payload must be a URL string');
     if (cmd === 'config' && (typeof req.body.payload !== 'object' || req.body.payload === null)) return bad(reply, 'config payload must be JSON');
     const body = await sendCmd(node, cmd, req.body.payload);
@@ -124,7 +126,7 @@ export async function startHttp() {
     const fw = String(n.fw || '');
     if (n.role === 'keeper') return board.includes('relay-x4') || fw.includes('relayx4') ? 'keeper-relayx4' : 'keeper';
     if (n.role === 'scout') return board.includes('s3') ? 'scout-s3' : board.includes('c6') ? 'scout-c6' : 'scout';
-    if (n.role === 'cam') return 'cam';
+    if (n.role === 'cam') return 'cam';   // ESP32-CAM (AI-Thinker)
     return null;
   }
   const fwVersion = (fw: string | null) => (fw || '').trim().split(/\s+/).pop() || '';

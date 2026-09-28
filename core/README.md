@@ -58,6 +58,7 @@ Mosquitto runs as `brew services start mosquitto`; `/opt/homebrew/etc/mosquitto/
 | `GET /latest` | | `{node:{key:{value,ts}}}` |
 | `GET /readings` | `node, key, since=ISO, until=ISO, res=raw\|5m, limit` | default last 24 h; `5m` auto when span > 2 days (5m rows include `min`/`max`) |
 | `GET /switches` | | every known switch with state + meta |
+| `GET /sage/config` · `GET/POST/DELETE /plots` · `POST /plots/:id/analyze` · `GET /plots/:id/analyses` · `GET/DELETE /analyses/:id` | | Sage growth analysis (Claude vision via `@anthropic-ai/sdk`, structured outputs; or ollama) — env `ANTHROPIC_API_KEY`, `SAGE_MODEL`, `SAGE_MAX_FRAMES` |
 | `GET /firmware` | | firmware envs served from `FIRMWARE_DIR` (docs/firmware) with version + URL, and per-node `update` flag |
 | `POST /nodes/:node/ota` | `{env?}` | publish `cmd/ota` with the server's firmware URL (env auto-picked from role/board) |
 | `POST /ota` | | OTA every online node whose version differs |

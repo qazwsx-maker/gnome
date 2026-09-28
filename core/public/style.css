@@ -176,3 +176,12 @@ td.pl{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--ink2);
 .cam-ts{position:absolute;right:8px;bottom:6px;background:rgba(0,0,0,.55);color:#fff;padding:1px 6px;border-radius:6px}
 .film{display:flex;gap:4px;overflow-x:auto;margin-top:8px;padding-bottom:4px}.film img{height:48px;border-radius:4px;cursor:pointer;opacity:.85;flex:none}.film img:hover{opacity:1;outline:2px solid var(--leaf)}
 .badge.cam{color:#c98500;border-color:#c98500}
+
+/* Sage */
+.grid.form{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}.grid.form label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--ink2)}.grid.form input,.grid.form select{font:inherit;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--ink)}
+.plot{margin-bottom:10px}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:10px 0}@media(max-width:700px){.grid2{grid-template-columns:1fr}}
+.tl{position:relative;margin:34px 0 0}.tl-track{position:relative;height:36px;border-top:2px solid var(--axis);margin-top:30px}
+.tl-dot{position:absolute;top:-7px;width:12px;height:12px;border-radius:50%;background:var(--surface);border:2px solid var(--s1);transform:translateX(-50%);cursor:pointer}.tl-dot.on{background:var(--s1);box-shadow:0 0 0 4px color-mix(in srgb,var(--s1) 30%,transparent)}
+.tl-ms{position:absolute;top:-34px;transform:translateX(-50%);font-size:12px;white-space:nowrap;cursor:pointer;text-align:center}.tl-ms b{display:block;font-size:11px;color:var(--ink2);font-weight:500;max-width:90px;overflow:hidden;text-overflow:ellipsis}
+.tl-axis{display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
+.mini{width:100%;height:auto;display:block;margin-bottom:8px}.mini .ax{font-size:10px;fill:var(--muted)}

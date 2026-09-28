@@ -131,6 +131,96 @@
     } catch (err) { toast('ผิดพลาด: ' + err.message, true); }
   });
 
+  // ---- (f) Sage ------------------------------------------------------------
+  const sage = { plots: [], open: null, frameIdx: 0 };
+  const STAGE_TH = { empty_soil: 'ดินเปล่า', germinating: 'กำลังงอก', seedling: 'ต้นกล้า', vegetative: 'เติบโตทางใบ', budding: 'ติดตุ่มดอก', flowering: 'ออกดอก', fruiting: 'ติดผล', declining: 'โทรม', unknown: 'ไม่แน่ใจ' };
+  const HEALTH_TH = { good: 'แข็งแรง', mild_stress: 'เครียดเล็กน้อย', wilting: 'เหี่ยว', pest_or_disease: 'โรค/แมลง', unknown: '?' };
+  const MS_ICON = { planted: '🌱', germinated: '🌿', first_true_leaves: '🍃', leaf_count: '🍃', first_bud: '🌸', first_flower: '🌼', peak_bloom: '💐', stress: '⚠️', recovery: '💚', other: '📌' };
+  async function renderSage() {
+    try {
+      const cfg = await api('/sage/config');
+      $('#sage-cfg').textContent = cfg.ready ? `โมเดล: ${cfg.model} (${cfg.provider}) · สูงสุด ${cfg.maxFrames} ภาพ/ครั้ง` : 'ยังไม่ได้ตั้งค่า AI — ใส่ ANTHROPIC_API_KEY ใน infra/.env แล้วรีสตาร์ท Hut';
+      const camSel = $('#pl-cam'), senSel = $('#pl-sensor');
+      const list = [...nodes.values()];
+      camSel.innerHTML = list.filter((n) => n.role === 'cam').map((n) => `<option value="${esc(n.node)}">${esc(n.node)}</option>`).join('') || '<option value="">(ไม่มี Watcher)</option>';
+      senSel.innerHTML = '<option value="">— ไม่มี —</option>' + list.filter((n) => n.role === 'scout').map((n) => `<option value="${esc(n.node)}">${esc(n.node)}</option>`).join('');
+      sage.plots = await api('/plots');
+      $('#plots').innerHTML = sage.plots.map((p) => { const la = p.last_analysis; const st = la?.status; const pr = la?.progress || {};
+        return `<div class="card plot" data-id="${p.id}"><div class="row-between"><div><b>${esc(p.name)}</b> <span class="muted small">กล้อง ${esc(p.cam_node)}${p.sensor_node ? ' · เซ็นเซอร์ ' + esc(p.sensor_node) : ''} · ${p.snapshots} ภาพ${p.from_ts ? ' · ตั้งแต่ ' + p.from_ts.slice(0, 10) : ''}${p.to_ts ? ' ถึง ' + p.to_ts.slice(0, 10) : ''}</span></div>
+          <div class="row"><span class="muted small sage-st">${st === 'running' ? `⏳ กำลังวิเคราะห์ ${pr.step === 'observe' ? `ภาพ ${pr.done}/${pr.total}` : pr.step === 'synthesize' ? 'สรุปรายงาน…' : ''}` : st === 'done' ? `✅ วิเคราะห์ล่าสุด ${esc(ago(la.created_at))}` : st === 'failed' ? '❌ ล้มเหลว' : st === 'queued' ? '⏳ รอคิว' : 'ยังไม่เคยวิเคราะห์'}</span>
+          <button class="primary small" data-analyze="1" ${st === 'running' || st === 'queued' ? 'disabled' : ''}>🔍 วิเคราะห์</button>${st === 'done' ? `<button class="small" data-report="${la.id}">📄 ดูรายงาน</button>` : ''}<button class="ghost small danger" data-del="1">ลบ</button></div></div></div>`; }).join('') || '<p class="muted">ยังไม่มีแปลง — สร้างด้านบน (ต้องมีภาพจาก Watcher ก่อน)</p>';
+    } catch (e) { toast('Sage: ' + e.message, true); }
+  }
+  $('#pl-create').addEventListener('click', async () => {
+    try { await api('/plots', { method: 'POST', body: { name: $('#pl-name').value, cam_node: $('#pl-cam').value, sensor_node: $('#pl-sensor').value || undefined, from: $('#pl-from').value || undefined, to: $('#pl-to').value ? $('#pl-to').value + 'T23:59:59' : undefined, notes: $('#pl-notes').value || undefined } }); $('#pl-name').value = ''; toast('สร้างแปลงแล้ว'); renderSage(); } catch (e) { toast('ผิดพลาด: ' + e.message, true); }
+  });
+  $('#plots').addEventListener('click', async (e) => {
+    const btn = e.target.closest('button'); if (!btn) return; const id = btn.closest('.plot').dataset.id;
+    try {
+      if (btn.dataset.analyze) { const r = await api(`/plots/${id}/analyze`, { method: 'POST', body: {} }); toast(`เริ่มวิเคราะห์ (#${r.analysis_id})`); renderSage(); }
+      else if (btn.dataset.report) { openReport(Number(btn.dataset.report)); }
+      else if (btn.dataset.del) { if (!confirm('ลบแปลงนี้และรายงานทั้งหมด?')) return; await api(`/plots/${id}`, { method: 'DELETE' }); renderSage(); }
+    } catch (err) { toast('ผิดพลาด: ' + err.message, true); }
+  });
+  function onSageProgress(m) {
+    if (!$('#tab-sage').classList.contains('active')) return;
+    if (m.status === 'done' || m.status === 'failed') { renderSage(); if (m.status === 'done') openReport(m.id); return; }
+    const card = [...$$('.plot')].find((c) => sage.plots.find((p) => String(p.id) === c.dataset.id)?.last_analysis?.id === m.id);
+    if (card) $('.sage-st', card).textContent = `⏳ กำลังวิเคราะห์ ${m.step === 'observe' ? `ภาพ ${m.done}/${m.total}${m.last ? ' · ' + m.last.date + ' ' + (STAGE_TH[m.last.stage] || '') : ''}` : m.step === 'synthesize' ? 'สรุปรายงาน…' : ''}`;
+    else renderSage();
+  }
+  // ---- report + interactive timeline
+  async function openReport(id) {
+    const a = await api(`/analyses/${id}`); sage.open = a; sage.frameIdx = a.frames.length - 1;
+    const box = $('#sage-report'); box.classList.remove('hidden');
+    if (a.status !== 'done') { box.innerHTML = `<div class="card">สถานะ: ${a.status} ${a.error ? '— ' + esc(a.error) : ''}</div>`; return; }
+    const r = a.report, F = a.frames, E = a.env;
+    const dates = F.map((f) => f.date);
+    const t0 = new Date(F[0].ts), t1 = new Date(F[F.length - 1].ts); const spanMs = Math.max(3600000, t1 - t0);
+    const d0 = new Date(dates[0]); const span = Math.max(1, (new Date(dates[dates.length - 1]) - d0) / 86400000);
+    const x = (when) => 4 + 92 * Math.min(1, Math.max(0, (new Date(when) - t0) / spanMs));   // % across (ตามเวลาจริง)
+    const ms = r.milestones.filter((m) => m.date >= dates[0] && m.date <= dates[dates.length - 1]);
+    box.innerHTML = `<div class="card">
+      <div class="row-between"><h3>📄 ${esc(a.name)} — รายงานการเจริญเติบโต</h3><span class="muted small">${esc(a.model)} · ${F.length} ภาพ · tokens ${a.tokens_in + a.tokens_out} · ${esc(fmtTs(a.created_at))} <button class="ghost small" id="rep-close">ปิด</button></span></div>
+      <p>${esc(r.summary)}</p>
+      <h4>Timeline</h4>
+      <div class="tl"><div class="tl-track">
+        ${F.map((f, i) => `<i class="tl-dot" style="left:${x(f.ts)}%" data-i="${i}" title="${esc(f.date)} ${esc(f.time)} ${STAGE_TH[f.stage] || ''}"></i>`).join('')}
+        ${ms.map((m) => `<span class="tl-ms" style="left:${x(m.date + 'T12:00:00')}%" data-date="${esc(m.date)}" title="${esc(m.date)} ${esc(m.label)}">${MS_ICON[m.type] || '📌'}<b>${esc(m.label)}</b></span>`).join('')}
+      </div><div class="tl-axis"><span>${esc(F[0].date)} ${esc(F[0].time)}</span><span>${esc(F[F.length - 1].date)} ${esc(F[F.length - 1].time)}</span></div></div>
+      <input type="range" id="tl-range" min="0" max="${F.length - 1}" value="${F.length - 1}" style="width:100%">
+      <div class="grid2">
+        <div><img id="tl-img" src="" alt="" style="width:100%;border-radius:10px;background:#000;aspect-ratio:4/3;object-fit:contain"><div id="tl-cap" class="muted small"></div></div>
+        <div id="tl-obs"></div>
+      </div>
+      <h4>การเติบโต</h4>${miniChart([{ name: 'ใบ (จำนวน)', color: 'var(--s1)', pts: r.growth_series.map((g) => [g.date, g.leaf_count]) }, { name: 'สูง (cm)', color: 'var(--s2)', pts: r.growth_series.map((g) => [g.date, g.height_cm]) }], d0, span)}
+      ${E.length ? `<h4>สิ่งแวดล้อม (เฉลี่ยรายวัน)</h4>${miniChart([{ name: 'อุณหภูมิ °C', color: 'var(--s2)', pts: E.map((e) => [e.date, e.temp_c?.avg ?? null]) }, { name: 'ความชื้น %', color: 'var(--s1)', pts: E.map((e) => [e.date, e.rh_pct?.avg ?? null]) }, { name: 'ดิน %', color: 'var(--leaf)', pts: E.map((e) => [e.date, e.soil1_pct?.avg ?? null]) }], d0, span)}${miniChart([{ name: 'แสงสูงสุด lx', color: '#eda100', pts: E.map((e) => [e.date, e.lux?.max ?? null]) }], d0, span)}` : '<p class="muted small">ไม่มีข้อมูลเซ็นเซอร์ในช่วงนี้ — ผูก node เซ็นเซอร์กับแปลงเพื่อให้ Sage เชื่อมโยงสภาพแวดล้อมได้</p>'}
+      <div class="grid2"><div><h4>Milestones</h4><ul>${r.milestones.map((m) => `<li><b>${esc(m.date)}</b> ${MS_ICON[m.type] || ''} ${esc(m.label)} <span class="muted small">— ${esc(m.evidence)}</span></li>`).join('') || '<li class="muted">ไม่พบ</li>'}</ul></div>
+      <div><h4>สิ่งแวดล้อมมีผลอย่างไร</h4><ul>${r.env_insights.map((s) => `<li>${esc(s)}</li>`).join('')}</ul><h4>คำแนะนำ</h4><ul>${r.recommendations.map((s) => `<li>${esc(s)}</li>`).join('')}</ul><p class="muted small">ข้อจำกัดข้อมูล: ${esc(r.data_quality)}</p></div></div>
+    </div>`;
+    const show = (i) => { const f = F[i]; if (!f) return; sage.frameIdx = i; $('#tl-img').src = f.url; $('#tl-cap').textContent = `${f.date} ${f.time} · ภาพ ${i + 1}/${F.length}`;
+      const e = E.find((x) => x.date === f.date);
+      $('#tl-obs').innerHTML = `<div class="tiles"><div class="tile"><div class="k">ระยะ</div><div class="v">${STAGE_TH[f.stage] || f.stage}</div></div><div class="tile"><div class="k">ใบ</div><div class="v">${f.leaf_count ?? '—'}</div></div><div class="tile"><div class="k">สูง</div><div class="v">${f.height_cm_est ?? '—'}<small>cm</small></div></div><div class="tile"><div class="k">ดอก/ตุ่ม</div><div class="v">${f.flower_count}/${f.bud_count}</div></div><div class="tile"><div class="k">สุขภาพ</div><div class="v" style="font-size:15px">${HEALTH_TH[f.health] || f.health}</div></div><div class="tile"><div class="k">ความมั่นใจ</div><div class="v">${Math.round(f.confidence * 100)}<small>%</small></div></div></div>
+        <p><b>เปลี่ยนจากภาพก่อน:</b> ${esc(f.change_from_previous)}</p><p>${esc(f.notes)}</p>
+        ${e ? `<p class="muted small">วันนี้: ${e.temp_c ? `อุณหภูมิ ${e.temp_c.min}–${e.temp_c.max}°C` : ''} ${e.rh_pct ? `· ความชื้น ${e.rh_pct.min}–${e.rh_pct.max}%` : ''} ${e.lux ? `· แสงสูงสุด ${e.lux.max} lx` : ''} ${e.soil1_pct ? `· ดิน ${e.soil1_pct.avg}%` : ''}</p>` : ''}`;
+      $$('.tl-dot').forEach((d) => d.classList.toggle('on', Number(d.dataset.i) === i)); $('#tl-range').value = i; };
+    show(sage.frameIdx);
+    $('#tl-range').addEventListener('input', (ev) => show(Number(ev.target.value)));
+    box.addEventListener('click', (ev) => { const dot = ev.target.closest('.tl-dot'); if (dot) return show(Number(dot.dataset.i));
+      const m = ev.target.closest('.tl-ms'); if (m) { const i = F.findIndex((f) => f.date >= m.dataset.date); if (i >= 0) show(i); return; }
+      if (ev.target.id === 'rep-close') box.classList.add('hidden'); });
+    box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  function miniChart(series, d0, span) {
+    const W = 600, H = 120, L = 34, R = 8, T = 8, B = 18;
+    const vals = series.flatMap((s) => s.pts.map((p) => p[1]).filter((v) => v != null)); if (!vals.length) return '<p class="muted small">ไม่มีข้อมูล</p>';
+    const lo = Math.min(...vals), hi = Math.max(...vals); const y = (v) => T + (H - T - B) * (1 - (v - lo) / Math.max(1e-6, hi - lo)); const xx = (date) => L + (W - L - R) * ((new Date(date) - d0) / 86400000) / span;
+    return `<div class="legend">${series.map((s) => `<span><i style="background:${s.color}"></i>${esc(s.name)}</span>`).join('')}</div><svg viewBox="0 0 ${W} ${H}" class="mini">
+      <line x1="${L}" y1="${H - B}" x2="${W - R}" y2="${H - B}" stroke="var(--axis)"/><text x="2" y="${T + 10}" class="ax">${hi}</text><text x="2" y="${H - B}" class="ax">${lo}</text>
+      ${series.map((s) => { const p = s.pts.filter((q) => q[1] != null); return `<polyline fill="none" stroke="${s.color}" stroke-width="2" points="${p.map((q) => `${xx(q[0]).toFixed(1)},${y(q[1]).toFixed(1)}`).join(' ')}"/>${p.map((q) => `<circle cx="${xx(q[0]).toFixed(1)}" cy="${y(q[1]).toFixed(1)}" r="3" fill="${s.color}"><title>${esc(q[0])}: ${q[1]}</title></circle>`).join('')}`; }).join('')}
+    </svg>`;
+  }
+
   // ---- (a) status -----------------------------------------------------------
   function renderBanner() {
     const all = [...nodes.values()];
@@ -543,6 +633,7 @@
         case 'debug': if (!n) return loadNodes(); n.debug = { ...m.debug, ts: m.ts }; if (m.debug.ip) n.ip = m.debug.ip; n.last_seen = m.ts; renderStatus(); break;
         case 'node': loadNodes(); break;
         case 'snapshot': onSnapshot(m); break;
+        case 'sage': onSageProgress(m); break;
         case 'event': events.unshift({ id: m.id, ts: m.ts, node: m.node, type: m.event, payload: m.payload }); events = events.slice(0, 200); if ($('#tab-events').classList.contains('active')) renderEvents(); break;
         case 'rules': if ($('#tab-rules').classList.contains('active')) loadRules(); break;
       }
@@ -564,7 +655,8 @@
     try { await loadNodes(); } catch (e) { $('#banner').textContent = 'เชื่อมต่อ server ไม่ได้: ' + e.message; $('#banner').className = 'banner warn'; }
     connectWs();
     const tab = location.hash.replace('#', '');
-    showTab(['status', 'chart', 'rules', 'events', 'cam'].includes(tab) ? tab : 'status');
+    showTab(['status', 'chart', 'rules', 'events', 'cam', 'sage'].includes(tab) ? tab : 'status');
     if (tab === 'cam') renderCam();
+    if (tab === 'sage') { renderSage(); const q = new URLSearchParams(location.search).get('analysis'); if (q) openReport(Number(q)); }
   })();
 })();

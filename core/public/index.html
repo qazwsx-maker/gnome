@@ -18,6 +18,7 @@
       <a href="#rules" data-tab="rules">กฎอัตโนมัติ</a>
       <a href="#events" data-tab="events">เหตุการณ์</a>
       <a href="#cam" data-tab="cam">กล้อง</a>
+      <a href="#sage" data-tab="sage">Sage</a>
     </nav>
     <span id="ws" class="ws" title="การเชื่อมต่อสด"><span class="dot"></span></span>
     <button id="theme" class="icon" title="สลับธีม" aria-label="สลับธีม">◐</button>
@@ -130,6 +131,23 @@
     <div class="row-between"><h2>กล้อง (Watcher)</h2><span class="muted small" id="cam-hint"></span></div>
     <div id="cam-list" class="grid nodes"></div>
     <p id="cam-empty" class="muted">ยังไม่มีภาพ — flash ESP32-CAM เป็น Watcher แล้วตั้ง MQTT ให้ตรง ภาพจะเข้ามาเองทุก 60 วินาที</p>
+  </section>
+  <section id="tab-sage" class="tab">
+    <div class="row-between"><h2>Sage — ภูตนักปราชญ์ วิเคราะห์การเจริญเติบโต</h2><span class="muted small" id="sage-cfg"></span></div>
+    <div class="card" id="sage-new">
+      <h3>สร้างแปลง (plot)</h3>
+      <div class="grid form">
+        <label>ชื่อแปลง <input id="pl-name" placeholder="gerbera plot"></label>
+        <label>กล้อง (Watcher) <select id="pl-cam"></select></label>
+        <label>node เซ็นเซอร์ (สิ่งแวดล้อม) <select id="pl-sensor"><option value="">— ไม่มี —</option></select></label>
+        <label>ตั้งแต่ <input id="pl-from" type="date"></label>
+        <label>ถึง <input id="pl-to" type="date"></label>
+        <label>โน้ตให้ Sage (พันธุ์, วันปลูก, ฯลฯ) <input id="pl-notes" placeholder="เยอบีร่า เพาะเมล็ด 20 ก.ย."></label>
+      </div>
+      <div class="row" style="margin-top:8px"><button id="pl-create" class="primary">สร้างแปลง</button></div>
+    </div>
+    <div id="plots"></div>
+    <div id="sage-report" class="hidden"></div>
   </section>
   <section id="tab-events" class="tab">
     <div class="row-between">

@@ -11,6 +11,7 @@ import { mqttConnected, sendSwitch, sendCmd, clearRetained } from './mqtt.ts';
 import { listRules, reloadRules, validateRule, activeRunsJson } from './rules.ts';
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { registerCam } from './cam.ts';
+import { registerSage } from './sage.ts';
 import { join } from 'node:path';
 
 const log = logger('http');
@@ -32,6 +33,7 @@ export async function startHttp() {
   await app.register(fastifyStatic, { root: config.publicDir, prefix: '/', index: ['index.html'], cacheControl: false, setHeaders: (res) => { res.setHeader('Cache-Control', 'no-cache'); } });
   if (existsSync(config.firmwareDir)) await app.register(fastifyStatic, { root: config.firmwareDir, prefix: '/firmware/', decorateReply: false, cacheControl: false });
   await registerCam(app);
+  await registerSage(app);
 
   app.addHook('onResponse', (req, reply, done) => {
     if (req.url.startsWith('/api/')) log.info(`${req.method} ${req.url} ${reply.statusCode} ${reply.elapsedTime.toFixed(0)}ms`);

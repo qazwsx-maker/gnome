@@ -19,7 +19,8 @@
 3. ✅ **Watcher (`cam` env)**: ถ่าย JPEG ทุก N นาที (ตั้งได้) POST ไป Hut `POST /api/cam/<node>/snapshot` + `/stream` MJPEG สำหรับดูสด + status/meta/debug ทาง MQTT + ไฟแฟลช GPIO4 สั่งได้
 4. ✅ **Hut ฝั่งกล้อง** (ยังไม่มี mp4 export และ proxy stream ผ่าน Hut — ดูสดตรงจาก node ใน LAN): เก็บภาพ `infra/data/cam/<node>/YYYY/MM/DD/`, retention (30 วันเต็ม → เก็บ 1 ภาพ/ชม.), หน้า **time-lapse** (เลื่อนดูตามวัน/สร้าง mp4 ด้วย ffmpeg), หน้า **ดูสด** (proxy `/stream` ของ node ผ่าน Hut เพื่อให้ดูจากนอกบ้านผ่าน Cloudflare Tunnel ได้)
 5. **Keeper: ปั๊ม 12V** — relay 1 สลับสาย +12V เข้าปั๊ม · เพิ่ม rule "รดน้ำจนดิน Mini Scout ถึง X% ไม่เกิน N นาที" (มีอยู่แล้วใน rules engine)
-6. **app / webapp นอกบ้าน**: Cloudflare Tunnel + Access ไปที่ Hut (Phase 3 เดิม)
+6. ✅ **Sage — ภูตนักปราชญ์** (AI วิเคราะห์การเจริญเติบโต): สร้าง "แปลง" (กล้อง + node เซ็นเซอร์ + ช่วงเวลา + โน้ต) → กด วิเคราะห์ → Sage เลือกภาพ (1/วัน ใกล้เที่ยง สูงสุด SAGE_MAX_FRAMES) ดูทีละภาพพร้อมวัน/เวลา/สภาพแวดล้อมของวันนั้น (readings_5m ของ node เซ็นเซอร์) → สังเคราะห์รายงาน: สรุป, milestones (ปลูก/งอก/ใบจริง/จำนวนใบ/ตุ่มดอก/ดอกแรก), กราฟใบ-ความสูง, กราฟอุณหภูมิ/ความชื้น/ดิน/แสง, insight สิ่งแวดล้อม, คำแนะนำ · **timeline interactive** เลื่อนดูภาพ+ค่าสังเกตทีละภาพ · โมเดล Claude (`SAGE_MODEL`, ค่าเริ่มต้น claude-opus-5) หรือ ollama ในเครื่อง (`SAGE_PROVIDER=ollama`) · ต้องใส่ `ANTHROPIC_API_KEY` ใน infra/.env
+7. **app / webapp นอกบ้าน**: Cloudflare Tunnel + Access ไปที่ Hut (Phase 3 เดิม)
 
 ## สิ่งที่ยังต้องซื้อ
 - ปั๊มน้ำ 12V สำหรับน้ำหยด (ถ้าดึงจากถัง: ปั๊มไดอะแฟรม 12V 60W 5 L/min ที่ O.R. มี หรือปั๊มจุ่ม 12V ถ้าถังอยู่ต่ำกว่าแปลง) + สาย/หัวน้ำหยด

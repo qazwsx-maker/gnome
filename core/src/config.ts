@@ -27,6 +27,12 @@ export const config = {
   camDir: process.env.CAM_DIR || new URL('../../infra/data/cam/', import.meta.url).pathname,
   camFullDays: num(process.env.CAM_FULL_DAYS, 30),   // เก็บทุกภาพกี่วัน
   camKeepDays: num(process.env.CAM_KEEP_DAYS, 365),  // หลังจากนั้นเหลือ 1 ภาพ/ชม. จนถึงกี่วัน
+  // Sage (AI growth analysis): anthropic (default) | ollama
+  sageProvider: (process.env.SAGE_PROVIDER || 'anthropic') as 'anthropic' | 'ollama',
+  sageModel: process.env.SAGE_MODEL || 'claude-opus-5',
+  sageMaxFrames: num(process.env.SAGE_MAX_FRAMES, 30),
+  ollamaUrl: (process.env.OLLAMA_URL || 'http://127.0.0.1:11434').replace(/\/$/, ''),
+  ollamaModel: process.env.OLLAMA_MODEL || 'qwen3.5:4b',
   // OTA: firmware binaries served at /firmware/<env>/firmware.bin (default = docs/firmware in the repo)
   firmwareDir: process.env.FIRMWARE_DIR || new URL('../../docs/firmware/', import.meta.url).pathname,
   // URL nodes use to reach this server on the LAN

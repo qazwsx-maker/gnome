@@ -26,8 +26,9 @@ table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:4px;borde
 <div class="g2"><div><label>MQTT user</label><input id="mqtt_user"></div><div><label>MQTT password</label><input id="mqtt_pass" type="password" placeholder="(คงเดิมถ้าเว้นว่าง)"></div></div>
 <div class="g2"><div><label>I2C SDA</label><input id="i2c_sda" type="number"></div><div><label>I2C SCL</label><input id="i2c_scl" type="number"></div></div>
 <div id="scoutcfg"><div class="g2"><div><label>ส่งค่าทุก (วินาที)</label><input id="interval_s" type="number"></div><div><label>DHT22 pin (-1 = ไม่ใช้)</label><input id="dht_pin" type="number"></div></div>
-<label>ความชื้นดิน (ADC1: 32 33 34 35 36 39) — ค่า dry/wet จากการวัดจริง</label>
-<table><thead><tr><th>pin</th><th>dry (แห้ง)</th><th>wet (จุ่มน้ำ)</th><th></th></tr></thead><tbody id="soil"></tbody></table><button type="button" onclick="addSoil()">+ เพิ่มหัววัดดิน</button></div>
+<label>หัววัด analog: ความชื้นดิน / ฝน (ADC1: 32 33 34 35 36 39) — key ว่าง = soil1, soil2… ใส่ <b>rain</b> สำหรับแผ่นวัดฝน · dry/wet = ค่า raw ที่วัดจริง</label>
+<table><thead><tr><th>pin</th><th>key</th><th>dry (แห้ง)</th><th>wet (จุ่มน้ำ)</th><th></th></tr></thead><tbody id="soil"></tbody></table>
+<div class="g2"><div><label>ขาจ่ายไฟหัววัด (VCC ของโมดูลต่อขานี้ เปิดเฉพาะตอนวัด ลดการกร่อน · -1 = ต่อ 3V3 ตรง)</label><input id="soil_power_pin" type="number"></div></div><button type="button" onclick="addSoil()">+ เพิ่มหัววัดดิน</button></div>
 <div class="g2"><div><label>จอ OLED (I2C 0x3C)</label><select id="oled"><option value="sh1106">SH1106 (1.3")</option><option value="ssd1306">SSD1306 (0.96")</option><option value="none">ไม่มีจอ</option></select></div><div><label>บอร์ด</label><input id="board" disabled></div></div>
 <div id="keepercfg"><div class="g2"><div><label>failsafe: ปิดทุกตัวถ้าขาด MQTT เกิน (วินาที)</label><input id="failsafe_s" type="number"></div></div>
 <label>สวิตช์ / relay (สูงสุด 4)</label>
@@ -40,14 +41,14 @@ const $=id=>document.getElementById(id);let role='';
 async function post(u,b){const r=await fetch(u,{method:'POST',headers:{'content-type':'application/json'},body:b?JSON.stringify(b):''});const j=await r.json().catch(()=>({}));$('msg').textContent=j.msg||(j.ok?'สำเร็จ':'ผิดพลาด');return j}
 function num(v){return v===''?undefined:+v}
 async function load(){const c=await (await fetch('/api/config')).json();role=c.role;$('role').textContent=role==='keeper'?'Keeper · controller node':'Scout · sensor node';
-for(const k of ['node','wifi_ssid','mqtt_host','mqtt_port','mqtt_user','interval_s','dht_pin','i2c_sda','i2c_scl','failsafe_s','oled','board'])if($(k))$(k).value=c[k]??'';
+for(const k of ['node','wifi_ssid','mqtt_host','mqtt_port','mqtt_user','interval_s','dht_pin','soil_power_pin','i2c_sda','i2c_scl','failsafe_s','oled','board'])if($(k))$(k).value=c[k]??'';
 $('scoutcfg').style.display=role==='scout'?'':'none';$('keepercfg').style.display=role==='keeper'?'':'none';$('rescan').style.display=role==='scout'?'':'none';
 $('soil').innerHTML='';(c.soil||[]).forEach(s=>addSoil(s));$('sw').innerHTML='';(c.switches||[]).forEach(s=>addSw(s));status()}
-function addSoil(s={}){const tr=document.createElement('tr');tr.innerHTML=`<td><input value="${s.pin??34}" type="number"></td><td><input value="${s.dry??3100}" type="number"></td><td><input value="${s.wet??1300}" type="number"></td><td><button type="button" onclick="this.closest('tr').remove()">ลบ</button></td>`;$('soil').appendChild(tr)}
+function addSoil(s={}){const tr=document.createElement('tr');tr.innerHTML=`<td><input value="${s.pin??34}" type="number"></td><td><input value="${s.key??''}" placeholder="soil1"></td><td><input value="${s.dry??3100}" type="number"></td><td><input value="${s.wet??1300}" type="number"></td><td><button type="button" onclick="this.closest('tr').remove()">ลบ</button></td>`;$('soil').appendChild(tr)}
 function addSw(s={}){const tr=document.createElement('tr');tr.innerHTML=`<td><input value="${s.key??''}" placeholder="drip"></td><td><input value="${s.pin??26}" type="number"></td><td><input type="checkbox" ${s.active_low!==false?'checked':''}></td><td><input value="${s.max_on_s??600}" type="number"></td><td><input value="${(s.exclusive||[]).join(',')}" placeholder="mist"></td><td><button type="button" onclick="this.closest('tr').remove()">ลบ</button></td>`;$('sw').appendChild(tr)}
-async function save(){const b={};for(const k of ['node','wifi_ssid','mqtt_host','mqtt_user','oled'])b[k]=$(k).value;for(const k of ['mqtt_port','interval_s','dht_pin','i2c_sda','i2c_scl','failsafe_s'])if($(k).value!=='')b[k]=+$(k).value;
+async function save(){const b={};for(const k of ['node','wifi_ssid','mqtt_host','mqtt_user','oled'])b[k]=$(k).value;for(const k of ['mqtt_port','interval_s','dht_pin','soil_power_pin','i2c_sda','i2c_scl','failsafe_s'])if($(k).value!=='')b[k]=+$(k).value;
 if($('wifi_pass').value)b.wifi_pass=$('wifi_pass').value;if($('mqtt_pass').value)b.mqtt_pass=$('mqtt_pass').value;
-b.soil=[...$('soil').querySelectorAll('tr')].map(tr=>{const i=tr.querySelectorAll('input');return{pin:+i[0].value,dry:+i[1].value,wet:+i[2].value}});
+b.soil=[...$('soil').querySelectorAll('tr')].map(tr=>{const i=tr.querySelectorAll('input');return{pin:+i[0].value,key:i[1].value,dry:+i[2].value,wet:+i[3].value}});
 b.switches=[...$('sw').querySelectorAll('tr')].map(tr=>{const i=tr.querySelectorAll('input');return{key:i[0].value,pin:+i[1].value,active_low:i[2].checked,max_on_s:+i[3].value,exclusive:i[4].value.split(',').map(x=>x.trim()).filter(Boolean)}});
 $('msg').textContent='กำลังบันทึก…';await post('/api/config',b);$('msg').textContent='บันทึกแล้ว กำลังรีบูต… ถ้าเปลี่ยน WiFi ให้กลับไปต่อ WiFi บ้านแล้วเปิด http://'+(b.node||'node')+'.local'}
 async function scan(){$('msg').textContent='กำลังสแกน WiFi…';const l=await (await fetch('/api/scan')).json();const s=$('ssids');s.innerHTML='<option value="">— เลือก —</option>'+l.map(n=>`<option value="${n.ssid}">${n.ssid} (${n.rssi} dBm)</option>`).join('');s.style.display='';$('msg').textContent=''}

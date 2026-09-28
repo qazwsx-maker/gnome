@@ -46,10 +46,10 @@ void configToJson(JsonObject o, bool includeSecrets) {
   o["wifi_ssid"] = cfg.wifiSsid; if (includeSecrets) o["wifi_pass"] = cfg.wifiPass; else o["wifi_pass_set"] = cfg.wifiPass.length() > 0;
   o["mqtt_host"] = cfg.mqttHost; o["mqtt_port"] = cfg.mqttPort; o["mqtt_user"] = cfg.mqttUser;
   if (includeSecrets) o["mqtt_pass"] = cfg.mqttPass; else o["mqtt_pass_set"] = cfg.mqttPass.length() > 0;
-  o["interval_s"] = cfg.intervalS; o["i2c_sda"] = cfg.i2cSda; o["i2c_scl"] = cfg.i2cScl; o["dht_pin"] = cfg.dhtPin;
+  o["interval_s"] = cfg.intervalS; o["i2c_sda"] = cfg.i2cSda; o["i2c_scl"] = cfg.i2cScl; o["dht_pin"] = cfg.dhtPin; o["soil_power_pin"] = cfg.soilPowerPin;
   o["failsafe_s"] = cfg.failsafeS; o["oled"] = cfg.oled; o["board"] = GNOME_BOARD;
   JsonArray soil = o["soil"].to<JsonArray>();
-  for (int i = 0; i < cfg.soilCount; i++) { JsonObject s = soil.add<JsonObject>(); s["pin"] = cfg.soil[i].pin; s["dry"] = cfg.soil[i].dry; s["wet"] = cfg.soil[i].wet; }
+  for (int i = 0; i < cfg.soilCount; i++) { JsonObject s = soil.add<JsonObject>(); s["pin"] = cfg.soil[i].pin; s["dry"] = cfg.soil[i].dry; s["wet"] = cfg.soil[i].wet; s["key"] = cfg.soil[i].key; }
   JsonArray sw = o["switches"].to<JsonArray>();
   for (int i = 0; i < cfg.swCount; i++) {
     JsonObject s = sw.add<JsonObject>(); s["key"] = cfg.sw[i].key; s["pin"] = cfg.sw[i].pin; s["active_low"] = cfg.sw[i].activeLow;
@@ -68,12 +68,12 @@ bool configApplyJson(JsonObjectConst o) {
   if (o["node"].is<const char*>()) { String n = sanitizeNode(o["node"].as<String>()); if (n.length() == 0) n = defaultNodeName(); if (n != cfg.node) { cfg.node = n; changed = true; } }
   setS("wifi_ssid", cfg.wifiSsid); setS("wifi_pass", cfg.wifiPass);
   setS("mqtt_host", cfg.mqttHost); setI("mqtt_port", cfg.mqttPort); setS("mqtt_user", cfg.mqttUser); setS("mqtt_pass", cfg.mqttPass);
-  setI("interval_s", cfg.intervalS); setI("i2c_sda", cfg.i2cSda); setI("i2c_scl", cfg.i2cScl); setI("dht_pin", cfg.dhtPin); setI("failsafe_s", cfg.failsafeS);
+  setI("interval_s", cfg.intervalS); setI("i2c_sda", cfg.i2cSda); setI("i2c_scl", cfg.i2cScl); setI("dht_pin", cfg.dhtPin); setI("soil_power_pin", cfg.soilPowerPin); setI("failsafe_s", cfg.failsafeS);
   if (cfg.intervalS < 5) cfg.intervalS = 5; if (cfg.failsafeS < 30) cfg.failsafeS = 30;
   if (o["oled"].is<const char*>()) { String v = o["oled"].as<String>(); if (v != "sh1106" && v != "ssd1306" && v != "none") v = "sh1106"; if (v != cfg.oled) { cfg.oled = v; changed = true; } }
   if (o["soil"].is<JsonArrayConst>()) {
     int n = 0; for (JsonObjectConst s : o["soil"].as<JsonArrayConst>()) { if (n >= GNOME_MAX_SOIL) break; int pin = s["pin"] | -1; if (!isAdc1Pin(pin)) continue;
-      cfg.soil[n].pin = pin; cfg.soil[n].dry = s["dry"] | 3100; cfg.soil[n].wet = s["wet"] | 1300; n++; }
+      cfg.soil[n].pin = pin; cfg.soil[n].dry = s["dry"] | 3100; cfg.soil[n].wet = s["wet"] | 1300; cfg.soil[n].key = sanitizeNode(s["key"] | ""); n++; }
     cfg.soilCount = n; changed = true;
   }
   if (o["switches"].is<JsonArrayConst>()) {

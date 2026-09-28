@@ -23,7 +23,7 @@
 #define GNOME_BOARD "esp32dev"
 #endif
 
-struct SoilCfg { int pin = -1; int dry = 3100; int wet = 1300; };
+struct SoilCfg { int pin = -1; int dry = 3100; int wet = 1300; String key; };  // key ว่าง = soilN
 struct SwitchCfg {
   String key; int pin = -1; bool activeLow = true; int maxOnS = 600; String exclusive; // comma-separated keys
 };
@@ -35,6 +35,7 @@ struct Config {
   int intervalS = 30;
   int i2cSda = 21, i2cScl = 22;
   int dhtPin = -1;
+  int soilPowerPin = -1;   // จ่ายไฟหัววัด analog เฉพาะตอนวัด (ลดการกร่อนของหัว resistive) -1 = ไม่ใช้
   SoilCfg soil[GNOME_MAX_SOIL]; int soilCount = 0;
   SwitchCfg sw[GNOME_MAX_SWITCH]; int swCount = 0;
   int failsafeS = 120;

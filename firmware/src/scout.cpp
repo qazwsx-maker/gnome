@@ -33,6 +33,7 @@ void roleRescan() {
   if (dht) { delete dht; dht = nullptr; }
   if (cfg.dhtPin >= 0) { dht = new DHT(cfg.dhtPin, DHT22); dht->begin(); }
   for (int i = 0; i < cfg.soilCount; i++) { pinMode(cfg.soil[i].pin, INPUT); analogSetPinAttenuation(cfg.soil[i].pin, ADC_11db); }
+  if (cfg.soilPowerPin >= 0) { pinMode(cfg.soilPowerPin, OUTPUT); digitalWrite(cfg.soilPowerPin, LOW); }
   analogReadResolution(12);
   lastCount = 0;
   Serial.printf("[scout] sht3x=%d bh1750=%d bme280=%d dht=%d soil=%d\n", hasSht, hasBh, hasBme, dht != nullptr, cfg.soilCount);
@@ -50,10 +51,14 @@ static void readAll(bool publish) {
     if (!hasSht) { setLast("temp_c", "°C", "bme280", t); setLast("rh_pct", "%", "bme280", h); } setLast("press_hpa", "hPa", "bme280", p); }
   if (hasBh) { float l = bh.readLightLevel(); if (l < 0) { err = true; l = NAN; } setLast("lux", "lx", "bh1750", l); }
   if (dht) { float t = dht->readTemperature(), h = dht->readHumidity(); if (isnan(t)) err = true; setLast("dht_temp_c", "°C", "dht22", t); setLast("dht_rh_pct", "%", "dht22", h); }
-  for (int i = 0; i < cfg.soilCount; i++) {
-    int raw = readSoilRaw(cfg.soil[i].pin); float pct = 100.0f * (cfg.soil[i].dry - raw) / (float)(cfg.soil[i].dry - cfg.soil[i].wet); pct = constrain(pct, 0.0f, 100.0f);
-    char k1[16], k2[16]; snprintf(k1, 16, "soil%d_pct", i + 1); snprintf(k2, 16, "soil%d_raw", i + 1);
-    setLast(k1, "%", "adc", pct); setLast(k2, "raw", "adc", raw);
+  if (cfg.soilCount) {
+    if (cfg.soilPowerPin >= 0) { digitalWrite(cfg.soilPowerPin, HIGH); delay(150); }   // เปิดไฟหัววัดแค่ตอนอ่าน
+    for (int i = 0; i < cfg.soilCount; i++) {
+      int raw = readSoilRaw(cfg.soil[i].pin); float pct = 100.0f * (cfg.soil[i].dry - raw) / (float)(cfg.soil[i].dry - cfg.soil[i].wet); pct = constrain(pct, 0.0f, 100.0f);
+      String base = cfg.soil[i].key.length() ? cfg.soil[i].key : String("soil") + (i + 1);
+      setLast((base + "_pct").c_str(), "%", "adc", pct); setLast((base + "_raw").c_str(), "raw", "adc", raw);
+    }
+    if (cfg.soilPowerPin >= 0) digitalWrite(cfg.soilPowerPin, LOW);
   }
   if (!publish) return;
   for (int i = 0; i < lastCount; i++) if (last[i].valid) mqttPublish("sensor/" + last[i].key + "/state", String(last[i].value, last[i].unit == "raw" ? 0 : 2));

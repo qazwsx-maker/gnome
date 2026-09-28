@@ -40,7 +40,7 @@ Server: `gnome/server/status` retained `online`/`offline` (LWT) — Keeper ใ�
 Keeper: `"switches":[{"key":"drip","pin":26,"active_low":true,"max_on_s":600,"exclusive":["mist"]}, ...]`, `"sensors":[]`
 
 ## Sensor keys (Scout)
-`temp_c`, `rh_pct`, `lux`, `press_hpa`, `soil<N>_pct`, `soil<N>_raw` (N=1..6), `dht_temp_c`, `dht_rh_pct`
+`temp_c`, `rh_pct`, `lux`, `press_hpa`, `<key>_pct` / `<key>_raw` ต่อช่อง analog (key ตั้งเอง ค่าเริ่มต้น `soil1..6`; แผ่นวัดฝนใช้ `rain`), `dht_temp_c`, `dht_rh_pct`
 soil `_pct` = map(raw, dry→0, wet→100) clamp; calibration `dry`/`wet` ต่อช่องอยู่ใน config
 
 ## Node config (NVS, แก้ผ่าน captive portal · หน้าเว็บบน node `http://<ip>/` · `cmd/config`)
@@ -48,7 +48,7 @@ soil `_pct` = map(raw, dry→0, wet→100) clamp; calibration `dry`/`wet` ต่
 { "node":"air", "role":"scout", "wifi_ssid":"...", "wifi_pass":"...",
   "mqtt_host":"192.168.1.10", "mqtt_port":1883, "mqtt_user":"gnome", "mqtt_pass":"...",
   "interval_s":30, "i2c_sda":21, "i2c_scl":22, "dht_pin":-1,
-  "soil":[{"pin":34,"dry":3100,"wet":1300}],
+  "soil_power_pin":-1, "soil":[{"pin":34,"key":"soil1","dry":3100,"wet":1300},{"pin":33,"key":"rain","dry":3000,"wet":1500}],
   "switches":[{"key":"drip","pin":26,"active_low":true,"max_on_s":600,"exclusive":["mist"]}],
   "failsafe_s":120 }
 ```

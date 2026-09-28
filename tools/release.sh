@@ -1,0 +1,30 @@
+#!/bin/bash
+# GnomeOS release: build ทุก env → วาง binaries ให้หน้า flash (docs/firmware) และ gnome-core (/firmware/<env>/…) → OTA ได้ทันที
+#   tools/release.sh 0.2.1        ตั้งเวอร์ชันใหม่แล้ว build
+#   tools/release.sh              build ด้วยเวอร์ชันปัจจุบันใน platformio.ini
+set -euo pipefail
+cd "$(dirname "$0")/../firmware"
+ENVS=(scout keeper keeper-relayx4)
+if [ -n "${1:-}" ]; then sed -i '' "s/-DGNOME_VERSION=\\\\\"[0-9.]*\\\\\"/-DGNOME_VERSION=\\\\\"$1\\\\\"/" platformio.ini; fi
+VER=$(grep -o 'GNOME_VERSION=\\"[0-9.]*\\"' platformio.ini | grep -o '[0-9.]*')
+echo "== GnomeOS $VER: building ${ENVS[*]}"
+pio run -e "$(IFS=, ; echo "${ENVS[*]}")" 2>&1 | grep -E "SUCCESS|FAILED|error:" || true
+BOOT0=$HOME/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin
+for e in "${ENVS[@]}"; do
+  d=../docs/firmware/$e; mkdir -p "$d"
+  [ -f ".pio/build/$e/firmware.bin" ] || { echo "!! $e build missing"; exit 1; }
+  cp ".pio/build/$e/bootloader.bin" ".pio/build/$e/partitions.bin" ".pio/build/$e/firmware.bin" "$d/"; cp "$BOOT0" "$d/"
+  python3 - "$d/manifest.json" "$VER" "$e" <<'PY'
+import json,sys
+p,ver,env=sys.argv[1:]
+name={'scout':'GnomeOS Scout','keeper':'GnomeOS Keeper','keeper-relayx4':'GnomeOS Keeper (ESP32-Relay-X4)','cam':'GnomeOS Watcher'}.get(env,'GnomeOS '+env)
+try: m=json.load(open(p))
+except Exception: m={}
+m.update({'name':name,'version':ver,'new_install_prompt_erase':True,'new_install_improv_wait_time':15,
+  'builds':[{'chipFamily':'ESP32','parts':[{'path':'bootloader.bin','offset':4096},{'path':'partitions.bin','offset':32768},{'path':'boot_app0.bin','offset':57344},{'path':'firmware.bin','offset':65536}]}]})
+json.dump(m,open(p,'w'),ensure_ascii=False,indent=2)
+PY
+  printf "   %-16s %s  (%s bytes)\n" "$e" "$VER" "$(stat -f %z "$d/firmware.bin")"
+done
+python3 -c "import json,sys; json.dump({e:'$VER' for e in sys.argv[1:]}, open('../docs/firmware/versions.json','w'), indent=2)" "${ENVS[@]}"
+echo "== done. commit + push เพื่อให้หน้า flash ได้ไฟล์ใหม่ · gnome-core เสิร์ฟจาก docs/firmware ทันที (OTA ปุ่มบน dashboard)"

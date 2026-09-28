@@ -9,6 +9,8 @@ import { bus, type LiveMessage } from './bus.ts';
 import { nodes, nodeToJson } from './state.ts';
 import { mqttConnected, sendSwitch, sendCmd } from './mqtt.ts';
 import { listRules, reloadRules, validateRule, activeRunsJson } from './rules.ts';
+import { readdirSync, readFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
 
 const log = logger('http');
 const started = Date.now();
@@ -27,6 +29,7 @@ export async function startHttp() {
 
   await app.register(fastifyWebsocket, { options: { maxPayload: 16 * 1024 } });
   await app.register(fastifyStatic, { root: config.publicDir, prefix: '/', index: ['index.html'], cacheControl: false });
+  if (existsSync(config.firmwareDir)) await app.register(fastifyStatic, { root: config.firmwareDir, prefix: '/firmware/', decorateReply: false, cacheControl: false });
 
   app.addHook('onResponse', (req, reply, done) => {
     if (req.url.startsWith('/api/')) log.info(`${req.method} ${req.url} ${reply.statusCode} ${reply.elapsedTime.toFixed(0)}ms`);
@@ -101,6 +104,55 @@ export async function startHttp() {
     await query('DELETE FROM switch_states WHERE node = $1', [node]);
     nodes.delete(node);
     return { ok: true };
+  });
+
+  // ---- firmware / OTA ----------------------------------------------------
+  // env ที่มีใน docs/firmware/<env>/manifest.json (version) → node เลือก env ตาม role + board
+  function firmwareList(): Record<string, { version: string; url: string }> {
+    const out: Record<string, { version: string; url: string }> = {};
+    if (!existsSync(config.firmwareDir)) return out;
+    for (const env of readdirSync(config.firmwareDir, { withFileTypes: true })) {
+      if (!env.isDirectory()) continue;
+      const mf = join(config.firmwareDir, env.name, 'manifest.json');
+      if (!existsSync(mf) || !existsSync(join(config.firmwareDir, env.name, 'firmware.bin'))) continue;
+      try { const m = JSON.parse(readFileSync(mf, 'utf8')); out[env.name] = { version: String(m.version || '?'), url: `${config.publicUrl}/firmware/${env.name}/firmware.bin` }; } catch { /* ignore */ }
+    }
+    return out;
+  }
+  function envForNode(n: { role: string | null; meta: any; fw: string | null }): string | null {
+    const board = String(n.meta?.board || '');
+    const fw = String(n.fw || '');
+    if (n.role === 'keeper') return board.includes('relay-x4') || fw.includes('relayx4') ? 'keeper-relayx4' : 'keeper';
+    if (n.role === 'scout') return 'scout';
+    if (n.role === 'cam') return 'cam';
+    return null;
+  }
+  const fwVersion = (fw: string | null) => (fw || '').trim().split(/\s+/).pop() || '';
+
+  app.get('/api/firmware', async () => {
+    const list = firmwareList();
+    const per = [...nodes.values()].map((n) => { const env = envForNode(n); const avail = env ? list[env] : undefined; const cur = fwVersion(n.fw);
+      return { node: n.node, env, current: cur, available: avail?.version || null, update: !!(avail && cur && avail.version !== cur), online: n.online }; });
+    return { publicUrl: config.publicUrl, firmware: list, nodes: per };
+  });
+
+  app.post<{ Params: { node: string }; Body: { env?: string } }>('/api/nodes/:node/ota', async (req, reply) => {
+    const n = nodes.get(req.params.node);
+    if (!n) return bad(reply, 'node not found', 404);
+    const list = firmwareList();
+    const env = req.body?.env || envForNode(n);
+    if (!env || !list[env]) return bad(reply, `no firmware for env ${env}`);
+    const url = list[env].url;
+    await sendCmd(n.node, 'ota', url);
+    await query('INSERT INTO events (ts, node, type, payload) VALUES (now(), $1, $2, $3)', [n.node, 'ota_sent', JSON.stringify({ env, version: list[env].version, url })]).catch(() => {});
+    return { ok: true, node: n.node, env, version: list[env].version, url };
+  });
+
+  app.post('/api/ota', async () => {
+    const list = firmwareList(); const sent: any[] = [];
+    for (const n of nodes.values()) { const env = envForNode(n); if (!env || !list[env] || !n.online) continue; if (fwVersion(n.fw) === list[env].version) continue;
+      await sendCmd(n.node, 'ota', list[env].url); sent.push({ node: n.node, env, version: list[env].version }); }
+    return { ok: true, sent };
   });
 
   // ---- latest / switches -------------------------------------------------

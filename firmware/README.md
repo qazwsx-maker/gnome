@@ -10,6 +10,12 @@
 
 บอร์ดเป้าหมาย: ESP32 DevKit (ESP32-WROOM-32) · โปรโตคอล: [docs/PROTOCOL.md](../docs/PROTOCOL.md)
 
+## วงจรชีวิตของ firmware (flash ครั้งเดียว แล้ว OTA ตลอด)
+1. **ครั้งแรก**: flash ผ่าน USB จากหน้า flash → ตั้ง WiFi (Improv) → ตั้ง MQTT ในหน้าเว็บ node — จบ ไม่ต้องต่อสายอีก
+2. **อัปเดต**: `tools/release.sh <version>` build ทุก env + วาง bin ที่ `docs/firmware/<env>/` (gnome-core เสิร์ฟที่ `http://<macmini>:8080/firmware/<env>/firmware.bin`) → บน dashboard node ที่เวอร์ชันเก่าจะมีปุ่ม **"อัปเดต OTA → x.y.z"** หรือกด "อัปเดต OTA ทุก node" → node ดาวน์โหลด, เขียน slot สำรอง, รีบูต, รายงาน `meta` เวอร์ชันใหม่ (config ใน NVS คงเดิม)
+3. ถ้า OTA ล้มเหลว node ส่ง event `ota_failed` และยังรัน firmware เดิม (partition `min_spiffs`: app slot ×2 ขนาด 1.9 MB — เปลี่ยนตาราง partition ต้อง flash USB เท่านั้น)
+4. ทางอื่นที่ยังใช้ได้: อัปโหลด .bin ในหน้าเว็บ node · `pio run -e scout -t upload --upload-port <node>.local` (ArduinoOTA รหัส `gnome1234`) · MQTT `cmd/ota` + URL
+
 ## ติดตั้ง
 - **จากเบราว์เซอร์ (แนะนำ):** https://qazwsx-maker.github.io/gnome/flash/ (Chrome/Edge + USB) → ตั้ง WiFi ได้ทันทีผ่าน Improv
 - **PlatformIO:** `pio run -e scout -t upload` / `pio run -e keeper -t upload`

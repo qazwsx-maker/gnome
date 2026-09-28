@@ -58,6 +58,10 @@ Mosquitto runs as `brew services start mosquitto`; `/opt/homebrew/etc/mosquitto/
 | `GET /latest` | | `{node:{key:{value,ts}}}` |
 | `GET /readings` | `node, key, since=ISO, until=ISO, res=raw\|5m, limit` | default last 24 h; `5m` auto when span > 2 days (5m rows include `min`/`max`) |
 | `GET /switches` | | every known switch with state + meta |
+| `GET /firmware` | | firmware envs served from `FIRMWARE_DIR` (docs/firmware) with version + URL, and per-node `update` flag |
+| `POST /nodes/:node/ota` | `{env?}` | publish `cmd/ota` with the server's firmware URL (env auto-picked from role/board) |
+| `POST /ota` | | OTA every online node whose version differs |
+| `GET /firmware/<env>/firmware.bin` | | static binaries for nodes (`CORE_PUBLIC_URL` = how nodes reach this server) |
 | `POST /switch` | `{node, key, state:"ON"\|"OFF", seconds?}` | publishes `ON`, `ON <seconds>` or `OFF` to `switch/<key>/command` |
 | `GET /switch-log` | `limit` | |
 | `GET /events` | `limit (≤1000), node, type` | newest first |

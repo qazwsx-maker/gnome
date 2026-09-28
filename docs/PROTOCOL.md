@@ -25,7 +25,7 @@
 | `event` | no | 1 | node→ | JSON `{"type":"boot"\|"max_on_reached"\|"failsafe_off"\|"interlock_blocked"\|"config_changed"\|"sensor_error", ...}` |
 | `cmd/reboot` | no | 1 | →node | อะไรก็ได้ |
 | `cmd/config` | no | 1 | →node | JSON patch ของ config (node บันทึกลง NVS แล้ว reboot ถ้าจำเป็น) |
-| `cmd/ota` | no | 1 | →node | URL ของไฟล์ .bin (HTTP) |
+| `cmd/ota` | no | 1 | →node | URL ของไฟล์ .bin (HTTP) — server ส่ง `http://<core>/firmware/<env>/firmware.bin` (`POST /api/nodes/<node>/ota`, `POST /api/ota`) node ตอบ event `ota_start` / `ota_failed` แล้วรีบูตพร้อม `meta.fw` ใหม่ |
 | `cmd/identify` | no | 1 | →node | กระพริบ LED 10 วินาที |
 
 Server: `gnome/server/status` retained `online`/`offline` (LWT) — Keeper ใช้ร่วมกับการขาด MQTT เพื่อ failsafe

@@ -92,6 +92,10 @@
     </div>`;
   }
 
+  let fwInfo = { firmware: {}, nodes: [] }, fwAt = 0;
+  async function loadFirmware() { if (Date.now() - fwAt < 30000) return fwInfo; try { fwInfo = await api('/firmware'); fwAt = Date.now(); } catch {} return fwInfo; }
+  const fwFor = (node) => fwInfo.nodes.find((x) => x.node === node);
+
   function nodeCard(n) {
     const keys = Object.keys(n.latest).sort();
     const metaSw = Array.isArray(n.meta?.switches) ? n.meta.switches : [];
@@ -109,6 +113,7 @@
         ${dbg.rssi !== undefined ? `<span>RSSI ${esc(dbg.rssi)} dBm</span>` : ''}
         ${n.ip ? `<span>IP ${esc(n.ip)}</span>` : ''}
         ${n.fw ? `<span>${esc(n.fw)}</span>` : ''}
+        ${(() => { const f = fwFor(n.node); return f?.update ? `<span class="fw-new">มีเวอร์ชัน ${esc(f.available)}</span>` : ''; })()}
         ${dbg.uptime_s !== undefined ? `<span>up ${Math.floor(dbg.uptime_s / 3600)}h${Math.floor((dbg.uptime_s % 3600) / 60)}m</span>` : ''}
         ${dbg.heap !== undefined ? `<span>heap ${Math.round(dbg.heap / 1024)}k</span>` : ''}
       </div>
@@ -128,16 +133,24 @@
       <div class="row">
         <button class="ghost small" data-cmd="identify" title="กระพริบ LED 10 วิ.">identify</button>
         <button class="ghost small danger" data-cmd="reboot">reboot</button>
+        ${(() => { const f = fwFor(n.node); return f?.env && f.available ? `<button class="ghost small ${f.update ? 'primary' : ''}" data-ota="${esc(f.env)}" ${n.online ? '' : 'disabled'} title="OTA จาก server: ${esc(f.env)} ${esc(f.available)}">${f.update ? 'อัปเดต OTA → ' + esc(f.available) : 'flash ซ้ำ OTA'}</button>` : ''; })()}
       </div>
     </article>`;
   }
 
-  function renderStatus() {
+  async function renderStatus() {
     renderBanner();
+    await loadFirmware();
     const list = [...nodes.values()].sort((a, b) => a.node.localeCompare(b.node));
     $('#nodes').innerHTML = list.map(nodeCard).join('');
     $('#nodes-empty').classList.toggle('hidden', list.length > 0);
+    const pending = fwInfo.nodes.filter((x) => x.update && x.online).length;
+    const b = $('#ota-all'); if (b) { b.classList.toggle('hidden', pending === 0); b.textContent = `อัปเดต OTA ทุก node ที่ล้าสมัย (${pending})`; }
   }
+  $('#ota-all')?.addEventListener('click', async () => {
+    if (!confirm('ส่งคำสั่ง OTA ไปทุก node ที่มีเวอร์ชันใหม่กว่า?')) return;
+    try { const r = await api('/ota', { method: 'POST' }); toast(`ส่ง OTA ${r.sent.length} node`); fwAt = 0; } catch (err) { toast('ผิดพลาด: ' + err.message, true); }
+  });
 
   $('#nodes').addEventListener('click', async (e) => {
     const btn = e.target.closest('button');
@@ -150,6 +163,10 @@
         const seconds = Number(sw.querySelector('input').value) || undefined;
         const r = await api('/switch', { method: 'POST', body: { node, key, state: btn.dataset.act, seconds: btn.dataset.act === 'ON' ? seconds : undefined } });
         toast(`ส่ง ${r.payload} → ${node}.${key}`);
+      } else if (btn.dataset.ota) {
+        if (!confirm(`ส่ง OTA (${btn.dataset.ota}) ไปที่ ${node}? node จะรีบูตเมื่ออัปเดตเสร็จ`)) return;
+        const r = await api(`/nodes/${node}/ota`, { method: 'POST', body: { env: btn.dataset.ota } });
+        toast(`ส่ง OTA ${r.version} → ${node}`); fwAt = 0;
       } else if (btn.dataset.cmd) {
         if (btn.dataset.cmd === 'reboot' && !confirm(`reboot ${node}?`)) return;
         await api(`/nodes/${node}/cmd`, { method: 'POST', body: { cmd: btn.dataset.cmd } });

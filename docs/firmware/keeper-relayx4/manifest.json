@@ -1,6 +1,6 @@
 {
   "name": "GnomeOS Keeper (ESP32-Relay-X4)",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "new_install_prompt_erase": true,
   "new_install_improv_wait_time": 15,
   "builds": [

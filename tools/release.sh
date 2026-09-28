@@ -9,9 +9,11 @@ C6_ENVS=(scout-c6)   # ESP32-C6 build ด้วย core dir แยก (pioarduin
 if [ -n "${1:-}" ]; then printf '#pragma once\n// เขียนโดย tools/release.sh — อย่าแก้มือ\n#define GNOME_VERSION "%s"\n' "$1" > src/version.h; fi
 VER=$(grep -o '"[0-9.]*"' src/version.h | tr -d '"')
 echo "== GnomeOS $VER: building ${ENVS[*]}"
-pio run -e "$(IFS=, ; echo "${ENVS[*]}")" 2>&1 | grep -E "SUCCESS|FAILED|error:" || true
+EARGS=(); for e in "${ENVS[@]}"; do EARGS+=(-e "$e"); done
+pio run "${EARGS[@]}" 2>&1 | grep -E "SUCCESS|FAILED|error:" || true
 if [ -d "$HOME/.platformio-c6/platforms" ]; then
-  PLATFORMIO_CORE_DIR=$HOME/.platformio-c6 pio run -e "$(IFS=, ; echo "${C6_ENVS[*]}")" 2>&1 | grep -E "SUCCESS|FAILED|error:" || true
+  CARGS=(); for e in "${C6_ENVS[@]}"; do CARGS+=(-e "$e"); done
+  PLATFORMIO_CORE_DIR=$HOME/.platformio-c6 pio run "${CARGS[@]}" 2>&1 | grep -E "SUCCESS|FAILED|error:" || true
   ENVS+=("${C6_ENVS[@]}")
 fi
 BOOT0=$HOME/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin

@@ -94,7 +94,7 @@ static void setupRoutes() {
     JsonDocument d; JsonObject o = d.to<JsonObject>();
     o["node"] = cfg.node; o["role"] = GNOME_ROLE; o["fw"] = String(GNOME_FW_NAME) + " " + GNOME_VERSION;
     o["ip"] = netIp(); o["rssi"] = netRssi(); o["wifi"] = netWifiConnected(); o["portal"] = portal;
-    o["mqtt"] = mqttIsConnected(); o["mqtt_host"] = cfg.mqttHost; o["uptime_s"] = millis() / 1000; o["heap"] = ESP.getFreeHeap();
+    o["mqtt"] = mqttIsConnected(); o["mqtt_host"] = cfg.mqttHost; o["oled"] = displayPresent(); o["board"] = GNOME_BOARD; o["uptime_s"] = millis() / 1000; o["heap"] = ESP.getFreeHeap();
     roleStatus(o); sendJson(d);
   });
   server.on("/api/config", HTTP_GET, []() { JsonDocument d; configToJson(d.to<JsonObject>(), false); sendJson(d); });
@@ -116,7 +116,7 @@ static void setupRoutes() {
   });
   server.on("/api/reboot", HTTP_POST, []() { JsonDocument r; r["ok"] = true; r["msg"] = "กำลังรีบูต"; sendJson(r); netRequestReboot(500); });
   server.on("/api/identify", HTTP_POST, []() { ledSetMode(LED_IDENTIFY); JsonDocument r; r["ok"] = true; r["msg"] = "กระพริบ 10 วินาที"; sendJson(r); });
-  server.on("/api/rescan", HTTP_POST, []() { roleRescan(); JsonDocument r; r["ok"] = true; r["msg"] = "สแกนแล้ว"; sendJson(r); });
+  server.on("/api/rescan", HTTP_POST, []() { roleRescan(); displaySetup(); JsonDocument r; r["ok"] = true; r["msg"] = "สแกนแล้ว"; sendJson(r); });
   server.on("/update", HTTP_POST,
     []() { bool ok = !Update.hasError(); server.send(200, "text/html; charset=utf-8", ok ? "<meta http-equiv=refresh content='8;url=/'>อัปเดตสำเร็จ กำลังรีบูต…" : "อัปเดตล้มเหลว"); if (ok) netRequestReboot(800); },
     []() { HTTPUpload& up = server.upload();

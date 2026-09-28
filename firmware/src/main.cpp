@@ -9,6 +9,7 @@ void setup() {
   configLoad();
   Serial.printf("[gnome] node=%s wifi=%s mqtt=%s:%d\n", cfg.node.c_str(), cfg.wifiSsid.length() ? cfg.wifiSsid.c_str() : "(none)", cfg.mqttHost.length() ? cfg.mqttHost.c_str() : "(none)", cfg.mqttPort);
   roleSetup();      // keeper: ทุก relay OFF ก่อนต่อเน็ตเสมอ
+  displaySetup();   // OLED (ถ้ามี) — หลัง roleSetup เพราะใช้ I2C บัสเดียวกับ Scout
   netSetup();
   mqttSetup();
 }
@@ -17,5 +18,6 @@ void loop() {
   netLoop();
   mqttLoop();
   roleLoop();
+  displayLoop();
   delay(5);
 }

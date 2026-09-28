@@ -26,7 +26,7 @@ void mqttEvent(const char* type, const String& extra) {
 }
 void mqttPublishMeta() {
   JsonDocument d; JsonObject o = d.to<JsonObject>();
-  o["node"] = cfg.node; o["role"] = GNOME_ROLE; o["fw"] = String(GNOME_FW_NAME) + " " + GNOME_VERSION; o["board"] = "esp32dev";
+  o["node"] = cfg.node; o["role"] = GNOME_ROLE; o["fw"] = String(GNOME_FW_NAME) + " " + GNOME_VERSION; o["board"] = GNOME_BOARD;
   o["mac"] = WiFi.macAddress(); o["ip"] = WiFi.localIP().toString();
   o["sensors"].to<JsonArray>(); o["switches"].to<JsonArray>();
   roleMeta(o);

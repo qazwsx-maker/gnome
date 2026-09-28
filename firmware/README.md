@@ -3,7 +3,10 @@
 | env | role | หน้าที่ |
 |---|---|---|
 | `scout` | sensor node | I2C auto-detect SHT3x (0x44/45) · BH1750 (0x23/5C) · BME280 (0x76/77), DHT22 (ตั้ง pin), ความชื้นดิน analog สูงสุด 6 หัว (ADC1: 32 33 34 35 36 39) |
-| `keeper` | controller node | relay/สวิตช์ สูงสุด 4 ตัว, `max_on_s` ต่อตัว, `exclusive` interlock, failsafe ปิดทุกตัวเมื่อขาด MQTT/server เกิน `failsafe_s` |
+| `keeper` | controller node | ESP32 DevKit + relay module: relay/สวิตช์ สูงสุด 4 ตัว, `max_on_s` ต่อตัว, `exclusive` interlock, failsafe ปิดทุกตัวเมื่อขาด MQTT/server เกิน `failsafe_s` |
+| `keeper-relayx4` | controller node | เหมือน keeper แต่ค่าเริ่มต้นสำหรับบอร์ด **LC ESP32-Relay-X4**: drip/mist/fan/aux = GPIO32/33/25/26 active-high, LED 23 · ไม่มี USB flash ผ่าน USB-TTL |
+
+ทุก env รองรับ **จอ OLED** SH1106/SSD1306 128×64 บน I2C (auto-detect 0x3C/0x3D, ตั้งชนิด/ปิดได้ในหน้าเว็บ) แสดง node · IP/RSSI · MQTT · ค่าเซ็นเซอร์หรือสถานะ relay
 
 บอร์ดเป้าหมาย: ESP32 DevKit (ESP32-WROOM-32) · โปรโตคอล: [docs/PROTOCOL.md](../docs/PROTOCOL.md)
 
@@ -36,6 +39,7 @@ src/improv.*      Improv Wi-Fi serial (ESP Web Tools)
 src/mqttc.cpp     PubSubClient, LWT, meta, cmd/*, ota
 src/scout.cpp     sensors (compiled only for scout)
 src/keeper.cpp    switches (compiled only for keeper)
+src/display.cpp   OLED สถานะ (U8g2)
 src/web_ui.h      หน้าเว็บบน node (PROGMEM)
 ```
 Build: `pio run` (ทั้งสอง env) — binaries สำหรับหน้า flash ถูกคัดลอกไป `docs/firmware/<role>/`

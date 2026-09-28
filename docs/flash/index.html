@@ -39,9 +39,18 @@ table{width:100%;border-collapse:collapse;font-size:14px}td,th{text-align:left;p
       <span slot="not-allowed">ต้องเปิดผ่าน HTTPS</span>
     </esp-web-install-button>
   </div>
+  <div class="card" style="border-color:var(--leaf)">
+    <h3>Keeper — บอร์ด ESP32-Relay-X4 <span class="pill">controller node</span></h3>
+    <p class="muted">สำหรับบอร์ด LC Technology ESP32-Relay-X4 (relay 10A ×4 ในตัว รับ 220VAC) ค่าเริ่มต้น: drip=relay1 (GPIO32) · mist=relay2 (33) · fan=relay3 (25) · aux=relay4 (26) active-high · LED GPIO23 · จอ OLED ที่ 21/22 · <b>บอร์ดนี้ไม่มี USB ต้องต่อผ่าน USB-TTL</b> (ดูด้านล่าง)</p>
+    <esp-web-install-button manifest="../firmware/keeper-relayx4/manifest.json">
+      <button slot="activate">ติดตั้ง GnomeOS Keeper (Relay-X4)</button>
+      <span slot="unsupported">เบราว์เซอร์นี้ไม่รองรับ Web Serial — ใช้ Chrome/Edge บนคอมพิวเตอร์</span>
+      <span slot="not-allowed">ต้องเปิดผ่าน HTTPS</span>
+    </esp-web-install-button>
+  </div>
   <div class="card">
-    <h3>Keeper <span class="pill">controller node</span></h3>
-    <p class="muted">คุม relay สูงสุด 4 ตัว (น้ำหยด/พ่นหมอก/พัดลม) พร้อม max-on timer, interlock และ failsafe ปิดเองเมื่อขาดการติดต่อ server</p>
+    <h3>Keeper — ESP32 DevKit + relay module <span class="pill">controller node</span></h3>
+    <p class="muted">ESP32 DevKit ต่อ relay module แยก (drip GPIO26, mist GPIO27 active-low) สูงสุด 4 ตัว พร้อม max-on timer, interlock และ failsafe</p>
     <esp-web-install-button manifest="../firmware/keeper/manifest.json">
       <button slot="activate">ติดตั้ง GnomeOS Keeper</button>
       <span slot="unsupported">เบราว์เซอร์นี้ไม่รองรับ Web Serial — ใช้ Chrome/Edge บนคอมพิวเตอร์</span>
@@ -67,15 +76,37 @@ table{width:100%;border-collapse:collapse;font-size:14px}td,th{text-align:left;p
 <p class="muted">ไฟ LED บนบอร์ด: กระพริบเร็ว = โหมดตั้งค่า · กระพริบช้า = ต่อ WiFi ได้แต่ยังไม่ถึง MQTT · กระพริบสั้นทุก 5 วินาที = ทำงานปกติ</p>
 </div>
 
+<h2>บอร์ด ESP32-Relay-X4 (ไม่มี USB) — flash ผ่าน USB-TTL</h2>
+<div class="card">
+<ol>
+  <li>ใช้ <b>USB-to-TTL adapter 3.3V</b> (CP2102 / FTDI / CH340 ที่ตั้ง 3.3V ได้) — บัดกรี pin header ที่แถมมาลงบอร์ดก่อน</li>
+  <li>จ่ายไฟบอร์ดที่ขั้ว <b>5V</b> (จากขา 5V ของ adapter) หรืออะแดปเตอร์ 12V เข้าขั้ว <b>7–30V</b> · <b>ห้าม</b>ใช้ 3.3V จาก adapter จ่ายบอร์ด (brownout) · ยังไม่ต้องต่อ 220V ตอนโปรแกรม</li>
+  <li>ต่อ 3 เส้น: adapter <code>GND</code> ↔ บอร์ด <code>GND</code> · adapter <code>TX</code> → บอร์ด <code>RX</code> · adapter <code>RX</code> → บอร์ด <code>TX</code></li>
+  <li>เข้าโหมดโปรแกรม: <b>กด IO0 ค้าง → กด EN แล้วปล่อย → ปล่อย IO0</b></li>
+  <li>กด "ติดตั้ง GnomeOS Keeper (Relay-X4)" เลือกพอร์ตของ adapter → Install → เสร็จแล้วกด EN · ตั้ง WiFi ผ่าน Improv ได้เหมือนบอร์ดอื่น หลังจากนั้นอัปเดตทาง OTA ที่ <code>http://&lt;node&gt;.local/</code> ไม่ต้องต่อสายอีก</li>
+</ol>
+<p class="muted">ทางลัด: บอร์ด ESP32-CAM-MB ใช้เป็น adapter ได้ — ช่อง <code>U0R</code> = TX ของ adapter, <code>U0T</code> = RX, พร้อม GND/5V และปุ่ม IO0 ของ MB ต่อไปขา IO0 ของบอร์ด relay</p>
+</div>
+
 <h2>ต่อสายอะไรเข้าขาไหน</h2>
 <div class="grid">
 <div class="card"><h3>Scout</h3>
 <div class="tbl"><table><thead><tr><th>อุปกรณ์</th><th>ขา ESP32</th><th>หมายเหตุ</th></tr></thead><tbody>
 <tr><td>SHT31 / BH1750 / BME280 (I2C)</td><td>SDA <b>21</b> · SCL <b>22</b> · 3V3 · GND</td><td>ต่อพ่วงกันได้ทั้งหมดบนบัสเดียว auto-detect</td></tr>
 <tr><td>DHT22</td><td>ขาใดก็ได้ เช่น <b>4</b> (ตั้งในหน้าเว็บ)</td><td>ตัวต้านทาน pull-up 10k ถ้าโมดูลไม่มี</td></tr>
-<tr><td>ความชื้นดิน (analog)</td><td><b>32 33 34 35 36 39</b> เท่านั้น (ADC1)</td><td>วัดค่า raw ตอนแห้งและตอนจุ่มน้ำ แล้วใส่ dry/wet ในหน้าเว็บ</td></tr>
+<tr><td>ความชื้นดิน (analog) / raindrop</td><td><b>32 33 34 35 36 39</b> เท่านั้น (ADC1)</td><td>VCC ของโมดูล → <b>3V3</b> · วัดค่า raw ตอนแห้งและตอนจุ่มน้ำ แล้วใส่ dry/wet ในหน้าเว็บ</td></tr>
+<tr><td>OLED 1.3" (SH1106)</td><td>SDA 21 · SCL 22</td><td>auto-detect 0x3C แสดงสถานะ node (ระวังลำดับขา GND-VCC ของจอ)</td></tr>
 </tbody></table></div></div>
-<div class="card"><h3>Keeper</h3>
+<div class="card"><h3>Keeper (ESP32-Relay-X4)</h3>
+<div class="tbl"><table><thead><tr><th>relay</th><th>GPIO</th><th>ค่าเริ่มต้น</th></tr></thead><tbody>
+<tr><td>relay 1</td><td>32</td><td><b>drip</b> น้ำหยด · COM→+12V, NO→วาล์ว</td></tr>
+<tr><td>relay 2</td><td>33</td><td><b>mist</b> พ่นหมอก · exclusive กับ drip</td></tr>
+<tr><td>relay 3</td><td>25</td><td><b>fan</b> พัดลม 220V · max-on 1 ชม.</td></tr>
+<tr><td>relay 4</td><td>26</td><td><b>aux</b> ว่าง</td></tr>
+<tr><td>OLED</td><td>SDA 21 · SCL 22 · 3V3 · GND</td><td>จากช่อง header 10×2</td></tr>
+<tr><td>LED สถานะ</td><td>23</td><td>บนบอร์ด</td></tr>
+</tbody></table></div></div>
+<div class="card"><h3>Keeper (DevKit + relay module)</h3>
 <div class="tbl"><table><thead><tr><th>สวิตช์</th><th>ขา ESP32 (ค่าเริ่มต้น)</th><th>หมายเหตุ</th></tr></thead><tbody>
 <tr><td>drip (น้ำหยด)</td><td><b>26</b> → IN1 ของ relay</td><td>active low (relay module ทั่วไป) แก้ได้ในหน้าเว็บ</td></tr>
 <tr><td>mist (พ่นหมอก)</td><td><b>27</b> → IN2</td><td>exclusive กับ drip (ห้ามเปิดพร้อมกัน)</td></tr>
@@ -85,7 +116,7 @@ table{width:100%;border-collapse:collapse;font-size:14px}td,th{text-align:left;p
 
 <h2>ทางเลือกอื่น</h2>
 <div class="card">
-<p><b>OTA จากหน้าเว็บของ node:</b> เปิด <code>http://&lt;node&gt;.local/</code> → อัปโหลด <code>firmware.bin</code> (ดาวน์โหลด: <a href="../firmware/scout/firmware.bin">scout</a> · <a href="../firmware/keeper/firmware.bin">keeper</a>)</p>
+<p><b>OTA จากหน้าเว็บของ node:</b> เปิด <code>http://&lt;node&gt;.local/</code> → อัปโหลด <code>firmware.bin</code> (ดาวน์โหลด: <a href="../firmware/scout/firmware.bin">scout</a> · <a href="../firmware/keeper-relayx4/firmware.bin">keeper-relayx4</a> · <a href="../firmware/keeper/firmware.bin">keeper</a>)</p>
 <p><b>PlatformIO:</b> <code>cd firmware && pio run -e scout -t upload</code> (โฟลเดอร์ <code>firmware/</code> ใน repo)</p>
 <p><b>esptool:</b></p>
 <pre>esptool.py --chip esp32 --baud 460800 write_flash -z \

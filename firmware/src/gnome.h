@@ -36,3 +36,9 @@ void roleStatus(JsonObject st);            // สำหรับ /api/status
 bool roleCommand(const String& sub, const String& payload);  // sub = หลัง gnome/<node>/ ; return true ถ้าจัดการแล้ว
 bool roleWebSwitch(const String& key, bool on, int seconds);  // จากหน้าเว็บ (keeper)
 void roleRescan();                          // scout: สแกน I2C ใหม่
+int  roleDisplayLines(String* lines, int max, int page);  // ข้อความ 1-3 บรรทัดสำหรับจอ OLED
+
+// ---- display (OLED) ----
+void displaySetup();
+void displayLoop();
+bool displayPresent();

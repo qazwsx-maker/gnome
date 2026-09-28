@@ -84,6 +84,19 @@ void roleStatus(JsonObject st) {
   st["detected"] = String(hasSht ? "sht3x " : "") + (hasBh ? "bh1750 " : "") + (hasBme ? "bme280 " : "") + (dht ? "dht22 " : "");
 }
 
+int roleDisplayLines(String* lines, int max, int page) {
+  int n = 0, start = page * (max * 2);
+  for (int i = start, col = 0; i < lastCount && n < max; i++) {
+    String v = last[i].valid ? String(last[i].value, last[i].unit == "raw" ? 0 : 1) : String("--");
+    String cell = last[i].key + " " + v; if (cell.length() > 10) cell = cell.substring(0, 10);
+    while (cell.length() < 11) cell += ' ';
+    if (col == 0) { lines[n] = cell; col = 1; } else { lines[n] += cell; col = 0; n++; }
+    if (i == lastCount - 1 && col == 1) n++;
+  }
+  if (lastCount == 0 && page == 0) { lines[0] = "no sensors"; n = 1; }
+  return n;
+}
+
 bool roleCommand(const String& sub, const String&) { if (sub == "cmd/rescan") { roleRescan(); return true; } return false; }
 bool roleWebSwitch(const String&, bool, int) { return false; }
 #endif

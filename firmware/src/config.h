@@ -16,7 +16,12 @@
 #define GNOME_MAX_SOIL 6
 #define GNOME_MAX_SWITCH 4
 #define GNOME_AP_PASS "gnome1234"   // รหัส WiFi ของ node ตอนอยู่โหมดตั้งค่า
+#ifndef GNOME_LED_PIN
 #define GNOME_LED_PIN 2
+#endif
+#ifndef GNOME_BOARD
+#define GNOME_BOARD "esp32dev"
+#endif
 
 struct SoilCfg { int pin = -1; int dry = 3100; int wet = 1300; };
 struct SwitchCfg {
@@ -33,6 +38,7 @@ struct Config {
   SoilCfg soil[GNOME_MAX_SOIL]; int soilCount = 0;
   SwitchCfg sw[GNOME_MAX_SWITCH]; int swCount = 0;
   int failsafeS = 120;
+  String oled = "sh1106";   // sh1106 | ssd1306 | none (auto-detect 0x3C/0x3D บน I2C)
 };
 
 extern Config cfg;

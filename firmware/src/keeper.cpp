@@ -87,6 +87,21 @@ bool roleCommand(const String& sub, const String& payload) {
   return true;
 }
 
+int roleDisplayLines(String* lines, int max, int) {
+  int n = 0;
+  for (int i = 0; i < cfg.swCount && n < max; i += 2) {
+    String l;
+    for (int j = i; j < i + 2 && j < cfg.swCount; j++) {
+      String cell = cfg.sw[j].key.substring(0, 4) + (st[j].on ? ":ON " : ":off");
+      if (st[j].on && st[j].offAt) { int rem = (int)((st[j].offAt - millis()) / 1000); cell += String(rem) + "s"; }
+      while (cell.length() < 11) cell += ' ';
+      l += cell;
+    }
+    lines[n++] = l;
+  }
+  return n;
+}
+
 bool roleWebSwitch(const String& key, bool on, int seconds) { int i = findSw(key); if (i < 0) return false; setSwitch(i, on, seconds, "web"); return true; }
 void roleRescan() {}
 #endif

@@ -28,7 +28,7 @@ export async function startHttp() {
   const app = Fastify({ logger: false, routerOptions: { ignoreTrailingSlash: true } });
 
   await app.register(fastifyWebsocket, { options: { maxPayload: 16 * 1024 } });
-  await app.register(fastifyStatic, { root: config.publicDir, prefix: '/', index: ['index.html'], cacheControl: false });
+  await app.register(fastifyStatic, { root: config.publicDir, prefix: '/', index: ['index.html'], cacheControl: false, setHeaders: (res) => { res.setHeader('Cache-Control', 'no-cache'); } });
   if (existsSync(config.firmwareDir)) await app.register(fastifyStatic, { root: config.firmwareDir, prefix: '/firmware/', decorateReply: false, cacheControl: false });
 
   app.addHook('onResponse', (req, reply, done) => {

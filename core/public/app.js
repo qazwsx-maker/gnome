@@ -150,7 +150,7 @@
   }
   $('#ota-all')?.addEventListener('click', async () => {
     if (!confirm('ส่งคำสั่ง OTA ไปทุก node ที่มีเวอร์ชันใหม่กว่า?')) return;
-    try { const r = await api('/ota', { method: 'POST' }); toast(`ส่ง OTA ${r.sent.length} node`); fwAt = 0; } catch (err) { toast('ผิดพลาด: ' + err.message, true); }
+    try { const r = await api('/ota', { method: 'POST', body: {} }); toast(`ส่ง OTA ${r.sent.length} node`); fwAt = 0; } catch (err) { toast('ผิดพลาด: ' + err.message, true); }
   });
 
   $('#nodes').addEventListener('click', async (e) => {

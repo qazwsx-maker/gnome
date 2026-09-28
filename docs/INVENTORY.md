@@ -15,6 +15,7 @@
 | 9 | ESP32-Relay-X4 (LC Technology, ESP32-WROOM-32E + Songle SRD-05VDC 10A ×4) | 1 | COM/NO/NC ทุกช่อง · ไฟเข้า 220VAC / 7–30VDC / 5VDC · ปุ่ม EN, IO0 · **ไม่มี USB** (header TX/RX/GND) | **Keeper = water node** (drip, mist + 2 ช่องว่าง เช่นพัดลม) | พิน (ยืนยันจาก ESPHome/Tasmota db): relay1–4 = **GPIO 32 33 25 26 active HIGH**, LED GPIO 23 · **TODO firmware env `keeper-relayx4`** (defaults ขา/active-high/LED) · flash ครั้งแรกต้องมี **USB-TTL 3.3V** + กด IO0 ค้างแล้วกด EN, หลังนั้น OTA · จ่าย 12 V เข้าขั้ว 7–30 V ร่วมกับ solenoid |
 | 10 | USB-TTL FT232RL Type-C (YP-05, O.R. AA106) | 1 | ขา DTR RXD TXD VCC CTS GND · จัมเปอร์ 3.3V/5V | โปรแกรม Relay-X4 / ESP32-CAM | ✅ ซื้อแล้ว 50 ฿ · ตั้งจัมเปอร์ 3.3V ใช้ GND/TXD/RXD |
 | 11 | อะแดปเตอร์ปรับแรงดัน ST-909 (มีจอ) | 1 | แจ็ค DC 5.5×2.1 · ปุ่มหมุน Min–Max | ไฟทดสอบ / 12 V ให้ Relay-X4 + solenoid | ✅ 300 ฿ · ตั้ง 12.0 V ก่อนเสียบทุกครั้ง · ต้องมีตัวแปลงแจ็ค DC→ขั้วสกรู · ตอนติดตั้งจริงล็อกปุ่มหรือใช้อะแดปเตอร์ตายตัว |
+| 12 | Waveshare ESP32-C6-LCD-1.47 (มีอยู่แล้ว จาก creaturesOS) | 1 | จอสี 1.47" 172×320 ST7789 · microSD · RGB LED · USB-C · ขา 0–5, 9, 12, 13, 15, 18–23 | ข้อเสนอ: **Hut Buddy** จอสีในบ้านโชว์สถานะ/อารมณ์สวนจาก Hut | ยังไม่ทำ · C6 ต้อง Arduino core 3.x (pioarduino) ≠ toolchain ที่ GnomeOS ใช้ (2.0.17) → ต้องอัปเกรด PIO 6.2 + toolchain RISC-V · creaturesOS env `waveshare-c6` มีโค้ดจอใช้ต่อได้ |
 
 ## การตัดสินใจจากของจริง (2026-09-28)
 

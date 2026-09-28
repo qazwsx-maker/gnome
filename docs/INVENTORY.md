@@ -10,7 +10,7 @@
 | 4 | Raindrop sensor (MH-RD + LM393) | 1 | แผ่นลายทองแดง + โมดูล `VCC` `GND` `DO` `AO` | Scout (air) | ไม่มีในแพลน · ใช้ตรวจฝน (ข้ามรดน้ำ) หรือวางใต้หัวหมอกเช็คว่าหมอกออกจริง · ต่อเหมือนดิน: VCC→3V3, AO→ADC1 (33) · TODO firmware: ช่อง analog ตั้ง `key` เองได้ (`rain_pct`) + power-gating ร่วมกับดิน |
 | 5 | OLED 1.3" I2C (JMD1.3A, น่าจะ SH1106) | 1 | ขา `GND VCC SCL SDA` (ระวังลำดับ) addr 0x3C (จัมเปอร์ 0x78) | Scout/Keeper (ตัวไหนก็ได้) | ไม่มีในแพลน · จอสถานะหน้างาน: node/IP/WiFi/MQTT/ค่า · ต่อบัส I2C เดียวกับ BH1750 · TODO firmware: auto-detect 0x3C + หน้าสถานะ (U8g2 SH1106) |
 | 6 | ESP32-CAM (AI-Thinker ESP-32S + OV2640) + ESP32-CAM-MB (CH340) | 1 | มี PSRAM, ขั้ว IPEX, MB มีปุ่ม IO0/RST | cam1 | ตรงแพลน option A · flash ผ่าน MB ได้ · **TODO firmware env `cam`** ("Watcher"): board esp32cam, `/snapshot` + `/stream`, MQTT status/meta/debug, LED GPIO33, flash GPIO4 · GPIO ว่างน้อย อย่าต่อเซ็นเซอร์อื่น · ไฟ 5V ≥ 500 mA |
-| 7 | ESP32 DevKit 30 pin (USB-C, CH340) + Terminal adapter 30 pin | 1 | ขั้วสกรู: VIN GND D13 D12 D14 D27 D26 D25 D33 D32 D35 D34 VN VP EN / 3V3 GND D15 D2 D4 RX2 TX2 D5 D18 D19 D21 RX0 TX0 D22 D23 | Scout ตัวแรก | ตรง env `esp32dev` ใช้ได้เลย · ขา default ของ firmware อยู่บนขั้วสกรูครบ · **มีบอร์ดเดียว → Keeper ต้องหาบอร์ดเพิ่ม** · แผนต่อสาย: DHT22→D4, I2C→D21/D22, ดิน→D34/D35, ฝน→D33 |
+| 7 | ESP32 DevKit 30 pin NA709 (USB-C, CH9102X) ×2 + Terminal adapter CB005 30 pin ×1 | 2+1 | ขั้วสกรู: VIN GND D13 D12 D14 D27 D26 D25 D33 D32 D35 D34 VN VP EN / 3V3 GND D15 D2 D4 RX2 TX2 D5 D18 D19 D21 RX0 TX0 D22 D23 | Scout ตัวแรก | ตรง env `esp32dev` ใช้ได้เลย · ขา default ของ firmware อยู่บนขั้วสกรูครบ · มี 2 ตัว (ตัวที่ 2 = Scout ground แยก หรือสำรอง) · แผนต่อสาย: DHT22→D4, I2C→D21/D22, ดิน→D34/D35, ฝน→D33 |
 | 8 | ESP32-S3 UNO (ESP32-S3-WROOM-1 N16R8) | 1 | UNO form · USB-C + DC jack 7–12 V · BOOT · RGB LED · digital: IO12 IO13 IO11 IO10 IO46 IO21 IO14 IO3 IO20 IO19 IO17 IO18 TXD RXD · I2C ข้าง RST: IO8 (SDA) IO9 (SCL) · analog A0–A5: IO2 IO1 IO7 IO6 IO5 IO4 · extra IO35–42, IO45 IO16 IO15 IO47 IO48 | Keeper (water) | **TODO firmware env `keeper-s3`/`scout-s3`**: board esp32-s3-devkitc-1, I2C 8/9, ADC1 = IO1–10, RGB LED, manifest ESP32-S3 (bootloader offset 0x0) · ใช้ DC jack รับ 12 V ร่วมกับ solenoid, 5V pin เลี้ยง relay |
 | 9 | ESP32-Relay-X4 (LC Technology, ESP32-WROOM-32E + Songle SRD-05VDC 10A ×4) | 1 | COM/NO/NC ทุกช่อง · ไฟเข้า 220VAC / 7–30VDC / 5VDC · ปุ่ม EN, IO0 · **ไม่มี USB** (header TX/RX/GND) | **Keeper = water node** (drip, mist + 2 ช่องว่าง เช่นพัดลม) | พิน (ยืนยันจาก ESPHome/Tasmota db): relay1–4 = **GPIO 32 33 25 26 active HIGH**, LED GPIO 23 · **TODO firmware env `keeper-relayx4`** (defaults ขา/active-high/LED) · flash ครั้งแรกต้องมี **USB-TTL 3.3V** + กด IO0 ค้างแล้วกด EN, หลังนั้น OTA · จ่าย 12 V เข้าขั้ว 7–30 V ร่วมกับ solenoid |
 | 10 | USB-TTL FT232RL Type-C (YP-05, O.R. AA106) | 1 | ขา DTR RXD TXD VCC CTS GND · จัมเปอร์ 3.3V/5V | โปรแกรม Relay-X4 / ESP32-CAM | ✅ ซื้อแล้ว 50 ฿ · ตั้งจัมเปอร์ 3.3V ใช้ GND/TXD/RXD |
@@ -34,3 +34,33 @@
 - ~~USB-to-TTL~~ ✅ ได้แล้ว (ข้อ 10) · ~~อะแดปเตอร์ 12V~~ ✅ ได้แล้ว (ข้อ 11, ปรับได้)
 - **ตัวแปลงแจ็ค DC ตัวเมีย → ขั้วสกรู** (10–20 ฿) สำหรับต่ออะแดปเตอร์เข้าขั้ว 7–30V ของ Relay-X4
 - อะแดปเตอร์ 12V (ถ้าใช้ solenoid 12V DC) · ฟิวส์ + ขั้ว · กล่องกันน้ำสำหรับงาน 220V
+
+## บิลซื้อจริง — O.R. Technology 28/9/2569 (map รหัสร้านจากเว็บ)
+
+**บิล 1 — รวม 1,930 ฿**
+
+| รหัสร้าน | ของ | จำนวน | ราคา | inventory # |
+|---|---|---|---|---|
+| สายแพ 40 cm | สายจัมเปอร์ | 1 | 45 | — |
+| ESP32-Relay-X4 | บอร์ด relay 4 ช่อง (LC) | 1 | 490 | 9 |
+| CB006 | ESP32-CAM + MB | 1 | 380 | 6 |
+| CB205 | ESP32-S3 UNO N16R8 | 1 | 300 | 8 |
+| XS217 | BH1750FVI โดมกันน้ำ | 1 | 100 | 3 |
+| AB205 | DHT22 module | 2 | 70 ×2 = 140 | 1 |
+| AB054 | Soil moisture resistive (LM393) | 2 | 30 ×2 = 60 | 2 |
+| AB055 | Raindrop sensor | 1 | 40 | 4 |
+| CB005 | Terminal adapter ESP32 30 pin | 1 | 65 | 7 |
+| NA709 | **ESP32 Type-C NodeMCU (CH9102X, 30 pin)** | **2** | 155 ×2 = 310 | 7 (+1 ตัวสำรอง — มี DevKit 2 ตัว) |
+
+**บิล 2 — รวม 400 ฿**
+
+| รหัสร้าน | ของ | จำนวน | ราคา | หมายเหตุ |
+|---|---|---|---|---|
+| AA420 | (น่าจะ) อะแดปเตอร์ปรับแรงดัน ST-909 | 2 (บิลเขียน 150 ×2 = 300) | 300 | ค้นรหัสในเว็บไม่เจอ — ตรงกับที่บอกว่า ST-909 300 ฿ |
+| ปอก VR | ลูกบิด/ป๊อก | 1 | 20 | |
+| ขั้วต่อสายไฟ 2-2C | ขั้วต่อสาย 2 ช่อง | 5 | 50 | ใช้ต่อวาล์ว/เซ็นเซอร์ |
+| ขั้วต่อสายไฟ 6-6 | ขั้วต่อสาย 6 ช่อง | 1 | 30 | |
+
+**ไม่อยู่ในบิล 2 ใบนี้:** FT232RL AA106 (50 ฿), OLED 1.3" JMD1.3A (ราคาไม่ทราบ)
+
+**รวมที่จ่ายแล้ว ≈ 2,380 ฿** (1,930 + 400 + 50) + OLED · เทียบ BOM ระดับทน 13,020 ฿ — ส่วนที่ซื้อแล้วครอบคลุม node ทั้งหมดยกเว้น: solenoid, ชุดน้ำหยด/หมอก, กล่อง IP65 + gland + ฟิวส์, UPS

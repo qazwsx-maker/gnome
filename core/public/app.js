@@ -131,6 +131,7 @@
         </div>`;
       }).join('')}</div>` : ''}
       <div class="row">
+        ${n.ip ? `<a class="btn primary" href="http://${esc(n.ip)}/" target="_blank" rel="noopener" title="เปิดหน้าตั้งค่าของ ${esc(n.node)} (http://${esc(n.node)}.local/)">⚙ ตั้งค่า</a>` : ''}
         <button class="ghost small" data-cmd="identify" title="กระพริบ LED 10 วิ.">identify</button>
         <button class="ghost small danger" data-cmd="reboot">reboot</button>
         ${(() => { const f = fwFor(n.node); return f?.env && f.available ? `<button class="ghost small ${f.update ? 'primary' : ''}" data-ota="${esc(f.env)}" ${n.online ? '' : 'disabled'} title="OTA จาก server: ${esc(f.env)} ${esc(f.available)}">${f.update ? 'อัปเดต OTA → ' + esc(f.available) : 'flash ซ้ำ OTA'}</button>` : ''; })()}

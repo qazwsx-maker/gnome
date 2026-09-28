@@ -58,6 +58,9 @@ button:disabled{opacity:.5;cursor:default}
 button.primary{background:var(--leaf);border-color:var(--leaf);color:#fff}
 button.ghost{background:transparent}
 button.small{padding:4px 10px;font-size:13px}
+a.btn{display:inline-block;font:inherit;font-size:13px;color:var(--ink);background:transparent;border:1px solid var(--border);border-radius:9px;padding:4px 10px;text-decoration:none;line-height:1.5}
+a.btn:hover{border-color:var(--ink2)}
+a.btn.primary{background:var(--leaf);border-color:var(--leaf);color:#fff}
 button.icon{padding:4px 9px;flex:none}
 button.on{background:var(--good);border-color:var(--good);color:#fff}
 button.off{background:var(--ink2);border-color:var(--ink2);color:#fff}

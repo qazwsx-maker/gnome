@@ -5,8 +5,8 @@
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const api = async (path, opts = {}) => {
     const res = await fetch('/api' + path, {
-      headers: { 'content-type': 'application/json' },
       ...opts,
+      headers: opts.body !== undefined ? { 'content-type': 'application/json' } : {},
       body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
     });
     const j = await res.json().catch(() => ({}));

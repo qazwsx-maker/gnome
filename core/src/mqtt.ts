@@ -78,17 +78,18 @@ async function onStatus(node: string, payload: string): Promise<void> {
   else log.warn(`${node} status unknown payload "${payload}"`);
 }
 
-async function onMeta(node: string, meta: any): Promise<void> {
+async function onMeta(node: string, meta: any, retained = false): Promise<void> {
   const n = getNode(node);
   n.role = meta.role ?? n.role;
   n.fw = meta.fw ?? n.fw;
   n.ip = meta.ip ?? n.ip;
   n.mac = meta.mac ?? n.mac;
   n.meta = { ...n.meta, ...meta };
-  // บอร์ดเดิมเปลี่ยนชื่อ (MAC เดียวกัน ชื่อต่างกัน) → ลบชื่อเก่าให้อัตโนมัติ
-  if (n.mac) for (const other of [...nodes.values()]) if (other.node !== node && other.mac === n.mac) {
+  // บอร์ดเดิมเปลี่ยนชื่อ (MAC เดียวกัน ชื่อต่างกัน) → ลบชื่อเก่าให้อัตโนมัติ — เชื่อเฉพาะ meta สด (ไม่ใช่ retained replay ตอน Hut เริ่ม)
+  if (!retained && n.mac) for (const other of [...nodes.values()]) if (other.node !== node && other.mac === n.mac) {
     log.info(`node ${other.node} renamed to ${node} (same MAC ${n.mac}) — forgetting old name`);
     await recordEvent(node, 'renamed', { from: other.node, mac: n.mac });
+    await clearRetained(other);
     await forgetNode(other.node);
   }
   await query(
@@ -98,6 +99,15 @@ async function onMeta(node: string, meta: any): Promise<void> {
     [node, n.role, n.fw, n.ip, n.mac, JSON.stringify(meta)],
   ).catch((e) => log.error('meta upsert', e.message));
   bus.live({ type: 'node', node, ts: new Date().toISOString() });
+}
+
+/** ล้าง retained topics ของ node ที่ถูกลืม ไม่ให้ broker replay กลับมาปลุกมันอีก */
+export async function clearRetained(n: { node: string; meta: any; switches: Map<string, any>; latest: Map<string, any> }): Promise<void> {
+  const topics = [`gnome/${n.node}/status`, `gnome/${n.node}/meta`];
+  for (const k of Object.keys(n.meta?.sensor_meta || {})) topics.push(`gnome/${n.node}/sensor/${k}/meta`);
+  for (const s of (n.meta?.sensors || [])) if (s?.key) topics.push(`gnome/${n.node}/sensor/${s.key}/meta`);
+  for (const k of new Set([...n.switches.keys(), ...Object.keys(n.meta?.switch_meta || {})])) topics.push(`gnome/${n.node}/switch/${k}/state`, `gnome/${n.node}/switch/${k}/meta`);
+  for (const t of new Set(topics)) await publish(t, '', { qos: 1, retain: true }).catch(() => {});
 }
 
 async function onSensorMeta(node: string, key: string, meta: any): Promise<void> {
@@ -203,7 +213,7 @@ async function handle(topic: string, buf: Buffer, retained: boolean): Promise<vo
       break;
     case 'meta': {
       const j = parseJson(buf);
-      if (j && parts.length === 3) return onMeta(node, j);
+      if (j && parts.length === 3) return onMeta(node, j, retained);
       break;
     }
     case 'sensor': {

@@ -7,7 +7,7 @@ import { logger } from './log.ts';
 import { pool, query } from './db.ts';
 import { bus, type LiveMessage } from './bus.ts';
 import { nodes, nodeToJson, forgetNode } from './state.ts';
-import { mqttConnected, sendSwitch, sendCmd } from './mqtt.ts';
+import { mqttConnected, sendSwitch, sendCmd, clearRetained } from './mqtt.ts';
 import { listRules, reloadRules, validateRule, activeRunsJson } from './rules.ts';
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -101,6 +101,7 @@ export async function startHttp() {
     const { node } = req.params;
     if (!nodes.has(node)) return bad(reply, 'node not found', 404);
     // ลืม node: ลบทั้งข้อมูลย้อนหลัง (readings/rollup/switch log/events) ไม่งั้น loadState จะปลุกมันขึ้นมาใหม่
+    await clearRetained(nodes.get(node)!);
     await forgetNode(node);
     return { ok: true };
   });

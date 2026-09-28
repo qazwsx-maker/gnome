@@ -23,6 +23,13 @@
   #define GNOME_I2C_SDA 8
   #define GNOME_I2C_SCL 9
 #endif
+#if defined(GNOME_BOARD_C6LCD)
+  // Waveshare ESP32-C6-LCD-1.47: RGB WS2812 ที่ GPIO8, ไม่มี LED ธรรมดา, I2C ว่างที่ 18/19 (LCD/SD ใช้ 4-7,14,15,21,22)
+  #define GNOME_RGB_PIN 8
+  #define GNOME_LED_PIN -1
+  #define GNOME_I2C_SDA 19
+  #define GNOME_I2C_SCL 18
+#endif
 #ifndef GNOME_LED_PIN
 #define GNOME_LED_PIN 2
 #endif

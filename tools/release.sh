@@ -5,22 +5,27 @@
 set -euo pipefail
 cd "$(dirname "$0")/../firmware"
 ENVS=(scout keeper keeper-relayx4 scout-s3)
+C6_ENVS=(scout-c6)   # ESP32-C6 build ด้วย core dir แยก (pioarduino) — ข้ามถ้ายังไม่เคยติดตั้ง
 if [ -n "${1:-}" ]; then sed -i '' "s/-DGNOME_VERSION=\\\\\"[0-9.]*\\\\\"/-DGNOME_VERSION=\\\\\"$1\\\\\"/" platformio.ini; fi
 VER=$(grep -o 'GNOME_VERSION=\\"[0-9.]*\\"' platformio.ini | grep -o '[0-9.]*')
 echo "== GnomeOS $VER: building ${ENVS[*]}"
 pio run -e "$(IFS=, ; echo "${ENVS[*]}")" 2>&1 | grep -E "SUCCESS|FAILED|error:" || true
+if [ -d "$HOME/.platformio-c6/platforms" ]; then
+  PLATFORMIO_CORE_DIR=$HOME/.platformio-c6 pio run -e "$(IFS=, ; echo "${C6_ENVS[*]}")" 2>&1 | grep -E "SUCCESS|FAILED|error:" || true
+  ENVS+=("${C6_ENVS[@]}")
+fi
 BOOT0=$HOME/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin
 for e in "${ENVS[@]}"; do
   d=../docs/firmware/$e; mkdir -p "$d"
   [ -f ".pio/build/$e/firmware.bin" ] || { echo "!! $e build missing"; exit 1; }
-  cp ".pio/build/$e/bootloader.bin" ".pio/build/$e/partitions.bin" ".pio/build/$e/firmware.bin" "$d/"; cp "$BOOT0" "$d/"
+  cp ".pio/build/$e/bootloader.bin" ".pio/build/$e/partitions.bin" ".pio/build/$e/firmware.bin" "$d/"
+  case $e in *-c6) cp "$HOME/.platformio-c6/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin" "$d/";; *) cp "$BOOT0" "$d/";; esac
   python3 - "$d/manifest.json" "$VER" "$e" <<'PY'
 import json,sys
 p,ver,env=sys.argv[1:]
-name={'scout':'GnomeOS Mini Scout (ESP32 DevKit)','keeper':'GnomeOS Keeper','keeper-relayx4':'GnomeOS Keeper (ESP32-Relay-X4)','scout-s3':'GnomeOS Scout (ESP32-S3 UNO)','cam':'GnomeOS Watcher'}.get(env,'GnomeOS '+env)
-s3=env.endswith('-s3')
-chip='ESP32-S3' if s3 else 'ESP32'
-boot_off=0 if s3 else 4096
+name={'scout':'GnomeOS Mini Scout (ESP32 DevKit)','keeper':'GnomeOS Keeper','keeper-relayx4':'GnomeOS Keeper (ESP32-Relay-X4)','scout-s3':'GnomeOS Scout (ESP32-S3 UNO)','scout-c6':'GnomeOS Scout (ESP32-C6-LCD)','cam':'GnomeOS Watcher'}.get(env,'GnomeOS '+env)
+chip='ESP32-S3' if env.endswith('-s3') else 'ESP32-C6' if env.endswith('-c6') else 'ESP32'
+boot_off=4096 if chip=='ESP32' else 0
 try: m=json.load(open(p))
 except Exception: m={}
 m.update({'name':name,'version':ver,'new_install_prompt_erase':True,'new_install_improv_wait_time':15,

@@ -62,6 +62,8 @@ void configToJson(JsonObject o, bool includeSecrets) {
 
 #if defined(CONFIG_IDF_TARGET_ESP32S3)
 static bool isAdc1Pin(int p) { return p >= 1 && p <= 10; }   // S3: ADC1 = GPIO1-10
+#elif defined(CONFIG_IDF_TARGET_ESP32C6)
+static bool isAdc1Pin(int p) { return p >= 0 && p <= 6; }    // C6: ADC1 = GPIO0-6
 #else
 static bool isAdc1Pin(int p) { return p == 32 || p == 33 || p == 34 || p == 35 || p == 36 || p == 39; }
 #endif

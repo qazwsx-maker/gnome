@@ -191,7 +191,7 @@ footer{padding:40px 0;color:var(--muted);font-size:13px;border-top:1px solid var
 <header class="top"><div class="wrap">
   <div class="brand"><span class="dot"></span>GNOME</div>
   <nav>
-    <a href="#feas">ความเป็นไปได้</a><a href="#arch">สถาปัตยกรรม</a><a href="#nodes">Nodes</a><a href="#stack">Stack</a><a href="#plan">แผนงาน</a><a href="#bom">อุปกรณ์/งบ</a><a href="#risk">ความเสี่ยง</a><a href="#shops">แหล่งซื้อ</a><a href="flash/" style="color:var(--leaf);font-weight:600">⚡ Flash firmware</a>
+    <a href="#feas">ความเป็นไปได้</a><a href="#arch">สถาปัตยกรรม</a><a href="#nodes">Nodes</a><a href="#stack">Stack</a><a href="#plan">แผนงาน</a><a href="#bom">อุปกรณ์/งบ</a><a href="#risk">ความเสี่ยง</a><a href="#shops">แหล่งซื้อ</a><a href="#spent">งบที่ใช้จริง</a><a href="flash/" style="color:var(--leaf);font-weight:600">⚡ Flash firmware</a>
     <a href="https://github.com/qazwsx-maker/gnome" rel="noopener">GitHub</a>
   </nav>
   <button id="theme" class="ghost" style="padding:5px 9px;font-size:13px" title="สลับโหมดสว่าง/มืด" aria-label="สลับธีม">◐</button>
@@ -208,6 +208,7 @@ footer{padding:40px 0;color:var(--muted);font-size:13px;border-top:1px solid var
     <div class="tile"><div class="v">8 <span class="small muted">สัปดาห์</span></div><div class="l">แผนงาน 5 phase ทำเสาร์-อาทิตย์</div></div>
     <div class="tile"><div class="v" id="tile-budget">—</div><div class="l">งบประหยัด (฿)</div></div>
     <div class="tile"><div class="v" id="tile-rugged">—</div><div class="l">งบระดับทน — แนะนำ (฿)</div></div>
+    <div class="tile" style="border-color:var(--leaf)"><div class="v" id="tile-spent">—</div><div class="l">จ่ายไปแล้วจริง (฿) · <a href="#spent">รายละเอียด</a></div></div>
   </div>
   <p class="small muted"><b>สถานะ 2026-09-28:</b> firmware GnomeOS (Scout/Keeper) + server บน Mac mini พร้อมแล้ว → <a href="flash/">ติดตั้ง firmware ลง ESP32 จากเบราว์เซอร์</a> · โปรโตคอล <a href="https://github.com/qazwsx-maker/gnome/blob/main/docs/PROTOCOL.md">PROTOCOL.md</a><br>เอกสารฉบับเต็ม: <a href="https://github.com/qazwsx-maker/gnome/blob/main/docs/PLAN.md">docs/PLAN.md</a> · ราคาเป็นค่าประเมินจาก Shopee/Lazada/Arduitronics ก.ย. 2026 ควรเช็คก่อนสั่งซื้อ</p>
 </section>
@@ -422,6 +423,21 @@ gnome/&lt;node&gt;/debug                     rssi · uptime · heap · ip</pre>
   </div>
 </section>
 
+<section id="spent">
+  <h2>9 · งบที่ใช้จริง</h2>
+  <div class="tiles" id="spent-tiles"></div>
+  <div class="card">
+    <h3>ซื้อแล้ว</h3>
+    <p class="small muted" style="margin:0 0 8px">จากบิลจริง (ดู <a href="https://github.com/qazwsx-maker/gnome/blob/main/docs/INVENTORY.md">INVENTORY.md</a>) · รหัสในวงเล็บ = รหัสสินค้าของร้าน O.R. Technology บ้านหม้อ</p>
+    <div class="tbl bom"><table><thead><tr><th></th><th>รายการ</th><th>ร้าน</th><th class="num">จำนวน</th><th class="num">ราคา/หน่วย</th><th class="num">รวม</th></tr></thead><tbody id="spent-body"></tbody></table></div>
+  </div>
+  <div class="card" style="margin-top:14px">
+    <h3>ยังต้องซื้อ (ประเมิน)</h3>
+    <div class="tbl bom"><table><thead><tr><th></th><th>รายการ</th><th>ร้าน</th><th class="num">จำนวน</th><th class="num">ราคา/หน่วย</th><th class="num">รวม</th></tr></thead><tbody id="todo-body"></tbody></table></div>
+    <p class="small muted" style="margin:8px 0 0">ทำไมถูกกว่าแผน: บอร์ด ESP32-Relay-X4 ตัวเดียวแทน ESP32 + relay + PSU + กล่อง 220V ของ airflow node, ตัด RS485 soil (ใช้ resistive/capacitive), ตัด mesh/ปั๊มหมอก, และ solenoid เปลี่ยนเป็นปั๊ม 12V ตัวเดียว</p>
+  </div>
+</section>
+
 </main>
 <footer><div class="wrap">GNOME · ภูตดูแลสวน — แพลนฉบับ 2026-09-26 · <a href="https://github.com/qazwsx-maker/gnome">github.com/qazwsx-maker/gnome</a> · ราคาเป็นค่าประเมิน ควรเช็คก่อนซื้อ</div></footer>
 
@@ -612,6 +628,52 @@ $('#csv').onclick=()=>{
 $('#risk-list').innerHTML = RISKS.map(r=>`<div class="item"><div class="sev ${r.sev}" title="${r.sev}"></div><div><b>${r.sev==='critical'?'🔴':r.sev==='serious'?'🟠':'🟡'} ${r.t} <span class="muted small">→ ${r.e}</span></b><div class="fix">${r.f}</div></div></div>`).join('');
 
 renderBOM();
+// ---- งบที่ใช้จริง (จากบิล) ----
+const SPENT = [
+  {d:'28 ก.ย. 69', shop:'O.R. Technology', item:'ESP32-Relay-X4 บอร์ด relay 4 ช่อง 220V', qty:1, price:490, node:'Keeper'},
+  {d:'28 ก.ย. 69', shop:'O.R. Technology', item:'ESP32-CAM + บอร์ด MB (CB006)', qty:1, price:380, node:'Watcher'},
+  {d:'28 ก.ย. 69', shop:'O.R. Technology', item:'ESP32-S3 UNO N16R8 (CB205)', qty:1, price:300, node:'Scout'},
+  {d:'28 ก.ย. 69', shop:'O.R. Technology', item:'ESP32 DevKit 30 ขา Type-C (NA709)', qty:2, price:155, node:'Mini Scout + สำรอง'},
+  {d:'28 ก.ย. 69', shop:'O.R. Technology', item:'BH1750 โดมกันน้ำ (XS217)', qty:1, price:100, node:'Scout'},
+  {d:'28 ก.ย. 69', shop:'O.R. Technology', item:'DHT22 module (AB205)', qty:2, price:70, node:'Scout / Mini Scout'},
+  {d:'28 ก.ย. 69', shop:'O.R. Technology', item:'ดิน resistive + LM393 (AB054)', qty:2, price:30, node:'Scout / Mini Scout'},
+  {d:'28 ก.ย. 69', shop:'O.R. Technology', item:'Raindrop sensor (AB055)', qty:1, price:40, node:'Scout'},
+  {d:'28 ก.ย. 69', shop:'O.R. Technology', item:'Terminal adapter ESP32 30 ขา (CB005)', qty:1, price:65, node:'Mini Scout'},
+  {d:'28 ก.ย. 69', shop:'O.R. Technology', item:'OLED 1.3" SH1106 (AA420)', qty:2, price:150, node:'Scout / Keeper'},
+  {d:'28 ก.ย. 69', shop:'O.R. Technology', item:'สายแพจัมเปอร์ 40 cm', qty:1, price:45, node:'ทั่วไป'},
+  {d:'28 ก.ย. 69', shop:'O.R. Technology', item:'ป๊อก VR', qty:1, price:20, node:'ทั่วไป'},
+  {d:'28 ก.ย. 69', shop:'O.R. Technology', item:'ขั้วต่อสายไฟ 2 ช่อง', qty:5, price:10, node:'ทั่วไป'},
+  {d:'28 ก.ย. 69', shop:'O.R. Technology', item:'ขั้วต่อสายไฟ 6 ช่อง', qty:1, price:30, node:'ทั่วไป'},
+  {d:'28 ก.ย. 69', shop:'O.R. Technology', item:'USB-TTL FT232RL Type-C (AA106)', qty:1, price:50, node:'เครื่องมือ flash'},
+  {d:'28 ก.ย. 69', shop:'O.R. Technology', item:'อะแดปเตอร์ปรับแรงดัน ST-909', qty:1, price:300, node:'Keeper / ทดสอบ'},
+  {d:'28 ก.ย. 69', shop:'—', item:'สายไฟ 15 เมตร', qty:1, price:150, node:'ทั่วไป'},
+  {d:'28 ก.ย. 69', shop:'—', item:'ชุดท่อหด', qty:1, price:60, node:'ทั่วไป'},
+];
+const TODO = [
+  {item:'ปั๊มน้ำ 12V (ไดอะแฟรม 5 L/min หรือปั๊มจุ่ม)', shop:'O.R. / Shopee', qty:1, price:500, node:'Keeper'},
+  {item:'ชุดน้ำหยด 20 หัว + สาย 4/7', shop:'ไทวัสดุ / Shopee', qty:1, price:250, node:'Keeper'},
+  {item:'อะแดปเตอร์ USB 5V 2A แบบ 2 ช่อง', shop:'ทั่วไป', qty:1, price:200, node:'Mini Scout + Watcher'},
+  {item:'อะแดปเตอร์ USB 5V 1A', shop:'ทั่วไป', qty:1, price:100, node:'Scout'},
+  {item:'กล่องกันน้ำ ABS IP65 F1', shop:'Mikroelec / SPE บ้านหม้อ', qty:3, price:140, node:'Keeper / Scout / Mini Scout'},
+  {item:'Cable gland + ฟิวส์ + ขั้ว + ตัวแปลงแจ็ค DC', shop:'SPE / ES บ้านหม้อ', qty:1, price:250, node:'Keeper'},
+  {item:'Capacitive soil v1.2 (AB142) แทน resistive ระยะยาว', shop:'O.R. Technology', qty:4, price:30, node:'Scout / Mini Scout', opt:true},
+  {item:'UPS 800 VA (ทางเลือก)', shop:'Advice / CyberPower', qty:1, price:2020, node:'Hut', opt:true},
+];
+{
+  const row = (r) => `<tr><td class="chk"></td><td class="name">${r.item}${r.node ? ` <span class="pill">${r.node}</span>` : ''}${r.opt ? ' <span class="pill" style="color:var(--s2)">ทางเลือก</span>' : ''}</td><td class="small shop">${r.shop}${r.d ? ' · ' + r.d : ''}</td><td class="num qty">${r.qty}</td><td class="num unit" data-qty="${r.qty}">${fmt(r.price)}</td><td class="num tot">${fmt(r.qty * r.price)}</td></tr>`;
+  const spent = SPENT.reduce((a, r) => a + r.qty * r.price, 0);
+  const todoReq = TODO.filter(r => !r.opt).reduce((a, r) => a + r.qty * r.price, 0);
+  const todoOpt = TODO.filter(r => r.opt).reduce((a, r) => a + r.qty * r.price, 0);
+  $('#spent-body').innerHTML = SPENT.map(row).join('') + `<tr><td></td><td class="name"><b>รวมจ่ายแล้ว</b></td><td class="shop"></td><td class="num qty"></td><td class="num unit"></td><td class="num tot"><b>${fmt(spent)}</b></td></tr>`;
+  $('#todo-body').innerHTML = TODO.map(row).join('') + `<tr><td></td><td class="name"><b>รวมที่ยังต้องซื้อ</b> (ไม่รวมทางเลือก)</td><td class="shop"></td><td class="num qty"></td><td class="num unit"></td><td class="num tot"><b>${fmt(todoReq)}</b></td></tr>`;
+  $('#tile-spent').textContent = fmt(spent);
+  $('#spent-tiles').innerHTML = `
+    <div class="tile"><div class="v">${fmt(spent)} ฿</div><div class="l">จ่ายไปแล้ว (บิลจริง)</div></div>
+    <div class="tile"><div class="v">≈ ${fmt(todoReq)} ฿</div><div class="l">ยังต้องซื้อ (จำเป็น) · +${fmt(todoOpt)} ทางเลือก</div></div>
+    <div class="tile"><div class="v">≈ ${fmt(spent + todoReq)} ฿</div><div class="l">คาดว่าจบที่ (ไม่รวม UPS)</div></div>
+    <div class="tile"><div class="v">${fmt(totals('budget').sum)} / ${fmt(totals('rugged').sum)}</div><div class="l">แผนเดิม ประหยัด / ทน (฿) — ของจริงถูกกว่า</div></div>`;
+}
+
 // theme toggle: system → explicit light/dark, remembered
 { const root=document.documentElement, saved=localStorage.getItem('gnome-theme'); if(saved) root.dataset.theme=saved;
   $('#theme').onclick=()=>{ const dark = root.dataset.theme ? root.dataset.theme==='dark' : matchMedia('(prefers-color-scheme: dark)').matches; const next=dark?'light':'dark'; root.dataset.theme=next; localStorage.setItem('gnome-theme',next); }; }

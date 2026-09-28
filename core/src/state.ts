@@ -95,6 +95,13 @@ export async function loadState(): Promise<void> {
   log.info(`loaded ${nodes.size} nodes, ${sw.rows.length} switches, ${last.rows.length} latest readings`);
 }
 
+/** ลืม node: ลบทั้ง state ในหน่วยความจำและข้อมูลย้อนหลังทุกตาราง */
+export async function forgetNode(name: string): Promise<void> {
+  for (const t of ['nodes', 'switch_states', 'switch_log', 'readings', 'readings_5m', 'events']) await query(`DELETE FROM ${t} WHERE node = $1`, [name]).catch(() => {});
+  nodes.delete(name);
+  bus.live({ type: 'status', node: name, online: false, removed: true } as any);
+}
+
 // ---- events -------------------------------------------------------------
 
 export async function recordEvent(node: string | null, type: string, payload: unknown = null): Promise<number | null> {

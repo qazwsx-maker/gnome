@@ -6,7 +6,7 @@ import { config } from './config.ts';
 import { logger } from './log.ts';
 import { pool, query } from './db.ts';
 import { bus, type LiveMessage } from './bus.ts';
-import { nodes, nodeToJson } from './state.ts';
+import { nodes, nodeToJson, forgetNode } from './state.ts';
 import { mqttConnected, sendSwitch, sendCmd } from './mqtt.ts';
 import { listRules, reloadRules, validateRule, activeRunsJson } from './rules.ts';
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
@@ -101,9 +101,7 @@ export async function startHttp() {
     const { node } = req.params;
     if (!nodes.has(node)) return bad(reply, 'node not found', 404);
     // ลืม node: ลบทั้งข้อมูลย้อนหลัง (readings/rollup/switch log/events) ไม่งั้น loadState จะปลุกมันขึ้นมาใหม่
-    for (const t of ['nodes', 'switch_states', 'switch_log', 'readings', 'readings_5m', 'events']) await query(`DELETE FROM ${t} WHERE node = $1`, [node]);
-    nodes.delete(node);
-    bus.live({ type: 'status', node, online: false, removed: true } as any);
+    await forgetNode(node);
     return { ok: true };
   });
 

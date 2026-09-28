@@ -4,7 +4,7 @@ import { config } from './config.ts';
 import { logger } from './log.ts';
 import { query } from './db.ts';
 import { bus } from './bus.ts';
-import { getNode, setOnline, touch, recordEvent, nodes } from './state.ts';
+import { getNode, setOnline, touch, recordEvent, nodes, forgetNode } from './state.ts';
 import { discord } from './discord.ts';
 
 const log = logger('mqtt');
@@ -85,6 +85,12 @@ async function onMeta(node: string, meta: any): Promise<void> {
   n.ip = meta.ip ?? n.ip;
   n.mac = meta.mac ?? n.mac;
   n.meta = { ...n.meta, ...meta };
+  // บอร์ดเดิมเปลี่ยนชื่อ (MAC เดียวกัน ชื่อต่างกัน) → ลบชื่อเก่าให้อัตโนมัติ
+  if (n.mac) for (const other of [...nodes.values()]) if (other.node !== node && other.mac === n.mac) {
+    log.info(`node ${other.node} renamed to ${node} (same MAC ${n.mac}) — forgetting old name`);
+    await recordEvent(node, 'renamed', { from: other.node, mac: n.mac });
+    await forgetNode(other.node);
+  }
   await query(
     `INSERT INTO nodes(node, role, fw, ip, mac, meta) VALUES ($1,$2,$3,$4,$5,$6)
        ON CONFLICT (node) DO UPDATE SET role = coalesce(EXCLUDED.role, nodes.role), fw = coalesce(EXCLUDED.fw, nodes.fw),

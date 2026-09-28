@@ -29,5 +29,5 @@
 4. env `*-s3` (ESP32-S3 UNO): I2C 8/9, ADC1 = IO1–10, RGB LED, manifest ESP32-S3
 
 ## ยังต้องซื้อ/หา
-- **USB-to-TTL adapter 3.3V** (CP2102/FTDI) สำหรับ flash ESP32-Relay-X4 ครั้งแรก
+- **USB-to-TTL adapter 3.3V** — เลือก O.R. Technology AA106 FT232RL Type-C (50 ฿) ✅ ใช้ได้: จัมเปอร์ 3.3V, ต่อ GND/TX/RX, เลี้ยงบอร์ด relay จากอะแดปเตอร์ 9–12 V ไม่ใช่จาก VCC ของ adapter
 - อะแดปเตอร์ 12V (ถ้าใช้ solenoid 12V DC) · ฟิวส์ + ขั้ว · กล่องกันน้ำสำหรับงาน 220V

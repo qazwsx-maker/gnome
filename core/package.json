@@ -1,0 +1,28 @@
+{
+  "name": "gnome-core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "GNOME home-garden IoT server: MQTT ingest, rules engine, REST/WS API, dashboard",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "dev": "node --watch src/index.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "engines": { "node": ">=22.18" },
+  "dependencies": {
+    "@fastify/static": "^8.2.0",
+    "@fastify/websocket": "^11.1.0",
+    "croner": "^9.1.0",
+    "fastify": "^5.4.0",
+    "mqtt": "^5.13.0",
+    "pg": "^8.16.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/pg": "^8.15.0",
+    "typescript": "^5.9.0"
+  }
+}

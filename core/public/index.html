@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GNOME — ภูตดูแลสวน</title>
+<meta name="description" content="แดชบอร์ด GNOME: สถานะ node, กราฟเซนเซอร์, กฎอัตโนมัติ, เหตุการณ์">
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7' fill='%231f7a3a'/%3E%3C/svg%3E">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <div class="brand"><span class="dot"></span><span class="txt">GNOME</span></div>
+    <nav id="tabs">
+      <a href="#status" data-tab="status" class="active">สถานะ</a>
+      <a href="#chart" data-tab="chart">กราฟ</a>
+      <a href="#rules" data-tab="rules">กฎอัตโนมัติ</a>
+      <a href="#events" data-tab="events">เหตุการณ์</a>
+    </nav>
+    <span id="ws" class="ws" title="การเชื่อมต่อสด"><span class="dot"></span></span>
+    <button id="theme" class="icon" title="สลับธีม" aria-label="สลับธีม">◐</button>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="banner" class="banner">กำลังโหลด…</div>
+
+  <!-- (a) สถานะ -->
+  <section id="tab-status" class="tab active">
+    <div id="nodes" class="grid nodes"></div>
+    <p id="nodes-empty" class="muted hidden">ยังไม่มี node ส่งข้อมูลเข้ามา — เมื่อ node เชื่อมต่อ MQTT (<code>gnome/&lt;node&gt;/status</code>) การ์ดจะขึ้นที่นี่</p>
+  </section>
+
+  <!-- (b) กราฟ -->
+  <section id="tab-chart" class="tab">
+    <div class="card">
+      <div class="controls">
+        <label>Node <select id="c-node"></select></label>
+        <label>ค่า <select id="c-key"></select></label>
+        <div class="seg" id="c-range">
+          <button data-range="24h" class="active">24 ชม.</button>
+          <button data-range="7d">7 วัน</button>
+          <button data-range="30d">30 วัน</button>
+        </div>
+        <span id="c-info" class="muted small"></span>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="chart" height="320"></canvas>
+        <div id="c-tip" class="tip hidden"></div>
+      </div>
+      <p id="c-empty" class="muted hidden">ไม่มีข้อมูลในช่วงนี้</p>
+    </div>
+  </section>
+
+  <!-- (c) กฎอัตโนมัติ -->
+  <section id="tab-rules" class="tab">
+    <div class="row-between">
+      <h2>กฎอัตโนมัติ</h2>
+      <button id="r-new" class="primary">+ เพิ่มกฎ</button>
+    </div>
+    <div id="rules" class="list"></div>
+    <p id="rules-empty" class="muted hidden">ยังไม่มีกฎ — กด “เพิ่มกฎ” เพื่อสร้าง</p>
+
+    <div id="r-editor" class="card editor hidden">
+      <h3 id="r-title">เพิ่มกฎ</h3>
+      <div class="form-grid">
+        <label>ชื่อกฎ <input id="r-name" placeholder="รดน้ำเช้า"></label>
+        <label>Cooldown (วินาที) <input id="r-cooldown" type="number" min="0" value="300"></label>
+        <label class="chk"><input id="r-enabled" type="checkbox" checked> เปิดใช้งาน</label>
+      </div>
+
+      <h4>ทริกเกอร์</h4>
+      <div class="form-grid">
+        <label>ชนิด
+          <select id="t-type">
+            <option value="threshold">ค่าเซนเซอร์ถึงเกณฑ์ (threshold)</option>
+            <option value="cron">ตามเวลา (cron)</option>
+            <option value="node_offline">node หายไป (node_offline)</option>
+            <option value="event">เหตุการณ์จาก node (event)</option>
+          </select>
+        </label>
+        <div id="t-threshold" class="tfields">
+          <label>เซนเซอร์ <input id="t-sensor" list="sensor-list" placeholder="node.key"></label>
+          <label>เงื่อนไข <select id="t-op"><option>&lt;</option><option>&lt;=</option><option>&gt;</option><option>&gt;=</option><option>==</option><option>!=</option></select></label>
+          <label>ค่า <input id="t-value" type="number" step="any"></label>
+          <label>Hysteresis <input id="t-hyst" type="number" step="any" placeholder="เช่น 5"></label>
+        </div>
+        <div id="t-cron" class="tfields hidden">
+          <label>cron expr <input id="t-expr" placeholder="0 6 * * *"></label>
+          <label>timezone <input id="t-tz" value="Asia/Bangkok"></label>
+        </div>
+        <div id="t-node_offline" class="tfields hidden">
+          <label>node (เว้นว่าง = ทุก node) <input id="t-node" list="node-list"></label>
+        </div>
+        <div id="t-event" class="tfields hidden">
+          <label>ชนิดเหตุการณ์ <input id="t-event-type" placeholder="max_on_reached"></label>
+          <label>node (เว้นว่าง = ทุก node) <input id="t-event-node" list="node-list"></label>
+        </div>
+      </div>
+
+      <h4>เงื่อนไขเพิ่มเติม <span class="muted small">(ต้องเป็นจริงทุกข้อ)</span></h4>
+      <div id="conds" class="rows"></div>
+      <button id="cond-add" class="ghost small">+ เงื่อนไข</button>
+
+      <h4>การกระทำ</h4>
+      <div id="acts" class="rows"></div>
+      <div class="row">
+        <button id="act-add-switch" class="ghost small">+ สวิตช์</button>
+        <button id="act-add-discord" class="ghost small">+ แจ้ง Discord</button>
+      </div>
+
+      <h4>JSON <span class="muted small">(แก้ตรงนี้ได้ — ค่าที่บันทึกคือ JSON นี้)</span></h4>
+      <textarea id="r-json" rows="10" spellcheck="false"></textarea>
+      <div class="row">
+        <button id="r-json-apply" class="ghost small">โหลด JSON เข้าฟอร์ม</button>
+        <span id="r-err" class="err"></span>
+      </div>
+      <div class="row end">
+        <button id="r-cancel" class="ghost">ยกเลิก</button>
+        <button id="r-save" class="primary">บันทึก</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- (d) เหตุการณ์ -->
+  <section id="tab-events" class="tab">
+    <div class="row-between">
+      <h2>เหตุการณ์ล่าสุด</h2>
+      <button id="ev-refresh" class="ghost small">รีเฟรช</button>
+    </div>
+    <div class="card tbl">
+      <table id="events">
+        <thead><tr><th>เวลา</th><th>node</th><th>ชนิด</th><th>รายละเอียด</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<datalist id="sensor-list"></datalist>
+<datalist id="node-list"></datalist>
+<div id="toast" class="toast hidden"></div>
+
+<script src="app.js"></script>
+</body>
+</html>

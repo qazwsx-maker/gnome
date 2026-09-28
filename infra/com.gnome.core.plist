@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  gnome-core LaunchAgent. Install: cp infra/com.gnome.core.plist ~/Library/LaunchAgents/ && launchctl load ~/Library/LaunchAgents/com.gnome.core.plist
+  Env comes from infra/.env via core/bin/start.sh. Postgres may start after us on login;
+  the app waits for it (30 x 2 s) instead of crash-looping.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.gnome.core</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>/Users/pichaya/gnome/core/bin/start.sh</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/pichaya/gnome/core</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>StandardOutPath</key>
+  <string>/Users/pichaya/gnome/infra/log/core.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/pichaya/gnome/infra/log/core.err.log</string>
+</dict>
+</plist>

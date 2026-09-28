@@ -6,6 +6,7 @@
 - **เอกสารแพลนฉบับเต็ม:** [docs/PLAN.md](docs/PLAN.md) — ความเป็นไปได้, สถาปัตยกรรม, MQTT contract, รายการอุปกรณ์ + งบ, แผน 8 สัปดาห์, ความเสี่ยง
 
 - **Flash firmware ลง ESP32 จากเบราว์เซอร์:** https://qazwsx-maker.github.io/gnome/flash/
+- **Concept v2 (จากของจริง):** [docs/CONCEPT.md](docs/CONCEPT.md)
 - **โปรโตคอล MQTT:** [docs/PROTOCOL.md](docs/PROTOCOL.md)
 
 ## โครงสร้าง repo

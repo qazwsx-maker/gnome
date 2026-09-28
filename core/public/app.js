@@ -177,7 +177,8 @@
   });
 
   // periodic "ago" refresh
-  setInterval(() => { if ($('#tab-status').classList.contains('active')) renderStatus(); }, 15000);
+  // refresh สถานะทุก 5 วินาทีขณะเปิดแท็บสถานะ (ดึงจาก server ใหม่ ไม่ใช่แค่วาดจาก memory)
+  setInterval(() => { if ($('#tab-status').classList.contains('active') && !document.hidden) loadNodes().catch(() => renderStatus()); }, 5000);
 
   // ---- (b) chart ---------------------------------------------------------------
   const chart = {

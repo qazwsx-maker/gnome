@@ -13,6 +13,8 @@
 | 7 | ESP32 DevKit 30 pin (USB-C, CH340) + Terminal adapter 30 pin | 1 | ขั้วสกรู: VIN GND D13 D12 D14 D27 D26 D25 D33 D32 D35 D34 VN VP EN / 3V3 GND D15 D2 D4 RX2 TX2 D5 D18 D19 D21 RX0 TX0 D22 D23 | Scout ตัวแรก | ตรง env `esp32dev` ใช้ได้เลย · ขา default ของ firmware อยู่บนขั้วสกรูครบ · **มีบอร์ดเดียว → Keeper ต้องหาบอร์ดเพิ่ม** · แผนต่อสาย: DHT22→D4, I2C→D21/D22, ดิน→D34/D35, ฝน→D33 |
 | 8 | ESP32-S3 UNO (ESP32-S3-WROOM-1 N16R8) | 1 | UNO form · USB-C + DC jack 7–12 V · BOOT · RGB LED · digital: IO12 IO13 IO11 IO10 IO46 IO21 IO14 IO3 IO20 IO19 IO17 IO18 TXD RXD · I2C ข้าง RST: IO8 (SDA) IO9 (SCL) · analog A0–A5: IO2 IO1 IO7 IO6 IO5 IO4 · extra IO35–42, IO45 IO16 IO15 IO47 IO48 | Keeper (water) | **TODO firmware env `keeper-s3`/`scout-s3`**: board esp32-s3-devkitc-1, I2C 8/9, ADC1 = IO1–10, RGB LED, manifest ESP32-S3 (bootloader offset 0x0) · ใช้ DC jack รับ 12 V ร่วมกับ solenoid, 5V pin เลี้ยง relay |
 | 9 | ESP32-Relay-X4 (LC Technology, ESP32-WROOM-32E + Songle SRD-05VDC 10A ×4) | 1 | COM/NO/NC ทุกช่อง · ไฟเข้า 220VAC / 7–30VDC / 5VDC · ปุ่ม EN, IO0 · **ไม่มี USB** (header TX/RX/GND) | **Keeper = water node** (drip, mist + 2 ช่องว่าง เช่นพัดลม) | พิน (ยืนยันจาก ESPHome/Tasmota db): relay1–4 = **GPIO 32 33 25 26 active HIGH**, LED GPIO 23 · **TODO firmware env `keeper-relayx4`** (defaults ขา/active-high/LED) · flash ครั้งแรกต้องมี **USB-TTL 3.3V** + กด IO0 ค้างแล้วกด EN, หลังนั้น OTA · จ่าย 12 V เข้าขั้ว 7–30 V ร่วมกับ solenoid |
+| 10 | USB-TTL FT232RL Type-C (YP-05, O.R. AA106) | 1 | ขา DTR RXD TXD VCC CTS GND · จัมเปอร์ 3.3V/5V | โปรแกรม Relay-X4 / ESP32-CAM | ✅ ซื้อแล้ว 50 ฿ · ตั้งจัมเปอร์ 3.3V ใช้ GND/TXD/RXD |
+| 11 | อะแดปเตอร์ปรับแรงดัน ST-909 (มีจอ) | 1 | แจ็ค DC 5.5×2.1 · ปุ่มหมุน Min–Max | ไฟทดสอบ / 12 V ให้ Relay-X4 + solenoid | ✅ 300 ฿ · ตั้ง 12.0 V ก่อนเสียบทุกครั้ง · ต้องมีตัวแปลงแจ็ค DC→ขั้วสกรู · ตอนติดตั้งจริงล็อกปุ่มหรือใช้อะแดปเตอร์ตายตัว |
 
 ## การตัดสินใจจากของจริง (2026-09-28)
 
@@ -29,5 +31,6 @@
 4. env `*-s3` (ESP32-S3 UNO): I2C 8/9, ADC1 = IO1–10, RGB LED, manifest ESP32-S3
 
 ## ยังต้องซื้อ/หา
-- **USB-to-TTL adapter 3.3V** — เลือก O.R. Technology AA106 FT232RL Type-C (50 ฿) ✅ ใช้ได้: จัมเปอร์ 3.3V, ต่อ GND/TX/RX, เลี้ยงบอร์ด relay จากอะแดปเตอร์ 9–12 V ไม่ใช่จาก VCC ของ adapter
+- ~~USB-to-TTL~~ ✅ ได้แล้ว (ข้อ 10) · ~~อะแดปเตอร์ 12V~~ ✅ ได้แล้ว (ข้อ 11, ปรับได้)
+- **ตัวแปลงแจ็ค DC ตัวเมีย → ขั้วสกรู** (10–20 ฿) สำหรับต่ออะแดปเตอร์เข้าขั้ว 7–30V ของ Relay-X4
 - อะแดปเตอร์ 12V (ถ้าใช้ solenoid 12V DC) · ฟิวส์ + ขั้ว · กล่องกันน้ำสำหรับงาน 220V

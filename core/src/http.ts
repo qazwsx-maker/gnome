@@ -100,9 +100,10 @@ export async function startHttp() {
   app.delete<{ Params: { node: string } }>('/api/nodes/:node', async (req, reply) => {
     const { node } = req.params;
     if (!nodes.has(node)) return bad(reply, 'node not found', 404);
-    await query('DELETE FROM nodes WHERE node = $1', [node]);
-    await query('DELETE FROM switch_states WHERE node = $1', [node]);
+    // ลืม node: ลบทั้งข้อมูลย้อนหลัง (readings/rollup/switch log/events) ไม่งั้น loadState จะปลุกมันขึ้นมาใหม่
+    for (const t of ['nodes', 'switch_states', 'switch_log', 'readings', 'readings_5m', 'events']) await query(`DELETE FROM ${t} WHERE node = $1`, [node]);
     nodes.delete(node);
+    bus.live({ type: 'status', node, online: false, removed: true } as any);
     return { ok: true };
   });
 

@@ -86,12 +86,12 @@ export async function loadState(): Promise<void> {
     n.online = r.online; n.last_seen = r.last_seen ? r.last_seen.getTime() : null;
   }
   const sw = await query<{ node: string; key: string; state: string; ts: Date }>('SELECT node, key, state, ts FROM switch_states');
-  for (const r of sw.rows) getNode(r.node).switches.set(r.key, { state: r.state, ts: r.ts.getTime() });
+  for (const r of sw.rows) if (nodes.has(r.node)) getNode(r.node).switches.set(r.key, { state: r.state, ts: r.ts.getTime() });   // ไม่สร้าง node ที่ถูกลบไปแล้วขึ้นมาใหม่
   const last = await query<{ node: string; key: string; value: number; ts: Date }>(
     `SELECT DISTINCT ON (node, key) node, key, value, ts FROM readings
       WHERE ts > now() - interval '1 day' ORDER BY node, key, ts DESC`,
   );
-  for (const r of last.rows) getNode(r.node).latest.set(r.key, { value: Number(r.value), ts: r.ts.getTime() });
+  for (const r of last.rows) if (nodes.has(r.node)) getNode(r.node).latest.set(r.key, { value: Number(r.value), ts: r.ts.getTime() });
   log.info(`loaded ${nodes.size} nodes, ${sw.rows.length} switches, ${last.rows.length} latest readings`);
 }
 

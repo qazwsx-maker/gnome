@@ -134,6 +134,7 @@
         ${n.ip ? `<a class="btn primary" href="http://${esc(n.ip)}/" target="_blank" rel="noopener" title="เปิดหน้าตั้งค่าของ ${esc(n.node)} (http://${esc(n.node)}.local/)">⚙ ตั้งค่า</a>` : ''}
         <button class="ghost small" data-cmd="identify" title="กระพริบ LED 10 วิ.">identify</button>
         <button class="ghost small danger" data-cmd="reboot">reboot</button>
+        ${n.online ? '' : `<button class="ghost small danger" data-forget="1" title="ลบ node นี้และข้อมูลย้อนหลังออกจาก Hut">ลบ</button>`}
         ${(() => { const f = fwFor(n.node); return f?.env && f.available ? `<button class="ghost small ${f.update ? 'primary' : ''}" data-ota="${esc(f.env)}" ${n.online ? '' : 'disabled'} title="OTA จาก server: ${esc(f.env)} ${esc(f.available)}">${f.update ? 'อัปเดต OTA → ' + esc(f.available) : 'flash ซ้ำ OTA'}</button>` : ''; })()}
       </div>
     </article>`;
@@ -164,6 +165,10 @@
         const seconds = Number(sw.querySelector('input').value) || undefined;
         const r = await api('/switch', { method: 'POST', body: { node, key, state: btn.dataset.act, seconds: btn.dataset.act === 'ON' ? seconds : undefined } });
         toast(`ส่ง ${r.payload} → ${node}.${key}`);
+      } else if (btn.dataset.forget) {
+        if (!confirm(`ลบ ${node} และข้อมูลย้อนหลังทั้งหมดออกจาก Hut?`)) return;
+        await api(`/nodes/${node}`, { method: 'DELETE' });
+        nodes.delete(node); renderStatus(); toast(`ลบ ${node} แล้ว`);
       } else if (btn.dataset.ota) {
         if (!confirm(`ส่ง OTA (${btn.dataset.ota}) ไปที่ ${node}? node จะรีบูตเมื่ออัปเดตเสร็จ`)) return;
         const r = await api(`/nodes/${node}/ota`, { method: 'POST', body: { env: btn.dataset.ota } });

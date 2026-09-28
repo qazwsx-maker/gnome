@@ -27,7 +27,7 @@
 ## Firmware TODO (เรียงตามลำดับ)
 1. ~~env `keeper-relayx4` + OLED~~ ✅ 2026-09-28
 2. ~~Scout: `soil_power_pin` + analog `key`~~ ✅ 2026-09-28 — ต่อ VCC ของโมดูลดิน/ฝนเข้าขาที่ตั้ง (เช่น GPIO 25) แทน 3V3 แล้วใส่ `soil_power_pin` = 25
-3. env `cam` (ESP32-CAM): `/snapshot` `/stream` + MQTT status/meta/debug, LED 33, flash 4
+3. env `cam` = **GnomeOS Watcher** (ESP32-CAM, ชื่อยืนยันแล้ว 2026-09-28): `/snapshot` `/stream` + MQTT status/meta/debug, LED 33, flash 4
 4. env `*-s3` (ESP32-S3 UNO): I2C 8/9, ADC1 = IO1–10, RGB LED, manifest ESP32-S3
 
 ## ยังต้องซื้อ/หา

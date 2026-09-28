@@ -32,7 +32,7 @@ m.update({'name':name,'version':ver,'new_install_prompt_erase':True,'new_install
   'builds':[{'chipFamily':chip,'parts':[{'path':'bootloader.bin','offset':boot_off},{'path':'partitions.bin','offset':32768},{'path':'boot_app0.bin','offset':57344},{'path':'firmware.bin','offset':65536}]}]})
 json.dump(m,open(p,'w'),ensure_ascii=False,indent=2)
 PY
-  strings "$d/firmware.bin" | grep -qx "$VER" || { echo "!! $e: binary does not contain version $VER"; exit 1; }
+  if ! strings "$d/firmware.bin" | grep -x "$VER" >/dev/null; then echo "!! $e: binary does not contain version $VER"; exit 1; fi
   printf "   %-16s %s  (%s bytes) ✓ version inside binary\n" "$e" "$VER" "$(stat -f %z "$d/firmware.bin")"
 done
 python3 -c "import json,sys; json.dump({e:'$VER' for e in sys.argv[1:]}, open('../docs/firmware/versions.json','w'), indent=2)" "${ENVS[@]}"

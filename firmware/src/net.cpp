@@ -7,6 +7,10 @@
 #include <ESPmDNS.h>
 #include <ArduinoOTA.h>
 #include <Update.h>
+#ifdef GNOME_RGB_PIN
+#include <Adafruit_NeoPixel.h>
+static Adafruit_NeoPixel rgb(1, GNOME_RGB_PIN, NEO_GRB + NEO_KHZ800);
+#endif
 
 static WebServer server(80);
 static DNSServer dns;
@@ -36,7 +40,14 @@ void ledLoop() {
   else if (ledMode == LED_PORTAL) on = (t / 250) % 2;
   else if (ledMode == LED_WIFI_ONLY) on = (t / 1000) % 2;
   else on = (t % 5000) < 60;
-  digitalWrite(GNOME_LED_PIN, on ? HIGH : LOW);
+#ifdef GNOME_RGB_PIN
+  static bool last = !on; static LedMode lastMode = LED_IDENTIFY;
+  if (last != on || lastMode != ledMode) { last = on; lastMode = ledMode;
+    uint32_t c = t < identifyUntil ? rgb.Color(40, 40, 40) : ledMode == LED_PORTAL ? rgb.Color(0, 0, 40) : ledMode == LED_WIFI_ONLY ? rgb.Color(40, 24, 0) : rgb.Color(0, 30, 0);
+    rgb.setPixelColor(0, on ? c : 0); rgb.show(); }
+#else
+  if (GNOME_LED_PIN >= 0) digitalWrite(GNOME_LED_PIN, on ? HIGH : LOW);
+#endif
 }
 
 // ---------- helpers ----------
@@ -130,7 +141,11 @@ static void setupRoutes() {
 }
 
 void netSetup() {
-  pinMode(GNOME_LED_PIN, OUTPUT);
+#ifdef GNOME_RGB_PIN
+  rgb.begin(); rgb.show();
+#else
+  if (GNOME_LED_PIN >= 0) pinMode(GNOME_LED_PIN, OUTPUT);
+#endif
   apName = String("GNOME-") + (String(GNOME_ROLE) == "keeper" ? "Keeper" : "Scout") + "-" + macTail();
   WiFi.persistent(false); WiFi.setAutoReconnect(true); WiFi.setHostname(cfg.node.c_str());
   improv::begin(improvConnect, improvUrl, GNOME_FW_NAME, GNOME_VERSION, "ESP32", cfg.node.c_str());

@@ -87,6 +87,13 @@ bool roleCommand(const String& sub, const String& payload) {
   return true;
 }
 
+Mood roleMood() {
+  if (!mqttIsConnected() && cfg.mqttHost.length()) return MOOD_SICK;
+  for (int i = 0; i < cfg.swCount; i++) if (st[i].on && (cfg.sw[i].key.indexOf("drip") >= 0 || cfg.sw[i].key.indexOf("pump") >= 0 || cfg.sw[i].key.indexOf("mist") >= 0 || cfg.sw[i].key.indexOf("water") >= 0)) return MOOD_WATERING;
+  for (int i = 0; i < cfg.swCount; i++) if (st[i].on && cfg.sw[i].key.indexOf("fan") >= 0) return MOOD_FAN;
+  return MOOD_HAPPY;
+}
+
 int roleDisplayLines(String* lines, int max, int) {
   int n = 0;
   for (int i = 0; i < cfg.swCount && n < max; i += 2) {

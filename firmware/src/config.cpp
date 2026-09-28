@@ -30,9 +30,10 @@ void configSetDefaults() {
 #if defined(GNOME_BOARD_RELAYX4)
   // LC Technology ESP32-Relay-X4: relay1-4 = GPIO32/33/25/26 active HIGH, LED GPIO23
   cfg.swCount = 4;
-  cfg.sw[0].key = "drip"; cfg.sw[0].pin = 32; cfg.sw[0].activeLow = false; cfg.sw[0].maxOnS = 600;  cfg.sw[0].exclusive = "mist";
-  cfg.sw[1].key = "mist"; cfg.sw[1].pin = 33; cfg.sw[1].activeLow = false; cfg.sw[1].maxOnS = 600;  cfg.sw[1].exclusive = "drip";
-  cfg.sw[2].key = "fan";  cfg.sw[2].pin = 25; cfg.sw[2].activeLow = false; cfg.sw[2].maxOnS = 3600; cfg.sw[2].exclusive = "";
+  // Concept v2: relay1 = ปั๊ม 12V น้ำหยด · relay2 = เต้ารับพัดลม 220V · relay3 = หมอก (สำรอง) · relay4 = ว่าง
+  cfg.sw[0].key = "pump"; cfg.sw[0].pin = 32; cfg.sw[0].activeLow = false; cfg.sw[0].maxOnS = 600;  cfg.sw[0].exclusive = "mist";
+  cfg.sw[1].key = "fan";  cfg.sw[1].pin = 33; cfg.sw[1].activeLow = false; cfg.sw[1].maxOnS = 3600; cfg.sw[1].exclusive = "";
+  cfg.sw[2].key = "mist"; cfg.sw[2].pin = 25; cfg.sw[2].activeLow = false; cfg.sw[2].maxOnS = 600;  cfg.sw[2].exclusive = "pump";
   cfg.sw[3].key = "aux";  cfg.sw[3].pin = 26; cfg.sw[3].activeLow = false; cfg.sw[3].maxOnS = 600;  cfg.sw[3].exclusive = "";
 #elif defined(GNOME_ROLE_KEEPER)
   cfg.swCount = 2;
@@ -47,7 +48,7 @@ void configToJson(JsonObject o, bool includeSecrets) {
   o["mqtt_host"] = cfg.mqttHost; o["mqtt_port"] = cfg.mqttPort; o["mqtt_user"] = cfg.mqttUser;
   if (includeSecrets) o["mqtt_pass"] = cfg.mqttPass; else o["mqtt_pass_set"] = cfg.mqttPass.length() > 0;
   o["interval_s"] = cfg.intervalS; o["i2c_sda"] = cfg.i2cSda; o["i2c_scl"] = cfg.i2cScl; o["dht_pin"] = cfg.dhtPin; o["soil_power_pin"] = cfg.soilPowerPin;
-  o["failsafe_s"] = cfg.failsafeS; o["oled"] = cfg.oled; o["board"] = GNOME_BOARD;
+  o["failsafe_s"] = cfg.failsafeS; o["oled"] = cfg.oled; o["board"] = GNOME_BOARD; o["thirsty_pct"] = cfg.thirstyPct; o["hot_c"] = cfg.hotC;
   JsonArray soil = o["soil"].to<JsonArray>();
   for (int i = 0; i < cfg.soilCount; i++) { JsonObject s = soil.add<JsonObject>(); s["pin"] = cfg.soil[i].pin; s["dry"] = cfg.soil[i].dry; s["wet"] = cfg.soil[i].wet; s["key"] = cfg.soil[i].key; }
   JsonArray sw = o["switches"].to<JsonArray>();
@@ -59,7 +60,11 @@ void configToJson(JsonObject o, bool includeSecrets) {
   }
 }
 
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+static bool isAdc1Pin(int p) { return p >= 1 && p <= 10; }   // S3: ADC1 = GPIO1-10
+#else
 static bool isAdc1Pin(int p) { return p == 32 || p == 33 || p == 34 || p == 35 || p == 36 || p == 39; }
+#endif
 
 bool configApplyJson(JsonObjectConst o) {
   bool changed = false;
@@ -68,7 +73,7 @@ bool configApplyJson(JsonObjectConst o) {
   if (o["node"].is<const char*>()) { String n = sanitizeNode(o["node"].as<String>()); if (n.length() == 0) n = defaultNodeName(); if (n != cfg.node) { cfg.node = n; changed = true; } }
   setS("wifi_ssid", cfg.wifiSsid); setS("wifi_pass", cfg.wifiPass);
   setS("mqtt_host", cfg.mqttHost); setI("mqtt_port", cfg.mqttPort); setS("mqtt_user", cfg.mqttUser); setS("mqtt_pass", cfg.mqttPass);
-  setI("interval_s", cfg.intervalS); setI("i2c_sda", cfg.i2cSda); setI("i2c_scl", cfg.i2cScl); setI("dht_pin", cfg.dhtPin); setI("soil_power_pin", cfg.soilPowerPin); setI("failsafe_s", cfg.failsafeS);
+  setI("interval_s", cfg.intervalS); setI("i2c_sda", cfg.i2cSda); setI("i2c_scl", cfg.i2cScl); setI("dht_pin", cfg.dhtPin); setI("soil_power_pin", cfg.soilPowerPin); setI("failsafe_s", cfg.failsafeS); setI("thirsty_pct", cfg.thirstyPct); setI("hot_c", cfg.hotC);
   if (cfg.intervalS < 5) cfg.intervalS = 5; if (cfg.failsafeS < 30) cfg.failsafeS = 30;
   if (o["oled"].is<const char*>()) { String v = o["oled"].as<String>(); if (v != "sh1106" && v != "ssd1306" && v != "none") v = "sh1106"; if (v != cfg.oled) { cfg.oled = v; changed = true; } }
   if (o["soil"].is<JsonArrayConst>()) {

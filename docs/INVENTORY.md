@@ -18,7 +18,7 @@
 
 ## การตัดสินใจจากของจริง (2026-09-28)
 
-1. **Controller node เหลือตัวเดียว = ESP32-Relay-X4** รับ 220VAC ตรง · relay 1 drip · 2 mist · 3 fan 220V · 4 ว่าง → **airflow node ยุบรวม** ไม่ต้องทำกล่อง relay+เต้ารับแยก
+1. **Controller node เหลือตัวเดียว = ESP32-Relay-X4** รับ 220VAC ตรง · relay 1 pump 12V · 2 fan 220V · 3 mist (สำรอง) · 4 ว่าง (Concept v2) → **airflow node ยุบรวม** ไม่ต้องทำกล่อง relay+เต้ารับแยก
 2. **OLED 1.3" ×2: Keeper + Scout** ที่ GPIO 21 (SDA) / 22 (SCL) ผ่าน header 10×2 (บัดกรี pin header ก่อน) โชว์ node/IP/MQTT/สถานะ relay
 3. Solenoid ยังใช้ 12V DC (ต้องมีอะแดปเตอร์ 12V ในกล่อง, COM→+12V, NO→วาล์ว) — ทางเลือก 220VAC solenoid ไม่ต้องมี 12V แต่สายในที่เปียกอันตรายกว่า
 4. ESP32 DevKit 30 pin + terminal adapter = **Scout ตัวแรก** (DHT22 D4, BH1750 I2C 21/22, ดิน D34/D35, ฝน D33)

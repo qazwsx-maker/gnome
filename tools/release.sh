@@ -4,7 +4,7 @@
 #   tools/release.sh              build ด้วยเวอร์ชันปัจจุบันใน platformio.ini
 set -euo pipefail
 cd "$(dirname "$0")/../firmware"
-ENVS=(scout keeper keeper-relayx4)
+ENVS=(scout keeper keeper-relayx4 scout-s3)
 if [ -n "${1:-}" ]; then sed -i '' "s/-DGNOME_VERSION=\\\\\"[0-9.]*\\\\\"/-DGNOME_VERSION=\\\\\"$1\\\\\"/" platformio.ini; fi
 VER=$(grep -o 'GNOME_VERSION=\\"[0-9.]*\\"' platformio.ini | grep -o '[0-9.]*')
 echo "== GnomeOS $VER: building ${ENVS[*]}"
@@ -17,11 +17,14 @@ for e in "${ENVS[@]}"; do
   python3 - "$d/manifest.json" "$VER" "$e" <<'PY'
 import json,sys
 p,ver,env=sys.argv[1:]
-name={'scout':'GnomeOS Scout','keeper':'GnomeOS Keeper','keeper-relayx4':'GnomeOS Keeper (ESP32-Relay-X4)','cam':'GnomeOS Watcher'}.get(env,'GnomeOS '+env)
+name={'scout':'GnomeOS Mini Scout (ESP32 DevKit)','keeper':'GnomeOS Keeper','keeper-relayx4':'GnomeOS Keeper (ESP32-Relay-X4)','scout-s3':'GnomeOS Scout (ESP32-S3 UNO)','cam':'GnomeOS Watcher'}.get(env,'GnomeOS '+env)
+s3=env.endswith('-s3')
+chip='ESP32-S3' if s3 else 'ESP32'
+boot_off=0 if s3 else 4096
 try: m=json.load(open(p))
 except Exception: m={}
 m.update({'name':name,'version':ver,'new_install_prompt_erase':True,'new_install_improv_wait_time':15,
-  'builds':[{'chipFamily':'ESP32','parts':[{'path':'bootloader.bin','offset':4096},{'path':'partitions.bin','offset':32768},{'path':'boot_app0.bin','offset':57344},{'path':'firmware.bin','offset':65536}]}]})
+  'builds':[{'chipFamily':chip,'parts':[{'path':'bootloader.bin','offset':boot_off},{'path':'partitions.bin','offset':32768},{'path':'boot_app0.bin','offset':57344},{'path':'firmware.bin','offset':65536}]}]})
 json.dump(m,open(p,'w'),ensure_ascii=False,indent=2)
 PY
   printf "   %-16s %s  (%s bytes)\n" "$e" "$VER" "$(stat -f %z "$d/firmware.bin")"

@@ -89,6 +89,19 @@ void roleStatus(JsonObject st) {
   st["detected"] = String(hasSht ? "sht3x " : "") + (hasBh ? "bh1750 " : "") + (hasBme ? "bme280 " : "") + (dht ? "dht22 " : "");
 }
 
+static float lastVal(const char* key, bool* ok = nullptr) { for (int i = 0; i < lastCount; i++) if (last[i].key == key) { if (ok) *ok = last[i].valid; return last[i].value; } if (ok) *ok = false; return NAN; }
+
+Mood roleMood() {
+  if (!mqttIsConnected() && cfg.mqttHost.length()) return MOOD_SICK;
+  if (millis() - lastErrEvent < 600000 && lastErrEvent) return MOOD_SICK;
+  bool ok; float v;
+  v = lastVal("rain_pct", &ok); if (ok && v > 50) return MOOD_RAIN;
+  for (int i = 0; i < lastCount; i++) if (last[i].valid && last[i].key.endsWith("_pct") && !last[i].key.startsWith("rh") && !last[i].key.startsWith("dht") && !last[i].key.startsWith("rain") && last[i].value < cfg.thirstyPct) return MOOD_THIRSTY;
+  v = lastVal("temp_c", &ok); if (!ok) v = lastVal("dht_temp_c", &ok); if (ok && v > cfg.hotC) return MOOD_HOT;
+  v = lastVal("lux", &ok); if (ok && v < 5) return MOOD_SLEEPY;
+  return MOOD_HAPPY;
+}
+
 int roleDisplayLines(String* lines, int max, int page) {
   int n = 0, start = page * (max * 2);
   for (int i = start, col = 0; i < lastCount && n < max; i++) {

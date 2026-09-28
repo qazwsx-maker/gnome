@@ -30,18 +30,27 @@ table{width:100%;border-collapse:collapse;font-size:14px}td,th{text-align:left;p
 <p class="muted">ติดตั้ง firmware ลง ESP32 จากเบราว์เซอร์ผ่านสาย USB ไม่ต้องลงโปรแกรมอะไร · ใช้ <b>Chrome หรือ Edge บนคอมพิวเตอร์</b> (Safari/iPhone ใช้ไม่ได้) · บอร์ดเป้าหมาย: ESP32 DevKit (ESP32-WROOM-32)</p>
 
 <div class="grid">
+  <div class="card" style="border-color:var(--leaf)">
+    <h3>Scout — ESP32-S3 UNO <span class="pill">sensor node</span></h3>
+    <p class="muted">Scout ตัวหลัก: จอ OLED (ข้อมูล + หน้าอารมณ์) · BH1750 โดม · DHT22 · raindrop · ดิน — I2C ที่ <b>IO8 (SDA) / IO9 (SCL)</b>, analog A0–A5 = IO2 IO1 IO7 IO6 IO5 IO4, RGB LED ในตัว</p>
+    <esp-web-install-button manifest="../firmware/scout-s3/manifest.json">
+      <button slot="activate">ติดตั้ง GnomeOS Scout (S3 UNO)</button>
+      <span slot="unsupported">เบราว์เซอร์นี้ไม่รองรับ Web Serial — ใช้ Chrome/Edge บนคอมพิวเตอร์</span>
+      <span slot="not-allowed">ต้องเปิดผ่าน HTTPS</span>
+    </esp-web-install-button>
+  </div>
   <div class="card">
-    <h3>Scout <span class="pill">sensor node</span></h3>
-    <p class="muted">อ่านอุณหภูมิ/ความชื้น/แสง/ความชื้นดิน แล้วส่งเข้า server · auto-detect SHT3x · BH1750 · BME280 ทาง I2C, DHT22 และหัววัดดินแบบ analog สูงสุด 6 หัว</p>
+    <h3>Mini Scout — ESP32 DevKit 30 ขา <span class="pill">sensor node</span></h3>
+    <p class="muted">จอ OLED + DHT22 + ดิน (หรือ SHT3x/BH1750/BME280 ทาง I2C 21/22) · หัววัด analog ที่ 32 33 34 35 36 39</p>
     <esp-web-install-button manifest="../firmware/scout/manifest.json">
-      <button slot="activate">ติดตั้ง GnomeOS Scout</button>
+      <button slot="activate">ติดตั้ง GnomeOS Mini Scout</button>
       <span slot="unsupported">เบราว์เซอร์นี้ไม่รองรับ Web Serial — ใช้ Chrome/Edge บนคอมพิวเตอร์</span>
       <span slot="not-allowed">ต้องเปิดผ่าน HTTPS</span>
     </esp-web-install-button>
   </div>
   <div class="card" style="border-color:var(--leaf)">
     <h3>Keeper — บอร์ด ESP32-Relay-X4 <span class="pill">controller node</span></h3>
-    <p class="muted">สำหรับบอร์ด LC Technology ESP32-Relay-X4 (relay 10A ×4 ในตัว รับ 220VAC) ค่าเริ่มต้น: drip=relay1 (GPIO32) · mist=relay2 (33) · fan=relay3 (25) · aux=relay4 (26) active-high · LED GPIO23 · จอ OLED ที่ 21/22 · <b>บอร์ดนี้ไม่มี USB ต้องต่อผ่าน USB-TTL</b> (ดูด้านล่าง)</p>
+    <p class="muted">สำหรับบอร์ด LC Technology ESP32-Relay-X4 (relay 10A ×4 ในตัว รับ 220VAC) ค่าเริ่มต้น: pump=relay1 (GPIO32, ปั๊ม 12V น้ำหยด) · fan=relay2 (33, เต้ารับพัดลม 220V) · mist=relay3 (25) · aux=relay4 (26) active-high · LED GPIO23 · จอ OLED ที่ 21/22 · <b>บอร์ดนี้ไม่มี USB ต้องต่อผ่าน USB-TTL</b> (ดูด้านล่าง)</p>
     <esp-web-install-button manifest="../firmware/keeper-relayx4/manifest.json">
       <button slot="activate">ติดตั้ง GnomeOS Keeper (Relay-X4)</button>
       <span slot="unsupported">เบราว์เซอร์นี้ไม่รองรับ Web Serial — ใช้ Chrome/Edge บนคอมพิวเตอร์</span>
@@ -92,7 +101,14 @@ table{width:100%;border-collapse:collapse;font-size:14px}td,th{text-align:left;p
 
 <h2>ต่อสายอะไรเข้าขาไหน</h2>
 <div class="grid">
-<div class="card"><h3>Scout</h3>
+<div class="card"><h3>Scout (ESP32-S3 UNO)</h3>
+<div class="tbl"><table><thead><tr><th>อุปกรณ์</th><th>ขา</th><th>หมายเหตุ</th></tr></thead><tbody>
+<tr><td>BH1750 โดม + OLED (I2C)</td><td>SDA <b>IO8</b> · SCL <b>IO9</b> (ขาข้าง RST) · 3V3 · GND</td><td>auto-detect ทั้งคู่</td></tr>
+<tr><td>DHT22</td><td><b>IO10</b> (ตั้ง dht_pin = 10)</td><td>ขาใดก็ได้ที่ไม่ใช่ 0 · 3 · 45 · 46 · 35–37</td></tr>
+<tr><td>ดิน / raindrop (AO)</td><td>A0–A5 = <b>IO2 IO1 IO7 IO6 IO5 IO4</b></td><td>ADC1 ของ S3 · VCC ของโมดูลต่อขาจ่ายไฟ (เช่น IO14) แล้วตั้ง soil_power_pin</td></tr>
+<tr><td>ไฟ</td><td>USB-C หรือแจ็ค DC 7–12 V</td><td>RGB LED บนบอร์ด = สถานะ (น้ำเงิน=ตั้งค่า เหลือง=WiFi เขียว=ปกติ)</td></tr>
+</tbody></table></div></div>
+<div class="card"><h3>Mini Scout (ESP32 DevKit 30 ขา)</h3>
 <div class="tbl"><table><thead><tr><th>อุปกรณ์</th><th>ขา ESP32</th><th>หมายเหตุ</th></tr></thead><tbody>
 <tr><td>SHT31 / BH1750 / BME280 (I2C)</td><td>SDA <b>21</b> · SCL <b>22</b> · 3V3 · GND</td><td>ต่อพ่วงกันได้ทั้งหมดบนบัสเดียว auto-detect</td></tr>
 <tr><td>DHT22</td><td>ขาใดก็ได้ เช่น <b>4</b> (ตั้งในหน้าเว็บ)</td><td>ตัวต้านทาน pull-up 10k ถ้าโมดูลไม่มี</td></tr>
@@ -101,9 +117,9 @@ table{width:100%;border-collapse:collapse;font-size:14px}td,th{text-align:left;p
 </tbody></table></div></div>
 <div class="card"><h3>Keeper (ESP32-Relay-X4)</h3>
 <div class="tbl"><table><thead><tr><th>relay</th><th>GPIO</th><th>ค่าเริ่มต้น</th></tr></thead><tbody>
-<tr><td>relay 1</td><td>32</td><td><b>drip</b> น้ำหยด · COM→+12V, NO→วาล์ว</td></tr>
-<tr><td>relay 2</td><td>33</td><td><b>mist</b> พ่นหมอก · exclusive กับ drip</td></tr>
-<tr><td>relay 3</td><td>25</td><td><b>fan</b> พัดลม 220V · max-on 1 ชม.</td></tr>
+<tr><td>relay 1</td><td>32</td><td><b>pump</b> ปั๊ม 12V น้ำหยด · COM→+12V, NO→ปั๊ม+ · max-on 10 นาที</td></tr>
+<tr><td>relay 2</td><td>33</td><td><b>fan</b> เต้ารับพัดลม 220V · COM→L เข้า, NO→L ไปเต้ารับ · max-on 1 ชม.</td></tr>
+<tr><td>relay 3</td><td>25</td><td><b>mist</b> สำรอง (exclusive กับ pump)</td></tr>
 <tr><td>relay 4</td><td>26</td><td><b>aux</b> ว่าง</td></tr>
 <tr><td>OLED</td><td>SDA 21 · SCL 22 · 3V3 · GND</td><td>จากช่อง header 10×2</td></tr>
 <tr><td>LED สถานะ</td><td>23</td><td>บนบอร์ด</td></tr>
@@ -118,11 +134,13 @@ table{width:100%;border-collapse:collapse;font-size:14px}td,th{text-align:left;p
 
 <h2>ทางเลือกอื่น</h2>
 <div class="card">
-<p><b>OTA จากหน้าเว็บของ node:</b> เปิด <code>http://&lt;node&gt;.local/</code> → อัปโหลด <code>firmware.bin</code> (ดาวน์โหลด: <a href="../firmware/scout/firmware.bin">scout</a> · <a href="../firmware/keeper-relayx4/firmware.bin">keeper-relayx4</a> · <a href="../firmware/keeper/firmware.bin">keeper</a>)</p>
+<p><b>OTA จากหน้าเว็บของ node:</b> เปิด <code>http://&lt;node&gt;.local/</code> → อัปโหลด <code>firmware.bin</code> (ดาวน์โหลด: <a href="../firmware/scout-s3/firmware.bin">scout-s3</a> · <a href="../firmware/scout/firmware.bin">scout</a> · <a href="../firmware/keeper-relayx4/firmware.bin">keeper-relayx4</a> · <a href="../firmware/keeper/firmware.bin">keeper</a>)</p>
 <p><b>PlatformIO:</b> <code>cd firmware && pio run -e scout -t upload</code> (โฟลเดอร์ <code>firmware/</code> ใน repo)</p>
 <p><b>esptool:</b></p>
 <pre>esptool.py --chip esp32 --baud 460800 write_flash -z \
-  0x1000 bootloader.bin 0x8000 partitions.bin 0xe000 boot_app0.bin 0x10000 firmware.bin</pre>
+  0x1000 bootloader.bin 0x8000 partitions.bin 0xe000 boot_app0.bin 0x10000 firmware.bin
+# ESP32-S3: bootloader อยู่ที่ 0x0
+esptool.py --chip esp32s3 write_flash -z 0x0 bootloader.bin 0x8000 partitions.bin 0xe000 boot_app0.bin 0x10000 firmware.bin</pre>
 </div>
 <p class="muted">GnomeOS · <a href="https://github.com/qazwsx-maker/gnome">github.com/qazwsx-maker/gnome</a> · โปรโตคอล MQTT ดู <a href="https://github.com/qazwsx-maker/gnome/blob/main/docs/PROTOCOL.md">docs/PROTOCOL.md</a></p>
 </div></body></html>

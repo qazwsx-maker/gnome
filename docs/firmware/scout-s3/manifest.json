@@ -1,15 +1,15 @@
 {
-  "name": "GnomeOS Keeper (ESP32-Relay-X4)",
+  "name": "GnomeOS Scout (ESP32-S3 UNO)",
   "version": "0.3.0",
   "new_install_prompt_erase": true,
   "new_install_improv_wait_time": 15,
   "builds": [
     {
-      "chipFamily": "ESP32",
+      "chipFamily": "ESP32-S3",
       "parts": [
         {
           "path": "bootloader.bin",
-          "offset": 4096
+          "offset": 0
         },
         {
           "path": "partitions.bin",

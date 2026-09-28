@@ -123,7 +123,7 @@ export async function startHttp() {
     const board = String(n.meta?.board || '');
     const fw = String(n.fw || '');
     if (n.role === 'keeper') return board.includes('relay-x4') || fw.includes('relayx4') ? 'keeper-relayx4' : 'keeper';
-    if (n.role === 'scout') return 'scout';
+    if (n.role === 'scout') return board.includes('s3') || fw.includes('-s3') ? 'scout-s3' : 'scout';
     if (n.role === 'cam') return 'cam';
     return null;
   }

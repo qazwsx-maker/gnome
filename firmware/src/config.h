@@ -16,8 +16,19 @@
 #define GNOME_MAX_SOIL 6
 #define GNOME_MAX_SWITCH 4
 #define GNOME_AP_PASS "gnome1234"   // รหัส WiFi ของ node ตอนอยู่โหมดตั้งค่า
+#if defined(GNOME_BOARD_S3UNO)
+  // ESP32-S3 UNO: RGB WS2812 ที่ IO48, ไม่มี LED ธรรมดา, I2C ที่ IO8/IO9 (ตำแหน่ง SDA/SCL ของ UNO)
+  #define GNOME_RGB_PIN 48
+  #define GNOME_LED_PIN -1
+  #define GNOME_I2C_SDA 8
+  #define GNOME_I2C_SCL 9
+#endif
 #ifndef GNOME_LED_PIN
 #define GNOME_LED_PIN 2
+#endif
+#ifndef GNOME_I2C_SDA
+#define GNOME_I2C_SDA 21
+#define GNOME_I2C_SCL 22
 #endif
 #ifndef GNOME_BOARD
 #define GNOME_BOARD "esp32dev"
@@ -33,7 +44,9 @@ struct Config {
   String wifiSsid, wifiPass;
   String mqttHost = ""; int mqttPort = 1883; String mqttUser = "gnome", mqttPass = "";
   int intervalS = 30;
-  int i2cSda = 21, i2cScl = 22;
+  int i2cSda = GNOME_I2C_SDA, i2cScl = GNOME_I2C_SCL;
+  int thirstyPct = 35;     // ดินต่ำกว่านี้ = หน้ากระหาย (json: thirsty_pct)
+  int hotC = 34;           // ร้อนกว่านี้ = หน้าร้อน (json: hot_c)
   int dhtPin = -1;
   int soilPowerPin = -1;   // จ่ายไฟหัววัด analog เฉพาะตอนวัด (ลดการกร่อนของหัว resistive) -1 = ไม่ใช้
   SoilCfg soil[GNOME_MAX_SOIL]; int soilCount = 0;

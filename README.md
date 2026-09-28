@@ -5,18 +5,24 @@
 - **แพลนแบบ interactive:** https://qazwsx-maker.github.io/gnome/
 - **เอกสารแพลนฉบับเต็ม:** [docs/PLAN.md](docs/PLAN.md) — ความเป็นไปได้, สถาปัตยกรรม, MQTT contract, รายการอุปกรณ์ + งบ, แผน 8 สัปดาห์, ความเสี่ยง
 
-## โครงสร้าง repo (แผน)
+- **Flash firmware ลง ESP32 จากเบราว์เซอร์:** https://qazwsx-maker.github.io/gnome/flash/
+- **โปรโตคอล MQTT:** [docs/PROTOCOL.md](docs/PROTOCOL.md)
+
+## โครงสร้าง repo
 
 ```
-docs/       แพลน + GitHub Pages (index.html เป็น single-file, ไม่มี build step)
-firmware/   ESPHome YAML ต่อ node (water, airflow, air, ground, cam1)
-core/       gnome-core — TypeScript · Fastify · mqtt.js · Drizzle → PostgreSQL
-web/        gnome-web — Next.js dashboard
-vision/     gnome-vision — Python · YOLO11n · ollama VLM
-infra/      docker-compose (Mosquitto), LaunchAgents, Cloudflare Tunnel config
+docs/         แพลน + GitHub Pages (index.html single-file) · flash/ หน้า ESP Web Tools · firmware/<role>/ binaries + manifest
+firmware/     GnomeOS (PlatformIO, ESP32 DevKit) — env `scout` = sensor node, `keeper` = controller node  → firmware/README.md
+core/         gnome-core — TypeScript · Fastify · mqtt · PostgreSQL 17 · rules engine · Discord · dashboard (core/public)  → core/README.md
+infra/        mosquitto.conf, .env (ไม่ commit), LaunchAgent com.gnome.core
+vision/       (ยังไม่เริ่ม) gnome-vision — Python · YOLO11n · ollama VLM
 ```
 
-ตอนนี้มีเฉพาะ `docs/` — โค้ดจะเริ่มใน Phase 0 ตามแพลน
+## เริ่มใช้งาน (สั้น)
+1. Mac mini: Mosquitto (`brew services`) + gnome-core (LaunchAgent) รันอยู่ → dashboard `http://<macmini>:8080/`
+2. Flash ESP32 ที่ https://qazwsx-maker.github.io/gnome/flash/ → ตั้ง WiFi ตอน flash (Improv) หรือผ่าน AP `GNOME-Scout-xxxx` รหัส `gnome1234`
+3. เปิด `http://<node>.local/` ตั้งชื่อ node + MQTT host (IP ของ Mac mini) + user `gnome` + password จาก `infra/.env`
+4. node โผล่บน dashboard เอง (auto-register จาก `meta`)
 
 ## แก้หน้าเว็บ
 

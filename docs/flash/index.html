@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GnomeOS — flash firmware</title>
+<meta name="description" content="ติดตั้ง GnomeOS (Scout / Keeper) ลง ESP32 จากเบราว์เซอร์ผ่านสาย USB">
+<script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+<style>
+:root{color-scheme:light;--page:#f9f9f7;--surface:#fcfcfb;--ink:#0b0b0b;--ink2:#52514e;--muted:#898781;--border:rgba(11,11,11,.10);--leaf:#1f7a3a;--s1:#2a78d6}
+@media (prefers-color-scheme:dark){:root{color-scheme:dark;--page:#0d0d0d;--surface:#1a1a19;--ink:#fff;--ink2:#c3c2b7;--muted:#898781;--border:rgba(255,255,255,.10);--leaf:#4cc06f;--s1:#3987e5}}
+*{box-sizing:border-box;min-width:0}body{margin:0;background:var(--page);color:var(--ink);font:15px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif;overflow-wrap:anywhere}
+.wrap{max-width:820px;margin:0 auto;padding:24px 18px 48px}a{color:var(--s1)}
+h1{font-size:clamp(26px,5vw,36px);margin:.2em 0}h2{font-size:20px;margin:1.6em 0 .4em}h3{font-size:16px;margin:0 0 .3em}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;margin:12px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+.muted{color:var(--muted);font-size:13px}.pill{display:inline-block;font-size:12px;padding:1px 9px;border-radius:999px;border:1px solid var(--border);color:var(--ink2);margin-right:4px}
+ol,ul{padding-left:22px}li{margin:4px 0}code{background:var(--page);border:1px solid var(--border);border-radius:6px;padding:1px 6px;font-size:13px}
+pre{background:var(--page);border:1px solid var(--border);border-radius:10px;padding:12px;overflow:auto;font-size:13px}
+esp-web-install-button{--esp-tools-button-color:var(--leaf);--esp-tools-button-text-color:#fff;--esp-tools-button-border-radius:10px}
+esp-web-install-button button[slot=activate]{background:var(--leaf);color:#fff;border:0;border-radius:10px;padding:10px 18px;font:inherit;font-weight:600;cursor:pointer}
+.warn{border-left:4px solid #fab219;padding-left:12px}
+table{width:100%;border-collapse:collapse;font-size:14px}td,th{text-align:left;padding:6px 8px;border-bottom:1px solid var(--border);vertical-align:top}th{color:var(--muted);font-size:12px;text-transform:uppercase}
+.tbl{overflow-x:auto}
+</style>
+</head>
+<body><div class="wrap">
+<a href="../" class="muted">← GNOME แพลน</a>
+<h1>🌿 GnomeOS — flash firmware</h1>
+<p class="muted">ติดตั้ง firmware ลง ESP32 จากเบราว์เซอร์ผ่านสาย USB ไม่ต้องลงโปรแกรมอะไร · ใช้ <b>Chrome หรือ Edge บนคอมพิวเตอร์</b> (Safari/iPhone ใช้ไม่ได้) · บอร์ดเป้าหมาย: ESP32 DevKit (ESP32-WROOM-32)</p>
+
+<div class="grid">
+  <div class="card">
+    <h3>Scout <span class="pill">sensor node</span></h3>
+    <p class="muted">อ่านอุณหภูมิ/ความชื้น/แสง/ความชื้นดิน แล้วส่งเข้า server · auto-detect SHT3x · BH1750 · BME280 ทาง I2C, DHT22 และหัววัดดินแบบ analog สูงสุด 6 หัว</p>
+    <esp-web-install-button manifest="../firmware/scout/manifest.json">
+      <button slot="activate">ติดตั้ง GnomeOS Scout</button>
+      <span slot="unsupported">เบราว์เซอร์นี้ไม่รองรับ Web Serial — ใช้ Chrome/Edge บนคอมพิวเตอร์</span>
+      <span slot="not-allowed">ต้องเปิดผ่าน HTTPS</span>
+    </esp-web-install-button>
+  </div>
+  <div class="card">
+    <h3>Keeper <span class="pill">controller node</span></h3>
+    <p class="muted">คุม relay สูงสุด 4 ตัว (น้ำหยด/พ่นหมอก/พัดลม) พร้อม max-on timer, interlock และ failsafe ปิดเองเมื่อขาดการติดต่อ server</p>
+    <esp-web-install-button manifest="../firmware/keeper/manifest.json">
+      <button slot="activate">ติดตั้ง GnomeOS Keeper</button>
+      <span slot="unsupported">เบราว์เซอร์นี้ไม่รองรับ Web Serial — ใช้ Chrome/Edge บนคอมพิวเตอร์</span>
+      <span slot="not-allowed">ต้องเปิดผ่าน HTTPS</span>
+    </esp-web-install-button>
+  </div>
+</div>
+
+<h2>ขั้นตอน</h2>
+<div class="card">
+<ol>
+  <li>เสียบ ESP32 เข้า USB ของคอม (ถ้าเป็นบอร์ดชิป CH340/CP2102 บน Mac รุ่นใหม่มักใช้ได้เลย ถ้าไม่ขึ้นพอร์ต ให้ลงไดรเวอร์ CH34x/CP210x)</li>
+  <li>กดปุ่ม <b>ติดตั้ง</b> ของ role ที่ต้องการ → เลือกพอร์ต (ชื่อประมาณ <code>cu.usbserial-xxxx</code> หรือ <code>cu.SLAB_USBtoUART</code>) → เลือก <b>Install</b> · ครั้งแรกให้ติ๊ก "Erase device" ด้วย</li>
+  <li>บอร์ดบางรุ่นต้อง<b>กดปุ่ม BOOT ค้าง</b>ตอนเริ่มเชื่อมต่อ ถ้าขึ้น "Failed to initialize" ให้ลองใหม่โดยกด BOOT ค้างไว้</li>
+  <li>เมื่อ flash เสร็จ หน้าจะเสนอให้ <b>ตั้งค่า Wi-Fi ทันที</b> (Improv) — เลือก WiFi บ้าน 2.4G ใส่รหัส แล้วจะได้ลิงก์ไปหน้าเว็บของ node</li>
+  <li>ในหน้าเว็บของ node ใส่ <b>ชื่อ node</b> (เช่น <code>air</code>, <code>ground</code>, <code>water</code>) และ <b>MQTT host</b> = IP ของ Mac mini, user <code>gnome</code> + password (อยู่ใน <code>infra/.env</code> บน Mac mini) แล้วกดบันทึก</li>
+</ol>
+</div>
+
+<div class="card warn">
+<h3>ถ้าไม่ได้ตั้ง WiFi ตอน flash (หรือย้ายบ้าน)</h3>
+<p>node จะเปิด WiFi ของตัวเองชื่อ <code>GNOME-Scout-xxxx</code> / <code>GNOME-Keeper-xxxx</code> รหัส <code>gnome1234</code> — ต่อจากมือถือแล้วหน้าตั้งค่าจะเด้งขึ้นเอง (หรือเปิด <code>http://192.168.4.1/</code>) ตั้ง WiFi + MQTT ได้จากตรงนั้น · หลังต่อ WiFi บ้านได้แล้วเปิด <code>http://&lt;ชื่อ node&gt;.local/</code> เพื่อแก้ค่าภายหลัง</p>
+<p class="muted">ไฟ LED บนบอร์ด: กระพริบเร็ว = โหมดตั้งค่า · กระพริบช้า = ต่อ WiFi ได้แต่ยังไม่ถึง MQTT · กระพริบสั้นทุก 5 วินาที = ทำงานปกติ</p>
+</div>
+
+<h2>ต่อสายอะไรเข้าขาไหน</h2>
+<div class="grid">
+<div class="card"><h3>Scout</h3>
+<div class="tbl"><table><thead><tr><th>อุปกรณ์</th><th>ขา ESP32</th><th>หมายเหตุ</th></tr></thead><tbody>
+<tr><td>SHT31 / BH1750 / BME280 (I2C)</td><td>SDA <b>21</b> · SCL <b>22</b> · 3V3 · GND</td><td>ต่อพ่วงกันได้ทั้งหมดบนบัสเดียว auto-detect</td></tr>
+<tr><td>DHT22</td><td>ขาใดก็ได้ เช่น <b>4</b> (ตั้งในหน้าเว็บ)</td><td>ตัวต้านทาน pull-up 10k ถ้าโมดูลไม่มี</td></tr>
+<tr><td>ความชื้นดิน (analog)</td><td><b>32 33 34 35 36 39</b> เท่านั้น (ADC1)</td><td>วัดค่า raw ตอนแห้งและตอนจุ่มน้ำ แล้วใส่ dry/wet ในหน้าเว็บ</td></tr>
+</tbody></table></div></div>
+<div class="card"><h3>Keeper</h3>
+<div class="tbl"><table><thead><tr><th>สวิตช์</th><th>ขา ESP32 (ค่าเริ่มต้น)</th><th>หมายเหตุ</th></tr></thead><tbody>
+<tr><td>drip (น้ำหยด)</td><td><b>26</b> → IN1 ของ relay</td><td>active low (relay module ทั่วไป) แก้ได้ในหน้าเว็บ</td></tr>
+<tr><td>mist (พ่นหมอก)</td><td><b>27</b> → IN2</td><td>exclusive กับ drip (ห้ามเปิดพร้อมกัน)</td></tr>
+<tr><td>เพิ่มเอง (เช่น fan)</td><td>ขาใดก็ได้ที่ไม่ใช่ 0 · 2 · 12 · 15</td><td>relay VCC 5V · GND ร่วมกัน · ห้ามจ่าย 220 V ผ่านบอร์ดโดยตรง</td></tr>
+</tbody></table></div></div>
+</div>
+
+<h2>ทางเลือกอื่น</h2>
+<div class="card">
+<p><b>OTA จากหน้าเว็บของ node:</b> เปิด <code>http://&lt;node&gt;.local/</code> → อัปโหลด <code>firmware.bin</code> (ดาวน์โหลด: <a href="../firmware/scout/firmware.bin">scout</a> · <a href="../firmware/keeper/firmware.bin">keeper</a>)</p>
+<p><b>PlatformIO:</b> <code>cd firmware && pio run -e scout -t upload</code> (โฟลเดอร์ <code>firmware/</code> ใน repo)</p>
+<p><b>esptool:</b></p>
+<pre>esptool.py --chip esp32 --baud 460800 write_flash -z \
+  0x1000 bootloader.bin 0x8000 partitions.bin 0xe000 boot_app0.bin 0x10000 firmware.bin</pre>
+</div>
+<p class="muted">GnomeOS · <a href="https://github.com/qazwsx-maker/gnome">github.com/qazwsx-maker/gnome</a> · โปรโตคอล MQTT ดู <a href="https://github.com/qazwsx-maker/gnome/blob/main/docs/PROTOCOL.md">docs/PROTOCOL.md</a></p>
+</div></body></html>

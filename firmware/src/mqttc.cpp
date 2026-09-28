@@ -8,6 +8,7 @@ static WiFiClient otaClient;
 static PubSubClient client(wifiClient);
 static uint32_t lastTry = 0, lastOk = 0, lastDebug = 0;
 static bool serverOnline = false;
+static String pendingFail;   // ข้อความ ota_failed ที่จะส่งหลังต่อ MQTT กลับ
 static String base;   // "gnome/<node>/"
 
 bool mqttIsConnected() { return client.connected(); }
@@ -45,9 +46,14 @@ static void onMessage(char* topic, byte* payload, unsigned int len) {
     configApplyJson(d.as<JsonObjectConst>()); configSave(); mqttEvent("config_changed"); netRequestReboot(800); return;
   }
   if (sub == "cmd/ota") {
-    mqttEvent("ota_start", "\"url\":\"" + p + "\""); client.loop(); delay(200);
-    httpUpdate.rebootOnUpdate(true); t_httpUpdate_return r = httpUpdate.update(otaClient, p);
-    if (r != HTTP_UPDATE_OK) mqttEvent("ota_failed", "\"msg\":\"" + String(httpUpdate.getLastErrorString()) + "\"");
+    mqttEvent("ota_start", "\"url\":\"" + p + "\""); client.loop(); delay(300);
+    client.disconnect();                       // ตัดแบบ clean → broker ไม่ยิง LWT offline ระหว่างดาวน์โหลด
+    Serial.printf("[ota] %s\n", p.c_str());
+    httpUpdate.rebootOnUpdate(true); httpUpdate.setLedPin(GNOME_LED_PIN >= 0 ? GNOME_LED_PIN : -1, HIGH);
+    t_httpUpdate_return r = httpUpdate.update(otaClient, p);
+    // มาถึงตรงนี้ = ไม่สำเร็จ (สำเร็จจะรีบูตไปแล้ว)
+    pendingFail = String(httpUpdate.getLastError()) + " " + httpUpdate.getLastErrorString(); if (r == HTTP_UPDATE_NO_UPDATES) pendingFail = "no update";
+    Serial.printf("[ota] failed: %s\n", pendingFail.c_str()); lastTry = 0;
     return;
   }
   roleCommand(sub, p);
@@ -74,6 +80,7 @@ static void tryConnect() {
   mqttPublishMeta();
   static bool booted = false; if (!booted) { booted = true; mqttEvent("boot", "\"fw\":\"" + String(GNOME_FW_NAME) + " " + GNOME_VERSION + "\",\"ip\":\"" + WiFi.localIP().toString() + "\""); }
   roleOnMqttConnect();
+  if (pendingFail.length()) { pendingFail.replace('"', '\''); mqttEvent("ota_failed", "\"msg\":\"" + pendingFail + "\""); pendingFail = ""; }
   ledSetMode(LED_OK);
 }
 

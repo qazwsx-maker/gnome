@@ -9,9 +9,7 @@
 #define GNOME_ROLE "scout"
 #define GNOME_FW_NAME "gnomeos-scout"
 #endif
-#ifndef GNOME_VERSION
-#define GNOME_VERSION "0.0.0"
-#endif
+#include "version.h"
 
 #define GNOME_MAX_SOIL 6
 #define GNOME_MAX_SWITCH 4

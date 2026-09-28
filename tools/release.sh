@@ -6,8 +6,8 @@ set -euo pipefail
 cd "$(dirname "$0")/../firmware"
 ENVS=(scout keeper keeper-relayx4 scout-s3)
 C6_ENVS=(scout-c6)   # ESP32-C6 build ด้วย core dir แยก (pioarduino) — ข้ามถ้ายังไม่เคยติดตั้ง
-if [ -n "${1:-}" ]; then sed -i '' "s/-DGNOME_VERSION=\\\\\"[0-9.]*\\\\\"/-DGNOME_VERSION=\\\\\"$1\\\\\"/" platformio.ini; fi
-VER=$(grep -o 'GNOME_VERSION=\\"[0-9.]*\\"' platformio.ini | grep -o '[0-9.]*')
+if [ -n "${1:-}" ]; then printf '#pragma once\n// เขียนโดย tools/release.sh — อย่าแก้มือ\n#define GNOME_VERSION "%s"\n' "$1" > src/version.h; fi
+VER=$(grep -o '"[0-9.]*"' src/version.h | tr -d '"')
 echo "== GnomeOS $VER: building ${ENVS[*]}"
 pio run -e "$(IFS=, ; echo "${ENVS[*]}")" 2>&1 | grep -E "SUCCESS|FAILED|error:" || true
 if [ -d "$HOME/.platformio-c6/platforms" ]; then
@@ -32,7 +32,8 @@ m.update({'name':name,'version':ver,'new_install_prompt_erase':True,'new_install
   'builds':[{'chipFamily':chip,'parts':[{'path':'bootloader.bin','offset':boot_off},{'path':'partitions.bin','offset':32768},{'path':'boot_app0.bin','offset':57344},{'path':'firmware.bin','offset':65536}]}]})
 json.dump(m,open(p,'w'),ensure_ascii=False,indent=2)
 PY
-  printf "   %-16s %s  (%s bytes)\n" "$e" "$VER" "$(stat -f %z "$d/firmware.bin")"
+  strings "$d/firmware.bin" | grep -qx "$VER" || { echo "!! $e: binary does not contain version $VER"; exit 1; }
+  printf "   %-16s %s  (%s bytes) ✓ version inside binary\n" "$e" "$VER" "$(stat -f %z "$d/firmware.bin")"
 done
 python3 -c "import json,sys; json.dump({e:'$VER' for e in sys.argv[1:]}, open('../docs/firmware/versions.json','w'), indent=2)" "${ENVS[@]}"
 echo "== done. commit + push เพื่อให้หน้า flash ได้ไฟล์ใหม่ · gnome-core เสิร์ฟจาก docs/firmware ทันที (OTA ปุ่มบน dashboard)"

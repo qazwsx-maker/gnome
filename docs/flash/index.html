@@ -40,6 +40,15 @@ table{width:100%;border-collapse:collapse;font-size:14px}td,th{text-align:left;p
     </esp-web-install-button>
   </div>
   <div class="card">
+    <h3>Scout — Waveshare ESP32-C6-LCD-1.47 <span class="pill">sensor node</span></h3>
+    <p class="muted">บอร์ด C6 จอสี (จอยังไม่ใช้ในเวอร์ชันนี้) · I2C ที่ <b>GPIO19 (SDA) / 18 (SCL)</b> · analog GPIO0–6 · ไฟ RGB ในตัว · USB ในตัวไม่ต้องไดรเวอร์</p>
+    <esp-web-install-button manifest="../firmware/scout-c6/manifest.json">
+      <button slot="activate">ติดตั้ง GnomeOS Scout (C6-LCD)</button>
+      <span slot="unsupported">เบราว์เซอร์นี้ไม่รองรับ Web Serial — ใช้ Chrome/Edge บนคอมพิวเตอร์</span>
+      <span slot="not-allowed">ต้องเปิดผ่าน HTTPS</span>
+    </esp-web-install-button>
+  </div>
+  <div class="card">
     <h3>Mini Scout — ESP32 DevKit 30 ขา <span class="pill">sensor node</span></h3>
     <p class="muted">จอ OLED + DHT22 + ดิน (หรือ SHT3x/BH1750/BME280 ทาง I2C 21/22) · หัววัด analog ที่ 32 33 34 35 36 39</p>
     <esp-web-install-button manifest="../firmware/scout/manifest.json">

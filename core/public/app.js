@@ -91,6 +91,8 @@
         <button class="small" data-play="1" disabled>▶ เล่น</button>
         <span class="muted small cam-prog"></span>
         ${c.ip ? `<a class="btn" href="http://${esc(c.ip)}/" target="_blank" rel="noopener">⚙ ตั้งค่า</a>` : ''}
+        <button class="ghost small danger" data-delday="1" title="ลบภาพของวันที่เลือกใน time-lapse">ลบวันนี้</button>
+        <button class="ghost small danger" data-delall="1" title="ลบภาพทั้งหมดของกล้องนี้">ลบทั้งหมด</button>
       </div>
       <div class="film"></div>
     </article>`).join('');
@@ -126,6 +128,8 @@
     const btn = e.target.closest('button'); if (!btn) return;
     try {
       if (btn.dataset.snap) { await api(`/nodes/${node}/cmd`, { method: 'POST', body: { cmd: 'snap' } }); toast(`สั่งถ่าย → ${node}`); }
+      else if (btn.dataset.delday) { const day = camState.day[node]; if (!day) return toast('เลือกวันใน time-lapse ก่อน', true); if (!confirm(`ลบภาพของ ${node} วันที่ ${day} ทั้งหมด?`)) return; const r = await api(`/cam/${node}/snapshots?day=${day}`, { method: 'DELETE' }); toast(`ลบ ${r.deleted} ภาพ`); renderCam(); }
+      else if (btn.dataset.delall) { if (!confirm(`ลบภาพทั้งหมดของ ${node}? (กู้คืนไม่ได้)`)) return; const r = await api(`/cam/${node}/snapshots`, { method: 'DELETE' }); toast(`ลบ ${r.deleted} ภาพ`); renderCam(); }
       else if (btn.dataset.live) {
         const img = $('.cam-img', card), ts = $('.cam-ts', card);
         if (camState.live?.[node]) { img.src = camState.live[node]; camState.live[node] = null; btn.textContent = '▶ ดูสด'; ts.textContent = 'หยุดดูสดแล้ว'; return; }

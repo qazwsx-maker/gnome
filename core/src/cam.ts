@@ -87,11 +87,30 @@ export async function registerCam(app: FastifyInstance): Promise<void> {
     return r.rows.map((x) => ({ id: x.id, ts: x.ts.toISOString(), url: `/cam/${x.path}`, bytes: x.bytes }));
   });
 
-  app.delete<{ Params: { node: string } }>('/api/cam/:node/snapshots', async (req) => {
-    const r = await query('DELETE FROM snapshots WHERE node = $1', [req.params.node]);
-    rmSync(join(config.camDir, req.params.node), { recursive: true, force: true });
+  // ลบภาพ: ทั้งหมด หรือเฉพาะวัน (?day=YYYY-MM-DD) หรือก่อนเวลา (?before=ISO)
+  app.delete<{ Params: { node: string }; Querystring: { day?: string; before?: string } }>('/api/cam/:node/snapshots', async (req) => {
+    const { node } = req.params;
+    let r;
+    if (req.query.day) r = await query<{ path: string }>(`DELETE FROM snapshots WHERE node = $1 AND to_char(ts AT TIME ZONE $3, 'YYYY-MM-DD') = $2 RETURNING path`, [node, req.query.day, config.tz]);
+    else if (req.query.before) r = await query<{ path: string }>('DELETE FROM snapshots WHERE node = $1 AND ts < $2 RETURNING path', [node, req.query.before]);
+    else r = await query<{ path: string }>('DELETE FROM snapshots WHERE node = $1 RETURNING path', [node]);
+    for (const x of r.rows) { const p = join(config.camDir, x.path); if (existsSync(p)) try { unlinkSync(p); } catch { /* ignore */ } }
+    if (!req.query.day && !req.query.before) rmSync(join(config.camDir, node), { recursive: true, force: true });
+    log.info(`${node}: deleted ${r.rowCount} snapshots${req.query.day ? ' of ' + req.query.day : ''}`);
     return { ok: true, deleted: r.rowCount };
   });
+
+  // ตรวจสอบ DB กับไฟล์จริง (เผื่อลบไฟล์ตรงในโฟลเดอร์): ลบแถวที่ไฟล์หาย
+  app.post<{ Params: { node: string } }>('/api/cam/:node/reconcile', async (req) => ({ ok: true, removed: await reconcile(req.params.node) }));
+  setTimeout(() => void reconcile().catch(() => {}), 15_000).unref();
+}
+
+/** ลบแถว snapshot ที่ไฟล์ไม่มีแล้วบนดิสก์ (ทุก node หรือ node เดียว) */
+export async function reconcile(node?: string): Promise<number> {
+  const r = await query<{ id: number; path: string }>(`SELECT id, path FROM snapshots ${node ? 'WHERE node = $1' : ''}`, node ? [node] : []);
+  const gone = r.rows.filter((x) => !existsSync(join(config.camDir, x.path))).map((x) => x.id);
+  if (gone.length) { await query('DELETE FROM snapshots WHERE id = ANY($1)', [gone]); log.info(`reconcile: removed ${gone.length} rows with missing files`); }
+  return gone.length;
 }
 
 /** retention: > camFullDays เก็บภาพแรกของแต่ละชั่วโมง · > camKeepDays ลบหมด */

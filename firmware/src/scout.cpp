@@ -11,7 +11,8 @@ static Adafruit_SHT31 sht; static bool hasSht = false; static uint8_t shtAddr = 
 static Adafruit_BME280 bme; static bool hasBme = false;
 static BH1750 bh; static bool hasBh = false;
 static DHT* dht = nullptr;
-static uint32_t lastPub = 0, lastErrEvent = 0;
+static uint32_t lastPub = 0, lastErrEvent = 0, retryAt = 0;
+static bool dhtRetryPending = false;
 
 struct Reading { String key, unit, src; float value = NAN; bool valid = false; };
 static Reading last[16]; static int lastCount = 0;
@@ -52,9 +53,11 @@ static void readAll(bool publish) {
   if (hasBh) { float l = bh.readLightLevel(); if (l < 0) { err = true; l = NAN; } setLast("lux", "lx", "bh1750", l); }
   if (dht) {
     float t = dht->readTemperature(), h = dht->readHumidity();
-    // สายยาว / ไม่มี pull-up ภายนอก มักพลาดครั้งแรก → ลองซ้ำแบบบังคับอ่านใหม่ (ต้องห่างกัน > 2 s ตามสเปก DHT)
-    if (publish && (isnan(t) || isnan(h))) { delay(2200); t = dht->readTemperature(false, true); h = dht->readHumidity(true); }
-    if (isnan(t) || isnan(h)) err = true;
+    if (isnan(t) || isnan(h)) {
+      err = true;
+      // สายยาว / ไม่มี pull-up ภายนอก มักพลาดครั้งแรก → นัดอ่านซ้ำใน 2.5 s (ไม่บล็อก web/MQTT)
+      if (publish && !dhtRetryPending) { dhtRetryPending = true; retryAt = millis() + 2500; }
+    } else dhtRetryPending = false;
     setLast("dht_temp_c", "°C", "dht22", t); setLast("dht_rh_pct", "%", "dht22", h);
   }
   if (cfg.soilCount) {
@@ -73,7 +76,8 @@ static void readAll(bool publish) {
 
 void roleLoop() {
   uint32_t iv = (uint32_t)cfg.intervalS * 1000;
-  if (millis() - lastPub >= iv || lastPub == 0) { lastPub = millis(); readAll(mqttIsConnected()); }
+  if (retryAt && (int32_t)(millis() - retryAt) >= 0) { retryAt = 0; readAll(mqttIsConnected()); return; }
+  if (millis() - lastPub >= iv || lastPub == 0) { lastPub = millis(); dhtRetryPending = false; readAll(mqttIsConnected()); }
 }
 
 void roleOnMqttConnect() {

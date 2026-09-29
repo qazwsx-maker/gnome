@@ -9,7 +9,7 @@ import { bus, type LiveMessage } from './bus.ts';
 import { nodes, nodeToJson, forgetNode } from './state.ts';
 import { mqttConnected, sendSwitch, sendCmd, clearRetained } from './mqtt.ts';
 import { listRules, reloadRules, validateRule, activeRunsJson } from './rules.ts';
-import { readdirSync, readFileSync, existsSync } from 'node:fs';
+import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs';
 import { registerCam } from './cam.ts';
 import { registerSage } from './sage.ts';
 import { registerAuth } from './auth.ts';
@@ -32,7 +32,26 @@ export async function startHttp() {
 
   await registerAuth(app);   // ต้องมาก่อน static/routes เพื่อให้ hook คุมทุก path
   await app.register(fastifyWebsocket, { options: { maxPayload: 16 * 1024 } });
-  await app.register(fastifyStatic, { root: config.publicDir, prefix: '/', index: ['index.html'], cacheControl: false, setHeaders: (res) => { res.setHeader('Cache-Control', 'no-cache'); } });
+  // Cloudflare เขียนทับ Cache-Control เป็น max-age=14400 กับไฟล์ static
+  // → มือถือค้างอยู่กับ app.js ตัวเก่าได้หลายชั่วโมง แก้โดยติดเลขเวอร์ชันท้าย URL
+  // index.html ไม่ถูกแคชที่ edge (DYNAMIC) เลยเป็นจุดที่ปล่อยเวอร์ชันใหม่ได้เสมอ
+  const assetStamp = () => {
+    let m = 0;
+    for (const f of ['app.js', 'style.css', 'index.html']) {
+      try { m = Math.max(m, statSync(join(config.publicDir, f)).mtimeMs); } catch { /* ไม่มีไฟล์ก็ข้าม */ }
+    }
+    return Math.floor(m).toString(36);
+  };
+  const sendIndex = (reply: any) => {
+    const v = assetStamp();
+    const html = readFileSync(join(config.publicDir, 'index.html'), 'utf8')
+      .replace('href="style.css"', `href="style.css?v=${v}"`)
+      .replace('src="app.js"', `src="app.js?v=${v}"`);
+    return reply.header('Cache-Control', 'no-store').type('text/html; charset=utf-8').send(html);
+  };
+  app.get('/', async (_req, reply) => sendIndex(reply));
+  app.get('/index.html', async (_req, reply) => sendIndex(reply));
+  await app.register(fastifyStatic, { root: config.publicDir, prefix: '/', index: false, cacheControl: false, setHeaders: (res) => { res.setHeader('Cache-Control', 'no-cache'); } });
   if (existsSync(config.firmwareDir)) await app.register(fastifyStatic, { root: config.firmwareDir, prefix: '/firmware/', decorateReply: false, cacheControl: false });
   await registerCam(app);
   await registerSage(app);

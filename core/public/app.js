@@ -94,6 +94,13 @@
         <button class="ghost small danger" data-delday="1" title="ลบภาพของวันที่เลือกใน time-lapse">ลบวันนี้</button>
         <button class="ghost small danger" data-delall="1" title="ลบภาพทั้งหมดของกล้องนี้">ลบทั้งหมด</button>
       </div>
+      ${c.cam?.servo ? `<div class="row pan"><span class="muted small">หัน</span>
+        <input type="range" class="pan-range" min="0" max="180" value="${c.cam.angle ?? 90}" ${c.online ? '' : 'disabled'}>
+        <span class="pan-val muted small">${c.cam.angle ?? 90}°</span>
+        ${(c.cam.presets || []).map((p) => `<button class="small" data-preset="${esc(p.name)}" title="${p.angle}°" ${c.online ? '' : 'disabled'}>${esc(p.name)}</button>`).join('')}
+        ${(c.cam.presets || []).length > 1 ? `<button class="small" data-patrol="1" ${c.online ? '' : 'disabled'} title="หันไปทุก preset แล้วถ่ายทีละมุม">🔄 ถ่ายทุกมุม</button>` : ''}
+      </div>` : ''}
+      ${c.angles?.length ? `<div class="muted small">มุมที่มีภาพ: ${c.angles.map((a) => `${a.angle}° (${a.count})`).join(' · ')}</div>` : ''}
       <div class="film"></div>
     </article>`).join('');
     for (const c of camState.list) loadDays(c.node);
@@ -121,13 +128,21 @@
     const c = camState.list.find((x) => x.node === m.node); if (c) { c.latest = { ts: m.ts, url: m.url }; c.count++; }
     const today = camState.day[m.node]; if (today && m.ts.startsWith(today) === false) return; if (today) loadFrames(m.node, today);
   }
-  $('#cam-list').addEventListener('change', (e) => { const sel = e.target.closest('.cam-day'); if (!sel) return; const node = sel.closest('.cam-card').dataset.node; if (sel.value) loadFrames(node, sel.value); });
+  $('#cam-list').addEventListener('input', (e) => { const r = e.target.closest('.pan-range'); if (r) $('.pan-val', r.closest('.pan')).textContent = r.value + '°'; });
+  $('#cam-list').addEventListener('change', async (e) => {
+    const sel = e.target.closest('.cam-day'); if (sel) { const node = sel.closest('.cam-card').dataset.node; if (sel.value) loadFrames(node, sel.value); return; }
+    const r = e.target.closest('.pan-range'); if (!r) return;
+    const node = r.closest('.cam-card').dataset.node;
+    try { await api(`/cam/${node}/pan`, { method: 'POST', body: { angle: Number(r.value), snap: true } }); toast(`หันไป ${r.value}° แล้วถ่าย`); } catch (err) { toast('ผิดพลาด: ' + err.message, true); }
+  });
   $('#cam-list').addEventListener('click', async (e) => {
     const card = e.target.closest('.cam-card'); if (!card) return; const node = card.dataset.node;
     const img = e.target.closest('.film img'); if (img) { const f = camState.frames[node]?.[Number(img.dataset.i)]; if (f) { $('.cam-img', card).src = f.url; $('.cam-ts', card).textContent = fmtTs(f.ts); } return; }
     const btn = e.target.closest('button'); if (!btn) return;
     try {
       if (btn.dataset.snap) { await api(`/nodes/${node}/cmd`, { method: 'POST', body: { cmd: 'snap' } }); toast(`สั่งถ่าย → ${node}`); }
+      else if (btn.dataset.preset) { await api(`/cam/${node}/pan`, { method: 'POST', body: { preset: btn.dataset.preset, snap: true } }); toast(`หันไป ${btn.dataset.preset} แล้วถ่าย`); }
+      else if (btn.dataset.patrol) { await api(`/cam/${node}/pan`, { method: 'POST', body: { patrol: true } }); toast('กำลังถ่ายทุกมุม…'); }
       else if (btn.dataset.delday) { const day = camState.day[node]; if (!day) return toast('เลือกวันใน time-lapse ก่อน', true); if (!confirm(`ลบภาพของ ${node} วันที่ ${day} ทั้งหมด?`)) return; const r = await api(`/cam/${node}/snapshots?day=${day}`, { method: 'DELETE' }); toast(`ลบ ${r.deleted} ภาพ`); renderCam(); }
       else if (btn.dataset.delall) { if (!confirm(`ลบภาพทั้งหมดของ ${node}? (กู้คืนไม่ได้)`)) return; const r = await api(`/cam/${node}/snapshots`, { method: 'DELETE' }); toast(`ลบ ${r.deleted} ภาพ`); renderCam(); }
       else if (btn.dataset.live) {
@@ -161,13 +176,13 @@
       senSel.innerHTML = '<option value="">— ไม่มี —</option>' + list.filter((n) => n.role === 'scout').map((n) => `<option value="${esc(n.node)}">${esc(n.node)}</option>`).join('');
       sage.plots = await api('/plots');
       $('#plots').innerHTML = sage.plots.map((p) => { const la = p.last_analysis; const st = la?.status; const pr = la?.progress || {};
-        return `<div class="card plot" data-id="${p.id}"><div class="row-between"><div><b>${esc(p.name)}</b> <span class="muted small">กล้อง ${esc(p.cam_node)}${p.sensor_node ? ' · เซ็นเซอร์ ' + esc(p.sensor_node) : ''} · ${p.snapshots} ภาพ${p.from_ts ? ' · ตั้งแต่ ' + p.from_ts.slice(0, 10) : ''}${p.to_ts ? ' ถึง ' + p.to_ts.slice(0, 10) : ''}</span></div>
+        return `<div class="card plot" data-id="${p.id}"><div class="row-between"><div><b>${esc(p.name)}</b> <span class="muted small">กล้อง ${esc(p.cam_node)}${p.cam_angle != null ? ' @' + p.cam_angle + '°' : ''}${p.sensor_node ? ' · เซ็นเซอร์ ' + esc(p.sensor_node) : ''} · ${p.snapshots} ภาพ${p.from_ts ? ' · ตั้งแต่ ' + p.from_ts.slice(0, 10) : ''}${p.to_ts ? ' ถึง ' + p.to_ts.slice(0, 10) : ''}</span></div>
           <div class="row"><span class="muted small sage-st">${st === 'running' ? `⏳ กำลังวิเคราะห์ ${pr.step === 'observe' ? `ภาพ ${pr.done}/${pr.total}` : pr.step === 'synthesize' ? 'สรุปรายงาน…' : ''}` : st === 'done' ? `✅ วิเคราะห์ล่าสุด ${esc(ago(la.created_at))}` : st === 'failed' ? '❌ ล้มเหลว' : st === 'queued' ? '⏳ รอคิว' : 'ยังไม่เคยวิเคราะห์'}</span>
           <button class="primary small" data-analyze="1" ${st === 'running' || st === 'queued' ? 'disabled' : ''}>🔍 วิเคราะห์</button>${st === 'done' ? `<button class="small" data-report="${la.id}">📄 ดูรายงาน</button>` : ''}<button class="ghost small danger" data-del="1">ลบ</button></div></div></div>`; }).join('') || '<p class="muted">ยังไม่มีแปลง — สร้างด้านบน (ต้องมีภาพจาก Watcher ก่อน)</p>';
     } catch (e) { toast('Sage: ' + e.message, true); }
   }
   $('#pl-create').addEventListener('click', async () => {
-    try { await api('/plots', { method: 'POST', body: { name: $('#pl-name').value, cam_node: $('#pl-cam').value, sensor_node: $('#pl-sensor').value || undefined, from: $('#pl-from').value || undefined, to: $('#pl-to').value ? $('#pl-to').value + 'T23:59:59' : undefined, notes: $('#pl-notes').value || undefined } }); $('#pl-name').value = ''; toast('สร้างแปลงแล้ว'); renderSage(); } catch (e) { toast('ผิดพลาด: ' + e.message, true); }
+    try { await api('/plots', { method: 'POST', body: { name: $('#pl-name').value, cam_node: $('#pl-cam').value, sensor_node: $('#pl-sensor').value || undefined, from: $('#pl-from').value || undefined, to: $('#pl-to').value ? $('#pl-to').value + 'T23:59:59' : undefined, notes: $('#pl-notes').value || undefined, cam_angle: $('#pl-angle').value || undefined } }); $('#pl-name').value = ''; toast('สร้างแปลงแล้ว'); renderSage(); } catch (e) { toast('ผิดพลาด: ' + e.message, true); }
   });
   $('#plots').addEventListener('click', async (e) => {
     const btn = e.target.closest('button'); if (!btn) return; const id = btn.closest('.plot').dataset.id;

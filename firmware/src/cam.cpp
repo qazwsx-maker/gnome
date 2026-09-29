@@ -28,6 +28,44 @@
 #define CAM_PIN_PCLK 22
 #define CAM_FLASH_PIN 4
 
+// ---------- servo (pan) ----------
+// LEDC: กล้องใช้ channel 0 / timer 0 อยู่แล้ว → servo ใช้ channel 2 (timer 1) เพื่อไม่ชนกัน
+#define SERVO_LEDC_CH 2
+static bool servoOn = false;
+static uint32_t servoIdleAt = 0;   // ถึงเวลานี้แล้วปล่อยสัญญาณ (ลดเสียงสั่น/ความร้อน)
+
+static void servoWrite(int angle) {
+  if (cfg.servoPin < 0) return;
+  angle = constrain(angle, 0, 180);
+  int a = cfg.servoInvert ? 180 - angle : angle;
+  int us = cfg.servoMinUs + (long)(cfg.servoMaxUs - cfg.servoMinUs) * a / 180;
+  uint32_t duty = (uint32_t)((float)us * 65536.0f / 20000.0f);   // 50 Hz, 16-bit
+  if (!servoOn) { ledcSetup(SERVO_LEDC_CH, 50, 16); ledcAttachPin(cfg.servoPin, SERVO_LEDC_CH); servoOn = true; }
+  ledcWrite(SERVO_LEDC_CH, duty);
+  servoIdleAt = millis() + 1200;   // ค้างสัญญาณ 1.2 s ให้หมุนถึงตำแหน่ง แล้วปล่อย
+}
+static void servoRelease() {
+  if (!servoOn) return;
+  ledcWrite(SERVO_LEDC_CH, 0); ledcDetachPin(cfg.servoPin); pinMode(cfg.servoPin, INPUT);
+  servoOn = false;
+}
+/** หันไปที่มุม แล้วรอให้นิ่งก่อนถ่าย */
+static void panTo(int angle, bool save = true) {
+  if (cfg.servoPin < 0) return;
+  angle = constrain(angle, 0, 180);
+  int delta = abs(angle - cfg.servoAngle);
+  servoWrite(angle);
+  cfg.servoAngle = angle;
+  if (save) configSave();
+  delay(300 + delta * 6);   // ~6 ms/องศา + settle
+  Serial.printf("[servo] pan -> %d\n", angle);
+}
+static int presetAngle(const String& name) {
+  for (int i = 0; i < cfg.presetCount; i++) if (cfg.preset[i].name == name) return cfg.preset[i].angle;
+  return -1;
+}
+
+static bool snapAndUpload(const char* reason);
 static bool camOk = false;
 static httpd_handle_t streamd = nullptr;
 static uint32_t lastShot = 0;
@@ -114,6 +152,7 @@ static bool snapAndUpload(const char* reason) {
   String url = hutBase() + "/api/cam/" + cfg.node + "/snapshot";
   WiFiClient c; HTTPClient http; http.setTimeout(15000); http.begin(c, url);
   http.addHeader("Content-Type", "image/jpeg"); http.addHeader("X-Node", cfg.node); http.addHeader("X-Reason", reason);
+  if (cfg.servoPin >= 0) http.addHeader("X-Angle", String(cfg.servoAngle));
   int code = http.POST(fb->buf, fb->len);
   http.end();
   lastCode = code; lastBytes = fb->len; lastUploadMs = millis();
@@ -127,9 +166,24 @@ void roleSetup() {
   camLock = xSemaphoreCreateMutex();
   pinMode(CAM_FLASH_PIN, OUTPUT); digitalWrite(CAM_FLASH_PIN, LOW);
   camOk = camInit();
+  if (cfg.servoPin >= 0) { Serial.printf("[servo] pin %d, restore angle %d\n", cfg.servoPin, cfg.servoAngle); servoWrite(cfg.servoAngle); }
+}
+
+/** ถ่ายทุก preset: หัน → ถ่าย → ส่ง แล้วกลับมุมเดิม */
+static int patrol(const char* reason) {
+  if (cfg.presetCount == 0 || cfg.servoPin < 0) return 0;
+  int back = cfg.servoAngle, n = 0;
+  for (int i = 0; i < cfg.presetCount; i++) {
+    panTo(cfg.preset[i].angle, false);
+    if (snapAndUpload(reason)) n++;
+    mqttLoop();
+  }
+  panTo(back);
+  return n;
 }
 
 void roleLoop() {
+  if (servoOn && millis() > servoIdleAt) servoRelease();
   static bool streamStarted = false;
   if (!streamStarted && netWifiConnected()) { startStream(); streamStarted = true; }
   uint32_t iv = (uint32_t)cfg.intervalS * 1000;
@@ -146,6 +200,9 @@ void roleMeta(JsonObject meta) {
   String ip = WiFi.localIP().toString();
   cam["stream"] = "http://" + ip + ":81/stream"; cam["snapshot"] = "http://" + ip + ":81/snapshot";
   cam["interval_s"] = cfg.intervalS; cam["size"] = cfg.camSize; cam["ok"] = camOk; cam["flash"] = cfg.camFlash;
+  cam["servo"] = cfg.servoPin >= 0; cam["angle"] = cfg.servoAngle;
+  JsonArray pre = cam["presets"].to<JsonArray>();
+  for (int i = 0; i < cfg.presetCount; i++) { JsonObject p = pre.add<JsonObject>(); p["name"] = cfg.preset[i].name; p["angle"] = cfg.preset[i].angle; }
 }
 
 void roleStatus(JsonObject st) {
@@ -154,6 +211,9 @@ void roleStatus(JsonObject st) {
   cam["ok"] = camOk; cam["stream"] = "http://" + ip + ":81/stream"; cam["snapshot"] = "http://" + ip + ":81/snapshot";
   cam["uploads"] = uploads; cam["fails"] = fails; cam["last_code"] = lastCode; cam["last_kb"] = lastBytes / 1024;
   cam["last_upload_s_ago"] = lastUploadMs ? (int)((millis() - lastUploadMs) / 1000) : -1; cam["hut"] = hutBase(); cam["flash"] = flashOn;
+  cam["servo"] = cfg.servoPin >= 0; cam["angle"] = cfg.servoAngle; cam["servo_pin"] = cfg.servoPin;
+  JsonArray pre = cam["presets"].to<JsonArray>();
+  for (int i = 0; i < cfg.presetCount; i++) { JsonObject p = pre.add<JsonObject>(); p["name"] = cfg.preset[i].name; p["angle"] = cfg.preset[i].angle; }
 }
 
 Mood roleMood() {
@@ -162,13 +222,32 @@ Mood roleMood() {
   if (fails > uploads && fails > 2) return MOOD_THIRSTY;
   return MOOD_HAPPY;
 }
-int roleDisplayLines(String* lines, int, int) { lines[0] = String("shots ") + uploads + " fail " + fails; lines[1] = String("last ") + (lastBytes / 1024) + "kB " + lastCode; return 2; }
+int roleDisplayLines(String* lines, int, int) { lines[0] = String("shots ") + uploads + " fail " + fails; lines[1] = String("last ") + (lastBytes / 1024) + "kB " + lastCode + (cfg.servoPin >= 0 ? String("  ") + cfg.servoAngle + "\xB0" : ""); return 2; }
 
 bool roleCommand(const String& sub, const String& payload) {
   if (sub == "cmd/snap") { lastShot = millis(); bool ok = snapAndUpload("cmd"); mqttEvent(ok ? "snapshot" : "snapshot_failed", "\"bytes\":" + String(lastBytes)); return true; }
   if (sub == "cmd/flash") { String p = payload; p.trim(); p.toUpperCase(); setFlash(p == "ON" || p == "1"); return true; }
+  if (sub == "cmd/pan") {
+    String p = payload; p.trim();
+    if (cfg.servoPin < 0) { mqttEvent("pan_failed", "\"msg\":\"no servo\""); return true; }
+    bool snap = false;
+    if (p.endsWith("+snap")) { snap = true; p = p.substring(0, p.length() - 5); p.trim(); }
+    int a = p.length() && (isDigit(p[0]) || p[0] == '-') ? p.toInt() : presetAngle(p);
+    if (a < 0) { mqttEvent("pan_failed", "\"msg\":\"unknown preset " + p + "\""); return true; }
+    panTo(a);
+    mqttEvent("pan", "\"angle\":" + String(cfg.servoAngle));
+    if (snap) { lastShot = millis(); snapAndUpload("pan"); }
+    return true;
+  }
+  if (sub == "cmd/patrol") { int n = patrol("patrol"); mqttEvent("patrol", "\"shots\":" + String(n)); return true; }
   return false;
 }
-bool roleWebSwitch(const String& key, bool on, int) { if (key == "flash") { setFlash(on); return true; } if (key == "snap") { lastShot = millis(); return snapAndUpload("web"); } return false; }
+bool roleWebSwitch(const String& key, bool on, int seconds) {
+  if (key == "flash") { setFlash(on); return true; }
+  if (key == "snap") { lastShot = millis(); return snapAndUpload("web"); }
+  if (key == "pan") { panTo(seconds); return true; }                      // seconds = มุม 0-180
+  if (key == "patrol") { return patrol("web-patrol") > 0; }
+  return false;
+}
 void roleRescan() { lastShot = 0; }
 #endif

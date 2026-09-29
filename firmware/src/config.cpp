@@ -53,6 +53,9 @@ void configToJson(JsonObject o, bool includeSecrets) {
   o["interval_s"] = cfg.intervalS; o["i2c_sda"] = cfg.i2cSda; o["i2c_scl"] = cfg.i2cScl; o["dht_pin"] = cfg.dhtPin; o["soil_power_pin"] = cfg.soilPowerPin;
   o["failsafe_s"] = cfg.failsafeS; o["oled"] = cfg.oled; o["board"] = GNOME_BOARD; o["thirsty_pct"] = cfg.thirstyPct; o["hot_c"] = cfg.hotC;
   o["hut_url"] = cfg.hutUrl; o["cam_size"] = cfg.camSize; o["cam_flash"] = cfg.camFlash; o["cam_flip"] = cfg.camFlip;
+  o["servo_pin"] = cfg.servoPin; o["servo_min_us"] = cfg.servoMinUs; o["servo_max_us"] = cfg.servoMaxUs; o["servo_angle"] = cfg.servoAngle; o["servo_invert"] = cfg.servoInvert;
+  JsonArray pre = o["presets"].to<JsonArray>();
+  for (int i = 0; i < cfg.presetCount; i++) { JsonObject p = pre.add<JsonObject>(); p["name"] = cfg.preset[i].name; p["angle"] = cfg.preset[i].angle; }
   JsonArray soil = o["soil"].to<JsonArray>();
   for (int i = 0; i < cfg.soilCount; i++) { JsonObject s = soil.add<JsonObject>(); s["pin"] = cfg.soil[i].pin; s["dry"] = cfg.soil[i].dry; s["wet"] = cfg.soil[i].wet; s["key"] = cfg.soil[i].key; }
   JsonArray sw = o["switches"].to<JsonArray>();
@@ -82,6 +85,19 @@ bool configApplyJson(JsonObjectConst o) {
   setI("interval_s", cfg.intervalS); setI("i2c_sda", cfg.i2cSda); setI("i2c_scl", cfg.i2cScl); setI("dht_pin", cfg.dhtPin); setI("soil_power_pin", cfg.soilPowerPin); setI("failsafe_s", cfg.failsafeS); setI("thirsty_pct", cfg.thirstyPct); setI("hot_c", cfg.hotC);
   setS("hut_url", cfg.hutUrl); if (o["cam_size"].is<const char*>()) { String v = o["cam_size"].as<String>(); if (v == "vga" || v == "svga" || v == "xga" || v == "uxga") { if (v != cfg.camSize) { cfg.camSize = v; changed = true; } } }
   if (o["cam_flash"].is<bool>()) { cfg.camFlash = o["cam_flash"].as<bool>(); changed = true; } if (o["cam_flip"].is<bool>()) { cfg.camFlip = o["cam_flip"].as<bool>(); changed = true; }
+  setI("servo_pin", cfg.servoPin); setI("servo_min_us", cfg.servoMinUs); setI("servo_max_us", cfg.servoMaxUs); setI("servo_angle", cfg.servoAngle);
+  if (o["servo_invert"].is<bool>()) { cfg.servoInvert = o["servo_invert"].as<bool>(); changed = true; }
+  cfg.servoAngle = constrain(cfg.servoAngle, 0, 180);
+  if (cfg.servoMinUs < 400) cfg.servoMinUs = 400; if (cfg.servoMaxUs > 2600) cfg.servoMaxUs = 2600;
+  if (o["presets"].is<JsonArrayConst>()) {
+    int n = 0;
+    for (JsonObjectConst p : o["presets"].as<JsonArrayConst>()) {
+      if (n >= GNOME_MAX_PRESET) break;
+      String nm = sanitizeNode(p["name"] | ""); if (nm.length() == 0) continue;
+      cfg.preset[n].name = nm; cfg.preset[n].angle = constrain((int)(p["angle"] | 90), 0, 180); n++;
+    }
+    cfg.presetCount = n; changed = true;
+  }
   if (cfg.intervalS < 5) cfg.intervalS = 5; if (cfg.failsafeS < 30) cfg.failsafeS = 30;
   if (o["oled"].is<const char*>()) { String v = o["oled"].as<String>(); if (v != "sh1106" && v != "ssd1306" && v != "none") v = "sh1106"; if (v != cfg.oled) { cfg.oled = v; changed = true; } }
   if (o["soil"].is<JsonArrayConst>()) {

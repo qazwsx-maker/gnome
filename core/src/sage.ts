@@ -116,7 +116,10 @@ const fmtTime = (d: Date) => new Intl.DateTimeFormat('th-TH', { timeZone: config
 
 /** เลือกภาพ: 1 ภาพ/วัน ใกล้เที่ยงที่สุด แล้วถ้ายังเกิน max ให้กระจายเท่าๆ กัน */
 async function selectFrames(plot: any, max: number): Promise<Frame[]> {
-  const r = await query<Frame>(`SELECT id, ts, path FROM snapshots WHERE node = $1 AND ($2::timestamptz IS NULL OR ts >= $2) AND ($3::timestamptz IS NULL OR ts <= $3) ORDER BY ts`, [plot.cam_node, plot.from_ts, plot.to_ts]);
+  const r = await query<Frame>(
+    `SELECT id, ts, path FROM snapshots WHERE node = $1 AND ($2::timestamptz IS NULL OR ts >= $2) AND ($3::timestamptz IS NULL OR ts <= $3)
+       AND ($4::int IS NULL OR (angle IS NOT NULL AND abs(angle - $4) <= 5)) ORDER BY ts`,
+    [plot.cam_node, plot.from_ts, plot.to_ts, plot.cam_angle]);
   const byDay = new Map<string, Frame[]>();
   for (const f of r.rows) { const d = fmtDay(f.ts); if (!byDay.has(d)) byDay.set(d, []); byDay.get(d)!.push(f); }
   let picked: Frame[] = [];
@@ -235,15 +238,17 @@ export async function registerSage(app: FastifyInstance): Promise<void> {
   app.get('/api/sage/config', async () => sageConfig());
 
   app.get('/api/plots', async () => (await query<any>(
-    `SELECT p.*, (SELECT count(*) FROM snapshots s WHERE s.node = p.cam_node AND (p.from_ts IS NULL OR s.ts >= p.from_ts) AND (p.to_ts IS NULL OR s.ts <= p.to_ts)) AS snapshots,
+    `SELECT p.*, (SELECT count(*) FROM snapshots s WHERE s.node = p.cam_node AND (p.from_ts IS NULL OR s.ts >= p.from_ts) AND (p.to_ts IS NULL OR s.ts <= p.to_ts)
+                    AND (p.cam_angle IS NULL OR (s.angle IS NOT NULL AND abs(s.angle - p.cam_angle) <= 5))) AS snapshots,
             (SELECT json_build_object('id', a.id, 'status', a.status, 'created_at', a.created_at, 'progress', a.progress) FROM analyses a WHERE a.plot_id = p.id ORDER BY a.created_at DESC LIMIT 1) AS last_analysis
        FROM plots p ORDER BY p.created_at DESC`)).rows);
 
-  app.post<{ Body: { name?: string; cam_node?: string; sensor_node?: string; from?: string; to?: string; notes?: string } }>('/api/plots', async (req, reply) => {
+  app.post<{ Body: { name?: string; cam_node?: string; sensor_node?: string; from?: string; to?: string; notes?: string; cam_angle?: number | string } }>('/api/plots', async (req, reply) => {
     const b = req.body || {};
     if (!b.name || !b.cam_node) return reply.code(400).send({ error: 'name และ cam_node จำเป็น' });
-    const r = await query<any>('INSERT INTO plots(name, cam_node, sensor_node, from_ts, to_ts, notes) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
-      [b.name.trim(), b.cam_node, b.sensor_node || null, b.from || null, b.to || null, b.notes || null]);
+    const ang = b.cam_angle === '' || b.cam_angle === undefined || b.cam_angle === null ? null : Number(b.cam_angle);
+    const r = await query<any>('INSERT INTO plots(name, cam_node, sensor_node, from_ts, to_ts, notes, cam_angle) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *',
+      [b.name.trim(), b.cam_node, b.sensor_node || null, b.from || null, b.to || null, b.notes || null, Number.isFinite(ang as number) ? ang : null]);
     return r.rows[0];
   });
 

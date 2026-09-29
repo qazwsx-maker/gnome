@@ -8,7 +8,7 @@
 |---|---|---|
 | `scout` | **GnomeOS Scout** | sensor node: I2C auto-detect (SHT3x, BH1750, BME280), DHT22 (optional), analog soil ×N (ADC1) |
 | `keeper` | **GnomeOS Keeper** | controller node: relay/switch ×1–4 พร้อม max_on_time, interlock, failsafe |
-| `cam` | **GnomeOS Watcher** | camera node (ESP32-CAM): node **POST** JPEG ไป `{hut_url}/api/cam/<node>/snapshot` ทุก `interval_s` · ดูสด `http://<ip>:81/stream`, `http://<ip>:81/snapshot` · `cmd/snap` ถ่ายทันที · `cmd/flash` ON/OFF · meta มี `cam:{stream,snapshot,interval_s,size}` |
+| `cam` | **GnomeOS Watcher** | camera node (ESP32-CAM): node **POST** JPEG ไป `{hut_url}/api/cam/<node>/snapshot` ทุก `interval_s` (ส่ง header `X-Angle` ถ้ามี servo) · ดูสด `http://<ip>:81/stream`, `http://<ip>:81/snapshot` · `cmd/snap` ถ่ายทันที · `cmd/flash` ON/OFF · meta มี `cam:{stream,snapshot,interval_s,size}` |
 
 ## Topics (prefix `gnome/<node>/`)
 
@@ -27,6 +27,10 @@
 | `cmd/config` | no | 1 | →node | JSON patch ของ config (node บันทึกลง NVS แล้ว reboot ถ้าจำเป็น) |
 | `cmd/ota` | no | 1 | →node | URL ของไฟล์ .bin (HTTP) — server ส่ง `http://<core>/firmware/<env>/firmware.bin` (`POST /api/nodes/<node>/ota`, `POST /api/ota`) node ตอบ event `ota_start` / `ota_failed` แล้วรีบูตพร้อม `meta.fw` ใหม่ |
 | `cmd/identify` | no | 1 | →node | กระพริบ LED 10 วินาที |
+| `cmd/snap` | no | 1 | →node (cam) | ถ่ายและส่งภาพทันที |
+| `cmd/flash` | no | 1 | →node (cam) | `ON` / `OFF` ไฟแฟลช GPIO4 |
+| `cmd/pan` | no | 1 | →node (cam) | มุม `0`–`180` หรือชื่อ preset · เติม ` +snap` เพื่อถ่ายหลังหันเสร็จ |
+| `cmd/patrol` | no | 1 | →node (cam) | หันไปทุก preset แล้วถ่ายทีละมุม กลับมุมเดิมเมื่อจบ |
 
 Server: `gnome/server/status` retained `online`/`offline` (LWT) — Keeper ใช้ร่วมกับการขาด MQTT เพื่อ failsafe
 

@@ -16,6 +16,7 @@
 
 #define GNOME_MAX_SOIL 6
 #define GNOME_MAX_SWITCH 4
+#define GNOME_MAX_PRESET 4
 #define GNOME_AP_PASS "gnome1234"   // รหัส WiFi ของ node ตอนอยู่โหมดตั้งค่า
 #if defined(GNOME_ROLE_CAM)
   // ESP32-CAM: LED แดงหลังบอร์ด GPIO33 (active-low), ไม่มี I2C ว่าง (ขา 21/22 เป็นของกล้อง)
@@ -50,6 +51,8 @@
 #endif
 
 struct SoilCfg { int pin = -1; int dry = 3100; int wet = 1300; String key; };  // key ว่าง = soilN
+struct PresetCfg { String name; int angle = 90; };
+
 struct SwitchCfg {
   String key; int pin = -1; bool activeLow = true; int maxOnS = 600; String exclusive; // comma-separated keys
 };
@@ -73,6 +76,12 @@ struct Config {
   String camSize = "svga";  // vga | svga | xga | uxga
   bool camFlash = false;    // เปิดไฟแฟลช GPIO4 ตอนถ่าย
   bool camFlip = false;     // กลับภาพ 180°
+  // servo หัน (pan) ของ Watcher — ESP32-CAM ใช้ขาว่าง 13/14/15 ได้ (เมื่อไม่ใช้ SD card)
+  int servoPin = -1;        // -1 = ไม่มี servo
+  int servoMinUs = 500, servoMaxUs = 2400;
+  int servoAngle = 90;      // มุมล่าสุด (จำไว้ใน NVS)
+  bool servoInvert = false;
+  PresetCfg preset[GNOME_MAX_PRESET]; int presetCount = 0;
 };
 
 extern Config cfg;

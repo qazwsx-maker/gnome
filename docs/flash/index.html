@@ -132,6 +132,7 @@ table{width:100%;border-collapse:collapse;font-size:14px}td,th{text-align:left;p
 <tr><td>DHT22</td><td>ขาใดก็ได้ เช่น <b>4</b> (ตั้งในหน้าเว็บ)</td><td>ตัวต้านทาน pull-up 10k ถ้าโมดูลไม่มี</td></tr>
 <tr><td>ความชื้นดิน (analog) / raindrop</td><td><b>32 33 34 35 36 39</b> เท่านั้น (ADC1)</td><td>VCC ของโมดูล → <b>3V3</b> · วัดค่า raw ตอนแห้งและตอนจุ่มน้ำ แล้วใส่ dry/wet ในหน้าเว็บ</td></tr>
 <tr><td>OLED 1.3" (SH1106)</td><td>SDA 21 · SCL 22</td><td>auto-detect 0x3C แสดงสถานะ node (ระวังลำดับขา GND-VCC ของจอ)</td></tr>
+<tr><td><b>Watcher: servo หัน (SG90)</b></td><td>สัญญาณ <b>GPIO 13</b> (หรือ 14, 15) · VCC 5V · GND</td><td>เลี้ยง servo จากแหล่ง 5V แยกหรือใส่ C 470–1000 µF คร่อม 5V/GND ไม่งั้น ESP32-CAM รีบูตตอน servo ออกแรง · ตั้ง pin + preset ในหน้าเว็บของ node</td></tr>
 </tbody></table></div></div>
 <div class="card"><h3>Keeper (ESP32-Relay-X4)</h3>
 <div class="tbl"><table><thead><tr><th>relay</th><th>GPIO</th><th>ค่าเริ่มต้น</th></tr></thead><tbody>

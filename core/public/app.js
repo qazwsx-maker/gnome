@@ -163,6 +163,12 @@
 
   // ---- (f) Sage ------------------------------------------------------------
   const sage = { plots: [], open: null, frameIdx: 0 };
+  // สรุปแหล่งข้อมูลแวดล้อมของแปลงไว้โชว์บนการ์ด
+  const envSummary = (p) => {
+    const src = Array.isArray(p.env_sources) ? p.env_sources : [];
+    if (src.length) return ' · แวดล้อม ' + esc(src.map((x) => `${label(x.key)}@${x.node}`).join(', '));
+    return p.sensor_node ? ' · เซ็นเซอร์ ' + esc(p.sensor_node) : '';
+  };
   const STAGE_TH = { empty_soil: 'ดินเปล่า', germinating: 'กำลังงอก', seedling: 'ต้นกล้า', vegetative: 'เติบโตทางใบ', budding: 'ติดตุ่มดอก', flowering: 'ออกดอก', fruiting: 'ติดผล', declining: 'โทรม', unknown: 'ไม่แน่ใจ' };
   const HEALTH_TH = { good: 'แข็งแรง', mild_stress: 'เครียดเล็กน้อย', wilting: 'เหี่ยว', pest_or_disease: 'โรค/แมลง', unknown: '?' };
   const MS_ICON = { planted: '🌱', germinated: '🌿', first_true_leaves: '🍃', leaf_count: '🍃', first_bud: '🌸', first_flower: '🌼', peak_bloom: '💐', stress: '⚠️', recovery: '💚', other: '📌' };
@@ -170,28 +176,78 @@
     try {
       const cfg = await api('/sage/config');
       $('#sage-cfg').textContent = cfg.ready ? `โมเดล: ${cfg.model} (${cfg.provider}) · สูงสุด ${cfg.maxFrames} ภาพ/ครั้ง` : 'ยังไม่ได้ตั้งค่า AI — ใส่ ANTHROPIC_API_KEY ใน infra/.env แล้วรีสตาร์ท Hut';
-      const camSel = $('#pl-cam'), senSel = $('#pl-sensor');
+      const camSel = $('#pl-cam');
       const list = [...nodes.values()];
       camSel.innerHTML = list.filter((n) => n.role === 'cam').map((n) => `<option value="${esc(n.node)}">${esc(n.node)}</option>`).join('') || '<option value="">(ไม่มี Watcher)</option>';
-      senSel.innerHTML = '<option value="">— ไม่มี —</option>' + list.filter((n) => n.role === 'scout').map((n) => `<option value="${esc(n.node)}">${esc(n.node)}</option>`).join('');
+      buildEnvPicker();
       sage.plots = await api('/plots');
       $('#plots').innerHTML = sage.plots.map((p) => { const la = p.last_analysis; const st = la?.status; const pr = la?.progress || {};
-        return `<div class="card plot" data-id="${p.id}"><div class="row-between"><div><b>${esc(p.name)}</b> <span class="muted small">กล้อง ${esc(p.cam_node)}${p.cam_angle != null ? ' @' + p.cam_angle + '°' : ''}${p.sensor_node ? ' · เซ็นเซอร์ ' + esc(p.sensor_node) : ''} · ${p.snapshots} ภาพ${p.from_ts ? ' · ตั้งแต่ ' + p.from_ts.slice(0, 10) : ''}${p.to_ts ? ' ถึง ' + p.to_ts.slice(0, 10) : ''}</span></div>
+        return `<div class="card plot" data-id="${p.id}"><div class="row-between"><div><b>${esc(p.name)}</b> <span class="muted small">กล้อง ${esc(p.cam_node)}${p.cam_angle != null ? ' @' + p.cam_angle + '°' : ''}${envSummary(p)} · ${p.snapshots} ภาพ${p.from_ts ? ' · ตั้งแต่ ' + p.from_ts.slice(0, 10) : ''}${p.to_ts ? ' ถึง ' + p.to_ts.slice(0, 10) : ''}</span></div>
           <div class="row"><span class="muted small sage-st">${st === 'running' ? `⏳ กำลังวิเคราะห์ ${pr.step === 'observe' ? `ภาพ ${pr.done}/${pr.total}` : pr.step === 'synthesize' ? 'สรุปรายงาน…' : ''}` : st === 'done' ? `✅ วิเคราะห์ล่าสุด ${esc(ago(la.created_at))}` : st === 'failed' ? '❌ ล้มเหลว' : st === 'queued' ? '⏳ รอคิว' : 'ยังไม่เคยวิเคราะห์'}</span>
-          <button class="primary small" data-analyze="1" ${st === 'running' || st === 'queued' ? 'disabled' : ''}>🔍 วิเคราะห์</button>${st === 'done' ? `<button class="small" data-report="${la.id}">📄 ดูรายงาน</button>` : ''}<button class="ghost small danger" data-del="1">ลบ</button></div></div></div>`; }).join('') || '<p class="muted">ยังไม่มีแปลง — สร้างด้านบน (ต้องมีภาพจาก Watcher ก่อน)</p>';
+          <button class="primary small" data-analyze="1" ${st === 'running' || st === 'queued' ? 'disabled' : ''}>🔍 วิเคราะห์</button>${st === 'done' ? `<button class="small" data-report="${la.id}">📄 ดูรายงาน</button>` : ''}<button class="small" data-env="1">🌡 แวดล้อม</button><button class="ghost small danger" data-del="1">ลบ</button></div></div><div class="plot-env hidden"></div></div>`; }).join('') || '<p class="muted">ยังไม่มีแปลง — สร้างด้านบน (ต้องมีภาพจาก Watcher ก่อน)</p>';
     } catch (e) { toast('Sage: ' + e.message, true); }
   }
+  // แหล่งข้อมูลแวดล้อมของแปลง — ติ๊กข้าม node ได้ (เช่น อุณหภูมิจาก earth + แสงจาก sky)
+  const envPick = new Set();
+  const sensorsByNode = () => {
+    const m = new Map();
+    for (const n of [...nodes.values()].sort((a, b) => a.node.localeCompare(b.node))) {
+      const keys = Object.keys(n.latest || {}).sort();
+      if (keys.length) m.set(n.node, keys);
+    }
+    return m;
+  };
+  // วาดชิปติ๊กลงใน el โดยผูกกับ Set ที่ส่งมา (ใช้ทั้งฟอร์มสร้างแปลงและตอนแก้แปลงเดิม)
+  function renderEnvPicker(el, picked, onChange) {
+    const byNode = sensorsByNode();
+    el.innerHTML = [...byNode].map(([n, keys]) => `<div class="grp"><b>${esc(n)}</b>${keys.map((k) => {
+      const s = sid(n, k), on = picked.has(s);
+      return `<label class="chip${on ? ' on' : ''}"><input type="checkbox" data-sid="${esc(s)}"${on ? ' checked' : ''}><i style="background:${on ? 'var(--leaf)' : 'var(--axis)'}"></i>${esc(label(k))}</label>`;
+    }).join('')}</div>`).join('');
+    $$('input', el).forEach((i) => (i.onchange = () => {
+      i.checked ? picked.add(i.dataset.sid) : picked.delete(i.dataset.sid);
+      renderEnvPicker(el, picked, onChange); onChange?.();
+    }));
+  }
+  function buildEnvPicker() {
+    const byNode = sensorsByNode();
+    for (const s of [...envPick]) { const [n, k] = unsid(s); if (!byNode.get(n)?.includes(k)) envPick.delete(s); }
+    renderEnvPicker($('#pl-env'), envPick);
+  }
+
   $('#pl-create').addEventListener('click', async () => {
-    try { await api('/plots', { method: 'POST', body: { name: $('#pl-name').value, cam_node: $('#pl-cam').value, sensor_node: $('#pl-sensor').value || undefined, from: $('#pl-from').value || undefined, to: $('#pl-to').value ? $('#pl-to').value + 'T23:59:59' : undefined, notes: $('#pl-notes').value || undefined, cam_angle: $('#pl-angle').value || undefined } }); $('#pl-name').value = ''; toast('สร้างแปลงแล้ว'); renderSage(); } catch (e) { toast('ผิดพลาด: ' + e.message, true); }
+    const env_sources = [...envPick].map((s) => { const [node, key] = unsid(s); return { node, key }; });
+    try {
+      await api('/plots', { method: 'POST', body: { name: $('#pl-name').value, cam_node: $('#pl-cam').value, env_sources, from: $('#pl-from').value || undefined, to: $('#pl-to').value ? $('#pl-to').value + 'T23:59:59' : undefined, notes: $('#pl-notes').value || undefined, cam_angle: $('#pl-angle').value || undefined } });
+      $('#pl-name').value = ''; envPick.clear(); buildEnvPicker(); toast('สร้างแปลงแล้ว'); renderSage();
+    } catch (e) { toast('ผิดพลาด: ' + e.message, true); }
   });
   $('#plots').addEventListener('click', async (e) => {
     const btn = e.target.closest('button'); if (!btn) return; const id = btn.closest('.plot').dataset.id;
     try {
+      if (btn.dataset.env) { toggleEnvEditor(btn.closest('.plot'), id); return; }
+      if (btn.dataset.envsave) {
+        const card = btn.closest('.plot'), picked = card._pick;
+        await api(`/plots/${id}`, { method: 'PATCH', body: { env_sources: [...picked].map((x) => { const [node, key] = unsid(x); return { node, key }; }) } });
+        toast('บันทึกแหล่งข้อมูลแวดล้อมแล้ว'); renderSage(); return;
+      }
       if (btn.dataset.analyze) { const r = await api(`/plots/${id}/analyze`, { method: 'POST', body: {} }); toast(`เริ่มวิเคราะห์ (#${r.analysis_id})`); renderSage(); }
       else if (btn.dataset.report) { openReport(Number(btn.dataset.report)); }
       else if (btn.dataset.del) { if (!confirm('ลบแปลงนี้และรายงานทั้งหมด?')) return; await api(`/plots/${id}`, { method: 'DELETE' }); renderSage(); }
     } catch (err) { toast('ผิดพลาด: ' + err.message, true); }
   });
+  // เปิด/ปิดแผงแก้แหล่งข้อมูลแวดล้อมใต้การ์ดแปลง
+  function toggleEnvEditor(card, id) {
+    const box = $('.plot-env', card);
+    if (!box.classList.contains('hidden')) { box.classList.add('hidden'); return; }
+    const p = sage.plots.find((x) => String(x.id) === String(id));
+    const picked = new Set((p?.env_sources || []).map((x) => sid(x.node, x.key)));
+    card._pick = picked;
+    box.innerHTML = '<span class="flab">ค่าที่ให้ Sage ใช้วิเคราะห์แปลงนี้</span><div class="picker"></div><div class="row"><button class="primary small" data-envsave="1">บันทึก</button></div>';
+    renderEnvPicker($('.picker', box), picked);
+    box.classList.remove('hidden');
+  }
+
   function onSageProgress(m) {
     if (!$('#tab-sage').classList.contains('active')) return;
     if (m.status === 'done' || m.status === 'failed') { renderSage(); if (m.status === 'done') openReport(m.id); return; }
@@ -224,7 +280,7 @@
         <div id="tl-obs"></div>
       </div>
       <h4>การเติบโต</h4>${miniChart([{ name: 'ใบ (จำนวน)', color: 'var(--s1)', pts: r.growth_series.map((g) => [g.date, g.leaf_count]) }, { name: 'สูง (cm)', color: 'var(--s2)', pts: r.growth_series.map((g) => [g.date, g.height_cm]) }], d0, span)}
-      ${E.length ? `<h4>สิ่งแวดล้อม (เฉลี่ยรายวัน)</h4>${miniChart([{ name: 'อุณหภูมิ °C', color: 'var(--s2)', pts: E.map((e) => [e.date, e.temp_c?.avg ?? null]) }, { name: 'ความชื้น %', color: 'var(--s1)', pts: E.map((e) => [e.date, e.rh_pct?.avg ?? null]) }, { name: 'ดิน %', color: 'var(--leaf)', pts: E.map((e) => [e.date, e.soil1_pct?.avg ?? null]) }], d0, span)}${miniChart([{ name: 'แสงสูงสุด lx', color: '#eda100', pts: E.map((e) => [e.date, e.lux?.max ?? null]) }], d0, span)}` : '<p class="muted small">ไม่มีข้อมูลเซ็นเซอร์ในช่วงนี้ — ผูก node เซ็นเซอร์กับแปลงเพื่อให้ Sage เชื่อมโยงสภาพแวดล้อมได้</p>'}
+      ${E.length ? `<h4>สิ่งแวดล้อม (เฉลี่ยรายวัน)</h4>${envCharts(E, d0, span)}` : '<p class="muted small">ไม่มีข้อมูลเซ็นเซอร์ในช่วงนี้ — ติ๊กค่าแวดล้อมตอนสร้างแปลง เพื่อให้ Sage เชื่อมโยงสภาพแวดล้อมได้</p>'}
       <div class="grid2"><div><h4>Milestones</h4><ul>${r.milestones.map((m) => `<li><b>${esc(m.date)}</b> ${MS_ICON[m.type] || ''} ${esc(m.label)} <span class="muted small">— ${esc(m.evidence)}</span></li>`).join('') || '<li class="muted">ไม่พบ</li>'}</ul></div>
       <div><h4>สิ่งแวดล้อมมีผลอย่างไร</h4><ul>${r.env_insights.map((s) => `<li>${esc(s)}</li>`).join('')}</ul><h4>คำแนะนำ</h4><ul>${r.recommendations.map((s) => `<li>${esc(s)}</li>`).join('')}</ul><p class="muted small">ข้อจำกัดข้อมูล: ${esc(r.data_quality)}</p></div></div>
     </div>`;
@@ -232,7 +288,7 @@
       const e = E.find((x) => x.date === f.date);
       $('#tl-obs').innerHTML = `<div class="tiles"><div class="tile"><div class="k">ระยะ</div><div class="v">${STAGE_TH[f.stage] || f.stage}</div></div><div class="tile"><div class="k">ใบ</div><div class="v">${f.leaf_count ?? '—'}</div></div><div class="tile"><div class="k">สูง</div><div class="v">${f.height_cm_est ?? '—'}<small>cm</small></div></div><div class="tile"><div class="k">ดอก/ตุ่ม</div><div class="v">${f.flower_count}/${f.bud_count}</div></div><div class="tile"><div class="k">สุขภาพ</div><div class="v" style="font-size:15px">${HEALTH_TH[f.health] || f.health}</div></div><div class="tile"><div class="k">ความมั่นใจ</div><div class="v">${Math.round(f.confidence * 100)}<small>%</small></div></div></div>
         <p><b>เปลี่ยนจากภาพก่อน:</b> ${esc(f.change_from_previous)}</p><p>${esc(f.notes)}</p>
-        ${e ? `<p class="muted small">วันนี้: ${e.temp_c ? `อุณหภูมิ ${e.temp_c.min}–${e.temp_c.max}°C` : ''} ${e.rh_pct ? `· ความชื้น ${e.rh_pct.min}–${e.rh_pct.max}%` : ''} ${e.lux ? `· แสงสูงสุด ${e.lux.max} lx` : ''} ${e.soil1_pct ? `· ดิน ${e.soil1_pct.avg}%` : ''}</p>` : ''}`;
+        ${e ? `<p class="muted small">วันนี้: ${esc(envDayLine(e, E))}</p>` : ''}`;
       $$('.tl-dot').forEach((d) => d.classList.toggle('on', Number(d.dataset.i) === i)); $('#tl-range').value = i; };
     show(sage.frameIdx);
     $('#tl-range').addEventListener('input', (ev) => show(Number(ev.target.value)));
@@ -241,6 +297,37 @@
       if (ev.target.id === 'rep-close') box.classList.add('hidden'); });
     box.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
+  // ---- สิ่งแวดล้อมในรายงาน: รองรับหลาย node/หลายค่า (และรายงานเก่าที่ยังเป็นคีย์แบน) ----
+  const envUnit = (k) => (k.endsWith('_c') ? '°C' : k.endsWith('_pct') ? '%' : k === 'lux' ? 'lx' : k === 'press_hpa' ? 'hPa' : '');
+  // คืน [{id,node,key,name,unit}] เรียงคงที่จากข้อมูลที่มีจริงในรายงาน
+  function envSeries(E) {
+    const seen = new Map();
+    for (const e of E) {
+      if (e.src) { for (const id of Object.keys(e.src)) if (!seen.has(id)) { const [node, key] = unsid(id); seen.set(id, { id, node, key, legacy: false }); } }
+      else for (const k of Object.keys(e)) if (k !== 'date' && e[k] && typeof e[k] === 'object') if (!seen.has(k)) seen.set(k, { id: k, node: '', key: k, legacy: true });
+    }
+    const multi = new Set([...seen.values()].map((x) => x.node)).size > 1;
+    return [...seen.values()].map((x) => ({ ...x, name: label(x.key) + (multi && x.node ? ` · ${x.node}` : ''), unit: envUnit(x.key) }));
+  }
+  const envVal = (e, s) => (s.legacy ? e[s.id] : e.src?.[s.id]) || null;
+  // แผงละหน่วย — ไม่ยัดสองสเกลในกราฟเดียว
+  function envCharts(E, d0, span) {
+    const list = envSeries(E);
+    if (!list.length) return '<p class="muted small">ไม่มีข้อมูล</p>';
+    const groups = [];
+    list.forEach((s, i) => {
+      const g = groups.find((x) => x.unit === s.unit) || (groups.push({ unit: s.unit, items: [] }), groups[groups.length - 1]);
+      g.items.push({ ...s, color: `var(--c${(i % 8) + 1})` });
+    });
+    return groups.map((g) => miniChart(g.items.map((s) => ({
+      name: `${s.name}${s.unit ? ' ' + s.unit : ''}`, color: s.color,
+      pts: E.map((e) => [e.date, envVal(e, s)?.avg ?? null]),
+    })), d0, span)).join('');
+  }
+  function envDayLine(e, E) {
+    return envSeries(E).map((s) => { const v = envVal(e, s); return v ? `${s.name} ${v.min}–${v.max}${s.unit}` : null; }).filter(Boolean).join(' · ') || 'ไม่มีข้อมูล';
+  }
+
   function miniChart(series, d0, span) {
     const W = 600, H = 120, L = 34, R = 8, T = 8, B = 18;
     const vals = series.flatMap((s) => s.pts.map((p) => p[1]).filter((v) => v != null)); if (!vals.length) return '<p class="muted small">ไม่มีข้อมูล</p>';
@@ -365,119 +452,238 @@
   // refresh สถานะทุก 5 วินาทีขณะเปิดแท็บสถานะ (ดึงจาก server ใหม่ ไม่ใช่แค่วาดจาก memory)
   setInterval(() => { if ($('#tab-status').classList.contains('active') && !document.hidden) loadNodes().catch(() => renderStatus()); }, 5000);
 
-  // ---- (b) chart ---------------------------------------------------------------
+  // ---- (b) chart : หลายเส้น หลาย node ในแกนเวลาเดียวกัน ------------------------
+  // เส้นที่หน่วยเดียวกันอยู่แผงเดียวกัน หน่วยต่างกันแยกแผง (ไม่ใช้สองแกน Y ในแผงเดียว)
+  const CPAL = ['--c1', '--c2', '--c3', '--c4', '--c5', '--c6', '--c7', '--c8'];
+  const MAXSER = 8;
+  const sid = (node, key) => `${node}|${key}`;
+  const unsid = (s) => { const i = s.indexOf('|'); return [s.slice(0, i), s.slice(i + 1)]; };
+
   const chart = {
-    node: null, key: null, range: '24h', rows: [], res: 'raw',
-    canvas: $('#chart'), tip: $('#c-tip'), hover: null,
+    range: '24h',
+    sel: new Set(),           // sid ที่เลือกไว้
+    data: new Map(),          // sid -> { rows:[{t,v,min,max}], res }
+    order: [],                // sid ทั้งหมดที่มี (เรียงแล้ว) — ใช้ล็อกสีให้ติดกับ "ตัวเซ็นเซอร์" ไม่ใช่ลำดับที่เลือก
+    canvas: $('#chart'), tip: $('#c-tip'), hover: null, reqId: 0,
+
+    colorOf(s) { const i = this.order.indexOf(s); return CPAL[(i < 0 ? 0 : i) % CPAL.length]; },
+    unitOf(s) { const [n, k] = unsid(s); return unit(k, nodes.get(n)) || ''; },
+    nameOf(s) { const [n, k] = unsid(s); return `${label(k)} · ${n}`; },
+
+    restore() {
+      try { const v = JSON.parse(localStorage.getItem('gnome-chart-sel') || '[]'); if (Array.isArray(v)) this.sel = new Set(v); } catch {}
+      const r = localStorage.getItem('gnome-chart-range'); if (r) this.range = r;
+      $$('#c-range button').forEach((b) => b.classList.toggle('active', b.dataset.range === this.range));
+    },
+    save() {
+      localStorage.setItem('gnome-chart-sel', JSON.stringify([...this.sel]));
+      localStorage.setItem('gnome-chart-range', this.range);
+    },
+
+    // สร้างรายการติ๊ก จัดกลุ่มตาม node
+    buildPicker() {
+      const all = [];
+      for (const n of [...nodes.values()].sort((a, b) => a.node.localeCompare(b.node)))
+        for (const k of Object.keys(n.latest).sort()) all.push(sid(n.node, k));
+      this.order = all;
+      // ทิ้ง sid ที่ไม่มีแล้ว
+      for (const s of [...this.sel]) if (!all.includes(s)) this.sel.delete(s);
+      // ยังไม่เคยเลือก → เลือกค่าแรกให้ดูก่อน
+      if (!this.sel.size && all.length && !localStorage.getItem('gnome-chart-sel')) this.sel.add(all[0]);
+      const full = this.sel.size >= MAXSER;
+      const byNode = new Map();
+      for (const s of all) { const [n] = unsid(s); if (!byNode.has(n)) byNode.set(n, []); byNode.get(n).push(s); }
+      $('#c-picker').innerHTML = [...byNode].map(([n, list]) => `<div class="grp"><b>${esc(n)}</b>${list.map((s) => {
+        const on = this.sel.has(s), [, k] = unsid(s);
+        return `<label class="chip${on ? ' on' : ''}${full && !on ? ' full' : ''}"${on ? ` style="color:var(${this.colorOf(s)})"` : ''}>
+          <input type="checkbox" data-sid="${esc(s)}"${on ? ' checked' : ''}${full && !on ? ' disabled' : ''}>
+          <i style="background:${on ? `var(${this.colorOf(s)})` : 'var(--axis)'}"></i>${esc(label(k))}</label>`;
+      }).join('')}</div>`).join('');
+      $$('#c-picker input').forEach((el) => (el.onchange = () => {
+        const s = el.dataset.sid;
+        if (el.checked) { if (this.sel.size >= MAXSER) { el.checked = false; toast(`ดูพร้อมกันได้สูงสุด ${MAXSER} เส้น`, true); return; } this.sel.add(s); }
+        else this.sel.delete(s);
+        this.save(); this.buildPicker(); this.load();
+      }));
+    },
+
     async load() {
-      const node = $('#c-node').value, key = $('#c-key').value;
-      if (!node || !key) { this.rows = []; this.draw(); return; }
-      this.node = node; this.key = key;
+      this.buildPicker();
+      const want = [...this.sel];
+      $('#c-empty').classList.toggle('hidden', want.length > 0);
+      if (!want.length) { this.data.clear(); $('#c-info').textContent = ''; $('#c-legend').innerHTML = ''; this.draw(); return; }
+      const my = ++this.reqId;
       const ms = { '24h': 86400e3, '7d': 7 * 86400e3, '30d': 30 * 86400e3 }[this.range];
       const since = new Date(Date.now() - ms).toISOString();
-      try {
-        const r = await api(`/readings?node=${encodeURIComponent(node)}&key=${encodeURIComponent(key)}&since=${since}`);
-        this.rows = r.rows.map((x) => ({ t: new Date(x.ts).getTime(), v: x.value, min: x.min, max: x.max }));
-        this.res = r.res;
-        $('#c-info').textContent = `${this.rows.length} จุด · ${r.res === '5m' ? 'เฉลี่ย 5 นาที' : 'ค่าดิบ'}`;
-      } catch (e) { this.rows = []; $('#c-info').textContent = e.message; }
-      $('#c-empty').classList.toggle('hidden', this.rows.length > 0);
+      $('#c-info').textContent = 'กำลังโหลด…';
+      const got = await Promise.all(want.map(async (s) => {
+        const [n, k] = unsid(s);
+        try {
+          const r = await api(`/readings?node=${encodeURIComponent(n)}&key=${encodeURIComponent(k)}&since=${since}`);
+          return [s, { rows: r.rows.map((x) => ({ t: new Date(x.ts).getTime(), v: x.value, min: x.min, max: x.max })), res: r.res }];
+        } catch { return [s, { rows: [], res: 'raw' }]; }
+      }));
+      if (my !== this.reqId) return;               // มีคำขอใหม่แซงมาแล้ว
+      this.data = new Map(got);
+      const pts = got.reduce((a, [, d]) => a + d.rows.length, 0);
+      const res = got.some(([, d]) => d.res === '5m') ? 'เฉลี่ย 5 นาที' : 'ค่าดิบ';
+      $('#c-info').textContent = `${want.length} เส้น · ${pts.toLocaleString('th-TH')} จุด · ${res}`;
+      $('#c-empty').classList.toggle('hidden', pts > 0);
+      if (!pts) $('#c-empty').textContent = 'ไม่มีข้อมูลในช่วงนี้';
       this.draw();
     },
+
+    // แบ่งแผงตามหน่วย เรียงตามลำดับสีเพื่อให้คงที่
+    panels() {
+      const out = [];
+      for (const s of this.order) {
+        if (!this.sel.has(s) || !(this.data.get(s)?.rows.length)) continue;
+        const u = this.unitOf(s);
+        let p = out.find((x) => x.unit === u);
+        if (!p) out.push((p = { unit: u, series: [] }));
+        p.series.push(s);
+      }
+      return out;
+    },
+
     draw() {
       const c = this.canvas, dpr = devicePixelRatio || 1;
-      const W = c.clientWidth || 600, H = 320;
-      if (c.width !== W * dpr || c.height !== H * dpr) { c.width = W * dpr; c.height = H * dpr; }
+      const panels = this.panels();
+      const PH = panels.length > 2 ? 150 : panels.length === 2 ? 190 : 300;   // สูงต่อแผง
+      const AX = 26, GAP = 14;
+      const H = Math.max(140, panels.length ? panels.length * PH + (panels.length - 1) * GAP + AX : 200);
+      c.parentElement.style.setProperty('--ch', H + 'px');
+      const W = c.clientWidth || 600;
+      if (c.width !== Math.round(W * dpr) || c.height !== Math.round(H * dpr)) { c.width = Math.round(W * dpr); c.height = Math.round(H * dpr); }
       const ctx = c.getContext('2d');
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, W, H);
-      const cs = getComputedStyle(root);
-      const col = (v) => cs.getPropertyValue(v).trim();
-      const pad = { l: 48, r: 12, t: 12, b: 28 };
-      const rows = this.rows;
-      if (!rows.length) return;
-      const t0 = rows[0].t, t1 = rows[rows.length - 1].t || t0 + 1;
-      let lo = Math.min(...rows.map((r) => r.min ?? r.v)), hi = Math.max(...rows.map((r) => r.max ?? r.v));
-      if (hi === lo) { hi += 1; lo -= 1; }
-      const padY = (hi - lo) * 0.08; lo -= padY; hi += padY;
-      const X = (t) => pad.l + ((t - t0) / Math.max(1, t1 - t0)) * (W - pad.l - pad.r);
-      const Y = (v) => pad.t + (1 - (v - lo) / (hi - lo)) * (H - pad.t - pad.b);
-      // grid + y axis
-      ctx.font = '11px system-ui'; ctx.fillStyle = col('--muted'); ctx.strokeStyle = col('--grid'); ctx.lineWidth = 1;
-      for (let i = 0; i <= 4; i++) {
-        const v = lo + ((hi - lo) * i) / 4, y = Y(v);
-        ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(W - pad.r, y); ctx.stroke();
-        ctx.textAlign = 'right'; ctx.fillText(fmtV(v), pad.l - 6, y + 4);
-      }
-      // x axis labels
+      this._panels = null;
+      if (!panels.length) { this.tip.classList.add('hidden'); $('#c-legend').innerHTML = ''; return; }
+      const cs = getComputedStyle(root), col = (v) => cs.getPropertyValue(v).trim();
+      const padL = 50, padR = 12;
+
+      // แกนเวลาเดียวกันทุกแผง
+      let t0 = Infinity, t1 = -Infinity;
+      for (const p of panels) for (const s of p.series) for (const r of this.data.get(s).rows) { if (r.t < t0) t0 = r.t; if (r.t > t1) t1 = r.t; }
+      if (!(t1 > t0)) t1 = t0 + 1;
+      const X = (t) => padL + ((t - t0) / (t1 - t0)) * (W - padL - padR);
+      const plotB = H - AX;
+
+      ctx.font = '11px system-ui'; ctx.lineJoin = 'round';
+      const boxes = [];
+      panels.forEach((p, pi) => {
+        const top = pi * (PH + GAP) + 10, bot = top + PH - 10;
+        let lo = Infinity, hi = -Infinity;
+        for (const s of p.series) for (const r of this.data.get(s).rows) { const a = r.min ?? r.v, b = r.max ?? r.v; if (a < lo) lo = a; if (b > hi) hi = b; }
+        const rawLo = lo, rawHi = hi;
+        if (hi === lo) { hi += 1; lo -= 1; }
+        const pad = (hi - lo) * 0.08; lo -= pad; hi += pad;
+        // อย่าให้แกนหลุดไปติดลบ/เกิน 100% ในเมื่อค่าจริงไม่เคยไปถึง (lux, %, ฯลฯ)
+        if (rawLo >= 0 && lo < 0) lo = 0;
+        if (p.unit === '%' && rawHi <= 100 && hi > 100) hi = 100;
+        const Y = (v) => bot - ((v - lo) / (hi - lo)) * (bot - top);
+        boxes.push({ top, bot, Y, unit: p.unit, series: p.series });
+        // เส้นกริด + แกน Y
+        ctx.strokeStyle = col('--grid'); ctx.lineWidth = 1; ctx.fillStyle = col('--muted'); ctx.textAlign = 'right';
+        for (let i = 0; i <= 3; i++) {
+          const v = lo + ((hi - lo) * i) / 3, y = Y(v);
+          ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+          ctx.fillText(fmtV(v), padL - 6, y + 4);
+        }
+        ctx.strokeStyle = col('--axis'); ctx.beginPath(); ctx.moveTo(padL, top); ctx.lineTo(padL, bot); ctx.lineTo(W - padR, bot); ctx.stroke();
+        // ชื่อหน่วยกำกับแผง
+        ctx.textAlign = 'left'; ctx.fillStyle = col('--ink2');
+        ctx.fillText(p.unit || 'ไม่มีหน่วย', padL + 4, top - 1);
+        // แถบ min–max เฉพาะตอนมีเส้นเดียวในแผง (ซ้อนกันหลายเส้นจะอ่านไม่ออก)
+        if (p.series.length === 1) {
+          const d = this.data.get(p.series[0]);
+          if (d.res === '5m' && d.rows.length > 1) {
+            ctx.fillStyle = col(this.colorOf(p.series[0])) + '33';
+            ctx.beginPath();
+            d.rows.forEach((r, i) => (i ? ctx.lineTo(X(r.t), Y(r.max)) : ctx.moveTo(X(r.t), Y(r.max))));
+            for (let i = d.rows.length - 1; i >= 0; i--) ctx.lineTo(X(d.rows[i].t), Y(d.rows[i].min));
+            ctx.closePath(); ctx.fill();
+          }
+        }
+        // เส้นข้อมูล
+        for (const s of p.series) {
+          const rows = this.data.get(s).rows;
+          ctx.strokeStyle = col(this.colorOf(s)); ctx.lineWidth = 2; ctx.beginPath();
+          rows.forEach((r, i) => (i ? ctx.lineTo(X(r.t), Y(r.v)) : ctx.moveTo(X(r.t), Y(r.v))));
+          ctx.stroke();
+          if (rows.length === 1) { ctx.fillStyle = ctx.strokeStyle; ctx.beginPath(); ctx.arc(X(rows[0].t), Y(rows[0].v), 4, 0, 7); ctx.fill(); }
+        }
+      });
+
+      // ป้ายแกนเวลา (อันเดียว ใช้ร่วมกันทุกแผง)
       const span = t1 - t0, nx = Math.max(2, Math.min(6, Math.floor(W / 140)));
-      ctx.textAlign = 'center';
+      ctx.textAlign = 'center'; ctx.fillStyle = col('--muted');
       for (let i = 0; i <= nx; i++) {
         const t = t0 + (span * i) / nx, d = new Date(t);
         const s = span > 2 * 86400e3 ? d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }) : d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
-        ctx.fillText(s, X(t), H - 8);
+        ctx.fillText(s, Math.min(W - 26, Math.max(26, X(t))), plotB + 17);
       }
-      ctx.strokeStyle = col('--axis'); ctx.beginPath(); ctx.moveTo(pad.l, pad.t); ctx.lineTo(pad.l, H - pad.b); ctx.lineTo(W - pad.r, H - pad.b); ctx.stroke();
-      // min/max band for 5m
-      if (this.res === '5m') {
-        ctx.fillStyle = col('--seq250') + '55';
-        ctx.beginPath();
-        rows.forEach((r, i) => (i ? ctx.lineTo(X(r.t), Y(r.max)) : ctx.moveTo(X(r.t), Y(r.max))));
-        for (let i = rows.length - 1; i >= 0; i--) ctx.lineTo(X(rows[i].t), Y(rows[i].min));
-        ctx.closePath(); ctx.fill();
-      }
-      // line
-      ctx.strokeStyle = col('--s1'); ctx.lineWidth = 1.8; ctx.lineJoin = 'round'; ctx.beginPath();
-      rows.forEach((r, i) => (i ? ctx.lineTo(X(r.t), Y(r.v)) : ctx.moveTo(X(r.t), Y(r.v))));
-      ctx.stroke();
-      if (rows.length === 1) { ctx.fillStyle = col('--s1'); ctx.beginPath(); ctx.arc(X(rows[0].t), Y(rows[0].v), 3, 0, 7); ctx.fill(); }
-      // crosshair
+
+      // crosshair เส้นเดียว พาดทุกแผง + tooltip รวมทุกค่า ณ เวลานั้น
+      const rowsAt = [];
       if (this.hover != null) {
-        const r = rows[this.hover], x = X(r.t), y = Y(r.v);
+        const x = Math.max(padL, Math.min(W - padR, this.hover));
+        const t = t0 + ((x - padL) / (W - padL - padR)) * (t1 - t0);
         ctx.strokeStyle = col('--ink2'); ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
-        ctx.beginPath(); ctx.moveTo(x, pad.t); ctx.lineTo(x, H - pad.b); ctx.stroke(); ctx.setLineDash([]);
-        ctx.fillStyle = col('--s1'); ctx.beginPath(); ctx.arc(x, y, 4, 0, 7); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(x, 8); ctx.lineTo(x, plotB); ctx.stroke(); ctx.setLineDash([]);
+        for (const b of boxes) for (const s of b.series) {
+          const rows = this.data.get(s).rows;
+          let best = null, bd = Infinity;
+          for (const r of rows) { const d = Math.abs(r.t - t); if (d < bd) { bd = d; best = r; } }
+          if (!best || bd > Math.max(span / 40, 120e3)) continue;
+          const px = X(best.t), py = b.Y(best.v);
+          ctx.fillStyle = col('--surface'); ctx.beginPath(); ctx.arc(px, py, 5, 0, 7); ctx.fill();
+          ctx.fillStyle = col(this.colorOf(s)); ctx.beginPath(); ctx.arc(px, py, 3.5, 0, 7); ctx.fill();
+          rowsAt.push({ s, r: best });
+        }
         const tip = this.tip;
-        tip.innerHTML = `<b>${fmtV(r.v)}${esc(unit(this.key, nodes.get(this.node)))}</b>${r.min !== undefined ? ` <span class="muted">(${fmtV(r.min)}–${fmtV(r.max)})</span>` : ''}<br>${esc(fmtTs(new Date(r.t).toISOString()))}`;
-        tip.classList.remove('hidden');
-        const tw = tip.offsetWidth;
-        tip.style.left = Math.min(W - tw - 4, Math.max(0, x + 10)) + 'px';
-        tip.style.top = Math.max(0, y - 44) + 'px';
+        if (rowsAt.length) {
+          const ts = rowsAt.reduce((a, o) => (a == null || o.r.t > a ? o.r.t : a), null);
+          tip.innerHTML = `<b>${esc(fmtTs(new Date(ts).toISOString()))}</b><table>${rowsAt.map((o) =>
+            `<tr><td><i style="background:${col(this.colorOf(o.s))}"></i>${esc(this.nameOf(o.s))}</td><td class="n">${fmtV(o.r.v)}${esc(this.unitOf(o.s))}</td></tr>`).join('')}</table>`;
+          tip.classList.remove('hidden');
+          const tw = tip.offsetWidth, th = tip.offsetHeight;
+          tip.style.left = Math.max(0, Math.min(W - tw - 4, x + 12)) + 'px';
+          tip.style.top = Math.max(0, Math.min(H - th - 4, (rowsAt.length ? 20 : 20))) + 'px';
+        } else tip.classList.add('hidden');
       } else this.tip.classList.add('hidden');
-      this._X = X; this._pad = pad; this._W = W;
-    },
-    pointAt(clientX) {
-      if (!this.rows.length || !this._X) return null;
-      const rect = this.canvas.getBoundingClientRect();
-      const x = clientX - rect.left;
-      let best = 0, bd = Infinity;
-      this.rows.forEach((r, i) => { const d = Math.abs(this._X(r.t) - x); if (d < bd) { bd = d; best = i; } });
-      return best;
+
+      // legend: มีทุกครั้งที่ >= 2 เส้น (ไม่ให้แยกด้วยสีอย่างเดียว) + โชว์ค่าล่าสุด
+      const sels = panels.flatMap((p) => p.series);
+      $('#c-legend').innerHTML = sels.length < 2 ? '' : sels.map((s) => {
+        const rows = this.data.get(s).rows, last = rows[rows.length - 1];
+        return `<span><i style="background:var(${this.colorOf(s)})"></i>${esc(this.nameOf(s))} <b>${last ? fmtV(last.v) + esc(this.unitOf(s)) : '—'}</b></span>`;
+      }).join('');
+      this._geo = { X, padL, padR, W, H };
     },
   };
-  const onMove = (e) => { const cx = e.touches ? e.touches[0].clientX : e.clientX; const i = chart.pointAt(cx); if (i !== chart.hover) { chart.hover = i; chart.draw(); } };
+
+  const onMove = (e) => {
+    const cx = e.touches ? e.touches[0].clientX : e.clientX;
+    const x = cx - chart.canvas.getBoundingClientRect().left;
+    if (Math.abs((chart.hover ?? -1e9) - x) < 1) return;
+    chart.hover = x; chart.draw();
+  };
   chart.canvas.addEventListener('mousemove', onMove);
   chart.canvas.addEventListener('touchstart', onMove, { passive: true });
   chart.canvas.addEventListener('touchmove', onMove, { passive: true });
   chart.canvas.addEventListener('mouseleave', () => { chart.hover = null; chart.draw(); });
   addEventListener('resize', () => chart.draw());
-  $('#c-node').onchange = () => { fillKeys(); chart.load(); };
-  $('#c-key').onchange = () => chart.load();
-  $$('#c-range button').forEach((b) => (b.onclick = () => { $$('#c-range button').forEach((x) => x.classList.toggle('active', x === b)); chart.range = b.dataset.range; chart.load(); }));
+  $('#c-clear').onclick = () => { chart.sel.clear(); chart.save(); chart.load(); };
+  $$('#c-range button').forEach((b) => (b.onclick = () => {
+    $$('#c-range button').forEach((x) => x.classList.toggle('active', x === b));
+    chart.range = b.dataset.range; chart.save(); chart.load();
+  }));
+  chart.restore();
 
-  function fillKeys() {
-    const n = nodes.get($('#c-node').value);
-    const sel = $('#c-key'), cur = sel.value;
-    const keys = n ? Object.keys(n.latest).sort() : [];
-    sel.innerHTML = keys.map((k) => `<option value="${esc(k)}">${esc(label(k))} (${esc(k)})</option>`).join('');
-    if (keys.includes(cur)) sel.value = cur;
-  }
   function fillSelectors() {
-    const sel = $('#c-node'), cur = sel.value;
-    const list = [...nodes.values()].filter((n) => Object.keys(n.latest).length).map((n) => n.node).sort();
-    sel.innerHTML = list.map((n) => `<option>${esc(n)}</option>`).join('');
-    if (list.includes(cur)) sel.value = cur;
-    fillKeys();
+    chart.buildPicker();
     $('#node-list').innerHTML = [...nodes.keys()].map((n) => `<option value="${esc(n)}">`).join('');
     const sensors = [];
     for (const n of nodes.values()) for (const k of Object.keys(n.latest)) sensors.push(`${n.node}.${k}`);
@@ -656,7 +862,11 @@
         case 'reading':
           if (!n) return loadNodes();
           n.latest[m.key] = { value: m.value, ts: m.ts }; n.last_seen = m.ts;
-          updateTile(m); if (chart.node === m.node && chart.key === m.key && $('#tab-chart').classList.contains('active')) { chart.rows.push({ t: new Date(m.ts).getTime(), v: m.value }); chart.draw(); }
+          updateTile(m);
+          if ($('#tab-chart').classList.contains('active')) {
+            const d = chart.data.get(sid(m.node, m.key));
+            if (d) { d.rows.push({ t: new Date(m.ts).getTime(), v: m.value }); chart.draw(); }
+          }
           break;
         case 'switch': if (!n) return loadNodes(); n.switches = n.switches || {}; n.switches[m.key] = { state: m.state, ts: m.ts }; renderStatus(); break;
         case 'status': if (!n) return loadNodes(); n.online = m.online; if (m.online) n.last_seen = m.ts; renderStatus(); break;

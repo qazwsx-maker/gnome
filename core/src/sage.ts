@@ -134,33 +134,86 @@ async function selectFrames(plot: any, max: number): Promise<Frame[]> {
 }
 
 /** สรุปสิ่งแวดล้อมรายวัน (avg/min/max) จาก readings_5m + readings (วันล่าสุด) */
-async function envDaily(plot: any): Promise<any[]> {
+type EnvSource = { node: string; key: string };
+
+const LEGACY_KEYS = ['temp_c', 'dht_temp_c', 'rh_pct', 'dht_rh_pct', 'lux', 'soil1_pct', 'soil2_pct', 'soil3_pct', 'rain_pct'];
+
+/** รับ [{node,key}] จาก client — กันค่าขยะ, ตัดซ้ำ, จำกัด 12 แหล่ง */
+function cleanSources(v: unknown): EnvSource[] {
+  if (!Array.isArray(v)) return [];
+  const seen = new Set<string>(); const out: EnvSource[] = [];
+  for (const x of v) {
+    const node = typeof (x as any)?.node === 'string' ? (x as any).node.trim() : '';
+    const key = typeof (x as any)?.key === 'string' ? (x as any).key.trim() : '';
+    if (!node || !key) continue;
+    const id = `${node}|${key}`;
+    if (seen.has(id)) continue;
+    seen.add(id); out.push({ node, key });
+    if (out.length >= 12) break;
+  }
+  return out;
+}
+
+/** แหล่งข้อมูลแวดล้อมของแปลง — ใช้ env_sources ถ้ามี ไม่งั้นถอยไปใช้ sensor_node แบบเดิม */
+function plotSources(plot: any): EnvSource[] {
+  const s = cleanSources(plot.env_sources);
+  if (s.length) return s;
   if (!plot.sensor_node) return [];
-  const keys = ['temp_c', 'dht_temp_c', 'rh_pct', 'dht_rh_pct', 'lux', 'soil1_pct', 'soil2_pct', 'soil3_pct', 'rain_pct'];
-  const r = await query<{ day: string; key: string; avg: number; min: number; max: number }>(
-    `SELECT day, key, avg(avg) AS avg, min(min) AS min, max(max) AS max FROM (
-       SELECT to_char(ts AT TIME ZONE $2, 'YYYY-MM-DD') AS day, key, avg, min, max FROM readings_5m WHERE node = $1 AND key = ANY($3)
+  return LEGACY_KEYS.map((key) => ({ node: plot.sensor_node as string, key }));
+}
+
+/** ชื่อย่อที่ใช้อ้างถึงค่าหนึ่งใน report (คงที่ต่อ node+key) */
+const srcId = (s: EnvSource) => `${s.node}|${s.key}`;
+
+const KEY_TH: Record<string, string> = {
+  temp_c: 'อุณหภูมิ', dht_temp_c: 'อุณหภูมิ', rh_pct: 'ความชื้นอากาศ', dht_rh_pct: 'ความชื้นอากาศ',
+  lux: 'แสง', rain_pct: 'ฝน/เปียก', press_hpa: 'ความกดอากาศ',
+};
+const keyTh = (k: string) => KEY_TH[k] || (/^soil(\d+)_pct$/.test(k) ? `ความชื้นดิน ${k.match(/^soil(\d+)_pct$/)![1]}` : k);
+const keyUnit = (k: string) => (k.endsWith('_c') ? ' °C' : k.endsWith('_pct') ? ' %' : k === 'lux' ? ' lx' : k === 'press_hpa' ? ' hPa' : '');
+
+/** รวมค่าแวดล้อมรายวันจากทุกแหล่งที่แปลงเลือกไว้ (ข้าม node ได้) */
+async function envDaily(plot: any): Promise<any[]> {
+  const srcs = plotSources(plot);
+  if (!srcs.length) return [];
+  const nodesArg = srcs.map((s) => s.node);
+  const keysArg = srcs.map((s) => s.key);
+  const r = await query<{ day: string; node: string; key: string; avg: number; min: number; max: number }>(
+    `SELECT day, node, key, avg(avg) AS avg, min(min) AS min, max(max) AS max FROM (
+       SELECT to_char(ts AT TIME ZONE $1, 'YYYY-MM-DD') AS day, node, key, avg, min, max FROM readings_5m
+        WHERE (node, key) IN (SELECT * FROM unnest($2::text[], $3::text[]))
        UNION ALL
-       SELECT to_char(ts AT TIME ZONE $2, 'YYYY-MM-DD') AS day, key, value, value, value FROM readings WHERE node = $1 AND key = ANY($3) AND ts > now() - interval '2 days'
-     ) x WHERE ($4::timestamptz IS NULL OR day >= to_char($4 AT TIME ZONE $2, 'YYYY-MM-DD')) AND ($5::timestamptz IS NULL OR day <= to_char($5 AT TIME ZONE $2, 'YYYY-MM-DD'))
-     GROUP BY day, key ORDER BY day`, [plot.sensor_node, config.tz, keys, plot.from_ts, plot.to_ts]);
+       SELECT to_char(ts AT TIME ZONE $1, 'YYYY-MM-DD') AS day, node, key, value, value, value FROM readings
+        WHERE (node, key) IN (SELECT * FROM unnest($2::text[], $3::text[])) AND ts > now() - interval '2 days'
+     ) x WHERE ($4::timestamptz IS NULL OR day >= to_char($4 AT TIME ZONE $1, 'YYYY-MM-DD'))
+           AND ($5::timestamptz IS NULL OR day <= to_char($5 AT TIME ZONE $1, 'YYYY-MM-DD'))
+     GROUP BY day, node, key ORDER BY day`,
+    [config.tz, nodesArg, keysArg, plot.from_ts, plot.to_ts]);
   const days = new Map<string, any>();
   for (const x of r.rows) {
-    const d = days.get(x.day) || { date: x.day };
-    const k = x.key === 'dht_temp_c' && d.temp_c !== undefined ? null : x.key === 'dht_rh_pct' && d.rh_pct !== undefined ? null : x.key.replace('dht_', '');
-    if (k) d[k] = { avg: +Number(x.avg).toFixed(1), min: +Number(x.min).toFixed(1), max: +Number(x.max).toFixed(1) };
+    const d = days.get(x.day) || { date: x.day, src: {} };
+    const stat = { avg: +Number(x.avg).toFixed(1), min: +Number(x.min).toFixed(1), max: +Number(x.max).toFixed(1) };
+    d.src[`${x.node}|${x.key}`] = stat;
+    // ชื่อสั้นแบบเดิมไว้ให้ของเก่าอ่านได้ (ตัวแรกที่เจอชนะ)
+    const short = x.key.replace('dht_', '');
+    if (d[short] === undefined) d[short] = stat;
     days.set(x.day, d);
   }
   return [...days.values()];
 }
 
-const envLine = (e: any) => !e ? 'ไม่มีข้อมูลเซ็นเซอร์ของวันนี้' : [
-  e.temp_c && `อุณหภูมิ ${e.temp_c.min}–${e.temp_c.max} °C (เฉลี่ย ${e.temp_c.avg})`,
-  e.rh_pct && `ความชื้นอากาศ ${e.rh_pct.min}–${e.rh_pct.max} % (เฉลี่ย ${e.rh_pct.avg})`,
-  e.lux && `แสงสูงสุด ${e.lux.max} lx (เฉลี่ย ${e.lux.avg})`,
-  e.soil1_pct && `ความชื้นดิน ${e.soil1_pct.min}–${e.soil1_pct.max} %`,
-  e.rain_pct && `ฝน/เปียก สูงสุด ${e.rain_pct.max} %`,
-].filter(Boolean).join(' · ');
+/** บรรยายสภาพแวดล้อมของวันนั้นให้ Sage อ่าน — ไล่ทุกแหล่งที่เลือก พร้อมบอกว่ามาจาก node ไหน */
+function envLine(e: any, srcs: EnvSource[]): string {
+  if (!e) return 'ไม่มีข้อมูลเซ็นเซอร์ของวันนี้';
+  const multi = new Set(srcs.map((s) => s.node)).size > 1;
+  const parts = srcs.map((s) => {
+    const v = e.src?.[srcId(s)] ?? e[s.key.replace('dht_', '')];
+    if (!v) return null;
+    const u = keyUnit(s.key);
+    return `${keyTh(s.key)}${multi ? ` (${s.node})` : ''} ${v.min}–${v.max}${u} เฉลี่ย ${v.avg}`;
+  }).filter(Boolean);
+  return parts.length ? parts.join(' · ') : 'ไม่มีข้อมูลเซ็นเซอร์ของวันนี้';
+}
 
 // ---------- job ----------
 let running = false; const queue: number[] = [];
@@ -171,7 +224,7 @@ async function setProgress(id: number, patch: any, status?: string) {
 }
 
 async function runAnalysis(id: number): Promise<void> {
-  const a = (await query<any>('SELECT a.*, p.name, p.cam_node, p.sensor_node, p.from_ts, p.to_ts, p.notes FROM analyses a JOIN plots p ON p.id = a.plot_id WHERE a.id = $1', [id])).rows[0];
+  const a = (await query<any>('SELECT a.*, p.name, p.cam_node, p.sensor_node, p.env_sources, p.from_ts, p.to_ts, p.notes FROM analyses a JOIN plots p ON p.id = a.plot_id WHERE a.id = $1', [id])).rows[0];
   if (!a) return;
   const prov = provider();
   let tin = 0, tout = 0;
@@ -193,7 +246,7 @@ async function runAnalysis(id: number): Promise<void> {
       const prompt = [
         `แปลง: "${a.name}"${a.notes ? ` (${a.notes})` : ''}`,
         `ภาพที่ ${i + 1}/${frames.length} ถ่ายวันที่ ${day} เวลา ${fmtTime(f.ts)}`,
-        `สภาพแวดล้อมของวันนี้: ${envLine(envByDay.get(day))}`,
+        `สภาพแวดล้อมของวันนี้: ${envLine(envByDay.get(day), plotSources(a))}`,
         prev ? `ภาพก่อนหน้า (${observations[observations.length - 1].date}): stage=${prev.stage}, ใบ=${prev.leaf_count ?? '?'}, สูง≈${prev.height_cm_est ?? '?'} cm, ดอก=${prev.flower_count}, health=${prev.health}` : 'นี่คือภาพแรกของชุด',
         'สังเกตต้นไม้ในภาพ (ถ้ามีหลายต้นให้ดูต้นหลักที่ใหญ่/ใกล้กล้องที่สุด) แล้วรายงานตาม schema นับใบเฉพาะที่เห็นชัด ประเมินความสูงจากสัดส่วนกับกระถาง',
       ].join('\n');
@@ -210,7 +263,7 @@ async function runAnalysis(id: number): Promise<void> {
       '', '## ข้อสังเกตรายภาพ (จากการดูภาพจริง)',
       ...observations.map((o) => `- ${o.date} ${o.time}: stage=${o.stage} plant=${o.plant_visible} leaves=${o.leaf_count ?? '?'} height≈${o.height_cm_est ?? '?'}cm buds=${o.bud_count} flowers=${o.flower_count} health=${o.health} conf=${o.confidence} | ${o.change_from_previous} | ${o.notes}`),
       '', '## สภาพแวดล้อมรายวัน',
-      ...(env.length ? env.map((e: any) => `- ${e.date}: ${envLine(e)}`) : ['(ไม่มีข้อมูลเซ็นเซอร์)']),
+      ...(env.length ? env.map((e: any) => `- ${e.date}: ${envLine(e, plotSources(a))}`) : ['(ไม่มีข้อมูลเซ็นเซอร์)']),
       '', 'สร้างรายงานตาม schema: milestones ระบุวันที่จากข้อสังเกต (เช่น วันแรกที่ plant_visible, วันแรกที่มีใบจริง, วันที่จำนวนใบเพิ่ม, ดอกแรก) growth_series ให้ 1 จุดต่อวันที่มีภาพ env_insights เชื่อมโยงค่าสิ่งแวดล้อมกับการเปลี่ยนแปลง (ถ้าไม่มีข้อมูลให้บอกตรงๆ) recommendations เป็นสิ่งที่ทำได้จริงในสวนเล็ก',
     ].join('\n');
     const { report, usage } = await prov.synthesize(synthPrompt);
@@ -243,12 +296,24 @@ export async function registerSage(app: FastifyInstance): Promise<void> {
             (SELECT json_build_object('id', a.id, 'status', a.status, 'created_at', a.created_at, 'progress', a.progress) FROM analyses a WHERE a.plot_id = p.id ORDER BY a.created_at DESC LIMIT 1) AS last_analysis
        FROM plots p ORDER BY p.created_at DESC`)).rows);
 
-  app.post<{ Body: { name?: string; cam_node?: string; sensor_node?: string; from?: string; to?: string; notes?: string; cam_angle?: number | string } }>('/api/plots', async (req, reply) => {
+  app.post<{ Body: { name?: string; cam_node?: string; sensor_node?: string; env_sources?: EnvSource[]; from?: string; to?: string; notes?: string; cam_angle?: number | string } }>('/api/plots', async (req, reply) => {
     const b = req.body || {};
     if (!b.name || !b.cam_node) return reply.code(400).send({ error: 'name และ cam_node จำเป็น' });
     const ang = b.cam_angle === '' || b.cam_angle === undefined || b.cam_angle === null ? null : Number(b.cam_angle);
-    const r = await query<any>('INSERT INTO plots(name, cam_node, sensor_node, from_ts, to_ts, notes, cam_angle) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *',
-      [b.name.trim(), b.cam_node, b.sensor_node || null, b.from || null, b.to || null, b.notes || null, Number.isFinite(ang as number) ? ang : null]);
+    const srcs = cleanSources(b.env_sources);
+    const r = await query<any>('INSERT INTO plots(name, cam_node, sensor_node, from_ts, to_ts, notes, cam_angle, env_sources) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
+      [b.name.trim(), b.cam_node, b.sensor_node || null, b.from || null, b.to || null, b.notes || null, Number.isFinite(ang as number) ? ang : null, JSON.stringify(srcs)]);
+    return r.rows[0];
+  });
+
+  // แก้แหล่งข้อมูลแวดล้อมของแปลงที่สร้างไว้แล้ว (เช่น node ถูกเปลี่ยนชื่อ)
+  app.patch<{ Params: { id: string }; Body: { env_sources?: EnvSource[]; notes?: string } }>('/api/plots/:id', async (req, reply) => {
+    const id = Number(req.params.id); const b = req.body || {};
+    if (!Number.isFinite(id)) return reply.code(400).send({ error: 'id ไม่ถูกต้อง' });
+    const r = await query<any>(
+      `UPDATE plots SET env_sources = COALESCE($2::jsonb, env_sources), notes = COALESCE($3, notes) WHERE id = $1 RETURNING *`,
+      [id, b.env_sources === undefined ? null : JSON.stringify(cleanSources(b.env_sources)), b.notes ?? null]);
+    if (!r.rows[0]) return reply.code(404).send({ error: 'ไม่พบแปลง' });
     return r.rows[0];
   });
 
@@ -268,7 +333,7 @@ export async function registerSage(app: FastifyInstance): Promise<void> {
     'SELECT id, status, provider, model, progress, created_at, finished_at, tokens_in, tokens_out, error FROM analyses WHERE plot_id = $1 ORDER BY created_at DESC', [Number(req.params.id)])).rows);
 
   app.get<{ Params: { id: string } }>('/api/analyses/:id', async (req, reply) => {
-    const r = await query<any>('SELECT a.*, p.name, p.cam_node, p.sensor_node FROM analyses a JOIN plots p ON p.id = a.plot_id WHERE a.id = $1', [Number(req.params.id)]);
+    const r = await query<any>('SELECT a.*, p.name, p.cam_node, p.sensor_node, p.env_sources FROM analyses a JOIN plots p ON p.id = a.plot_id WHERE a.id = $1', [Number(req.params.id)]);
     if (!r.rows[0]) return reply.code(404).send({ error: 'not found' });
     return r.rows[0];
   });

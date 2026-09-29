@@ -6,6 +6,7 @@
   --s1:#2a78d6; --s2:#eb6834; --seq250:#86b6ef; --seq350:#5598e7; --seq450:#2a78d6; --seq550:#1c5cab; --seq650:#104281;
   --good:#0ca30c; --warn:#fab219; --serious:#ec835a; --critical:#d03b3b;
   --leaf:#1f7a3a;
+  --c1:#2a78d6; --c2:#e2661f; --c3:#00949c; --c4:#c2185b; --c5:#4f9c28; --c6:#8a5cd6; --c7:#b07d00; --c8:#0d5c8a;
   --tile:#f3f3f0;
 }
 :root[data-theme="dark"]{
@@ -14,6 +15,7 @@
   --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,.10);
   --s1:#3987e5; --s2:#d95926; --seq250:#184f95; --seq350:#1c5cab; --seq450:#256abf; --seq550:#3987e5; --seq650:#6da7ec;
   --leaf:#4cc06f; --tile:#222221;
+    --c1:#3791ff; --c2:#eb6200; --c3:#04a6af; --c4:#fe327d; --c5:#4dac0e; --c6:#a46dff; --c7:#be8700; --c8:#449ad5;
 }
 @media (prefers-color-scheme:dark){
   :root:where(:not([data-theme="light"])){
@@ -22,6 +24,7 @@
     --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,.10);
     --s1:#3987e5; --s2:#d95926; --seq250:#184f95; --seq350:#1c5cab; --seq450:#256abf; --seq550:#3987e5; --seq650:#6da7ec;
     --leaf:#4cc06f; --tile:#222221;
+    --c1:#3791ff; --c2:#eb6200; --c3:#04a6af; --c4:#fe327d; --c5:#4dac0e; --c6:#a46dff; --c7:#be8700; --c8:#449ad5;
   }
 }
 *{box-sizing:border-box;min-width:0}
@@ -114,7 +117,25 @@ main{padding:14px 16px 60px}
 .seg button+button{border-left:1px solid var(--border)}
 .seg button.active{background:var(--tile);font-weight:600}
 .chart-wrap{position:relative;width:100%}
-.chart-wrap canvas{display:block;width:100%;height:320px;touch-action:pan-y}
+.chart-wrap canvas{display:block;width:100%;height:var(--ch,320px);touch-action:pan-y}
+/* ตัวเลือกเส้นกราฟ: ติ๊กได้หลายค่า จากหลาย node พร้อมกัน */
+.picker{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 12px}
+.picker .grp{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:4px 8px 4px 6px;border:1px solid var(--border);border-radius:10px;background:var(--tile)}
+.picker .grp>b{font-size:11px;color:var(--muted);font-weight:600;letter-spacing:.02em}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;line-height:1;padding:4px 9px;border:1px solid var(--border);border-radius:999px;background:var(--surface);color:var(--ink2);cursor:pointer;user-select:none;white-space:nowrap}
+.chip input{position:absolute;opacity:0;pointer-events:none}
+.chip i{width:9px;height:9px;border-radius:50%;background:var(--axis);flex:none}
+.chip.on{color:var(--ink);font-weight:600;border-color:currentColor}
+.chip.full:not(.on){opacity:.4;cursor:not-allowed}
+.c-legend{display:flex;flex-wrap:wrap;gap:4px 14px;margin:10px 0 0;font-size:12px;color:var(--ink2)}
+.c-legend span{display:inline-flex;align-items:center;gap:6px}
+.c-legend i{width:14px;height:3px;border-radius:2px;flex:none}
+.c-legend b{font-variant-numeric:tabular-nums;color:var(--ink)}
+.tip table{border-collapse:collapse;margin-top:4px}
+.tip td{padding:1px 0 1px 8px;font-size:12px;white-space:nowrap}
+.tip td:first-child{padding-left:0}
+.tip td.n{text-align:right;font-variant-numeric:tabular-nums;color:var(--ink);font-weight:600}
+.tip i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:-1px}
 .tip{position:absolute;pointer-events:none;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12px;box-shadow:0 4px 14px rgba(0,0,0,.12);white-space:nowrap}
 
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
@@ -187,3 +208,7 @@ td.pl{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--ink2);
 .mini{width:100%;height:auto;display:block;margin-bottom:8px}.mini .ax{font-size:10px;fill:var(--muted)}
 
 .pan{align-items:center;gap:6px;margin-top:8px}.pan-range{flex:1;min-width:120px;max-width:260px}.pan-val{min-width:38px}
+.fieldset{margin-top:12px}
+.flab{display:block;font-size:13px;color:var(--ink2);margin-bottom:6px}
+.picker:empty::after{content:"ยังไม่มี node ที่ส่งค่าเซ็นเซอร์";color:var(--muted);font-size:13px}
+.plot-env{margin-top:10px;padding-top:10px;border-top:1px solid var(--border)}

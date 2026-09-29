@@ -40,20 +40,21 @@
   <section id="tab-chart" class="tab">
     <div class="card">
       <div class="controls">
-        <label>Node <select id="c-node"></select></label>
-        <label>ค่า <select id="c-key"></select></label>
         <div class="seg" id="c-range">
           <button data-range="24h" class="active">24 ชม.</button>
           <button data-range="7d">7 วัน</button>
           <button data-range="30d">30 วัน</button>
         </div>
+        <button id="c-clear" class="small">ล้างที่เลือก</button>
         <span id="c-info" class="muted small"></span>
       </div>
+      <div id="c-picker" class="picker"></div>
       <div class="chart-wrap">
-        <canvas id="chart" height="320"></canvas>
+        <canvas id="chart"></canvas>
         <div id="c-tip" class="tip hidden"></div>
       </div>
-      <p id="c-empty" class="muted hidden">ไม่มีข้อมูลในช่วงนี้</p>
+      <div id="c-legend" class="c-legend"></div>
+      <p id="c-empty" class="muted hidden">เลือกค่าที่อยากดูจากด้านบน — ติ๊กได้หลายค่า จากหลาย node พร้อมกัน</p>
     </div>
   </section>
 
@@ -140,11 +141,14 @@
       <div class="grid form">
         <label>ชื่อแปลง <input id="pl-name" placeholder="gerbera plot"></label>
         <label>กล้อง (Watcher) <select id="pl-cam"></select></label>
-        <label>node เซ็นเซอร์ (สิ่งแวดล้อม) <select id="pl-sensor"><option value="">— ไม่มี —</option></select></label>
         <label>ตั้งแต่ <input id="pl-from" type="date"></label>
         <label>ถึง <input id="pl-to" type="date"></label>
         <label>มุมกล้อง (ถ้ากล้องมี servo · ว่าง = ทุกมุม) <input id="pl-angle" type="number" min="0" max="180" placeholder="เช่น 45"></label>
         <label>โน้ตให้ Sage (พันธุ์, วันปลูก, ฯลฯ) <input id="pl-notes" placeholder="เยอบีร่า เพาะเมล็ด 20 ก.ย."></label>
+      </div>
+      <div class="fieldset">
+        <span class="flab">ข้อมูลแวดล้อมให้ Sage ใช้ร่วมวิเคราะห์ — ติ๊กได้หลายค่า จากหลาย node</span>
+        <div id="pl-env" class="picker"></div>
       </div>
       <div class="row" style="margin-top:8px"><button id="pl-create" class="primary">สร้างแปลง</button></div>
     </div>

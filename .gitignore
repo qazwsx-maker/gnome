@@ -13,3 +13,4 @@ infra/log/
 infra/mosquitto.passwd
 node_modules/
 !infra/.env.example
+photos/

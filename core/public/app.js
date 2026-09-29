@@ -10,6 +10,7 @@
       body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
     });
     const j = await res.json().catch(() => ({}));
+    if (res.status === 401) { location.href = '/login'; throw new Error('login required'); }
     if (!res.ok) throw new Error(j.error || res.status);
     return j;
   };
@@ -36,6 +37,9 @@
     clearTimeout(toast._t);
     toast._t = setTimeout(() => t.classList.add('hidden'), 3200);
   };
+
+  // ---- external session: show logout only when accessed from outside (via tunnel)
+  fetch('/api/me').then((r) => r.json()).then((me) => { if (me.external) { const b = $('#logout'); b.classList.remove('hidden'); b.onclick = async () => { await fetch('/api/logout', { method: 'POST' }); location.href = '/login'; }; } }).catch(() => {});
 
   // ---- theme ---------------------------------------------------------------
   const root = document.documentElement;

@@ -12,6 +12,7 @@ import { listRules, reloadRules, validateRule, activeRunsJson } from './rules.ts
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { registerCam } from './cam.ts';
 import { registerSage } from './sage.ts';
+import { registerAuth } from './auth.ts';
 import { join } from 'node:path';
 
 const log = logger('http');
@@ -29,6 +30,7 @@ const KEY_RE = /^[a-z0-9_]+$/i;
 export async function startHttp() {
   const app = Fastify({ logger: false, routerOptions: { ignoreTrailingSlash: true } });
 
+  await registerAuth(app);   // ต้องมาก่อน static/routes เพื่อให้ hook คุมทุก path
   await app.register(fastifyWebsocket, { options: { maxPayload: 16 * 1024 } });
   await app.register(fastifyStatic, { root: config.publicDir, prefix: '/', index: ['index.html'], cacheControl: false, setHeaders: (res) => { res.setHeader('Cache-Control', 'no-cache'); } });
   if (existsSync(config.firmwareDir)) await app.register(fastifyStatic, { root: config.firmwareDir, prefix: '/firmware/', decorateReply: false, cacheControl: false });

@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GNOME Hut — เข้าสู่ระบบ</title>
+<style>
+:root{color-scheme:light dark;--bg:#f9f9f7;--sf:#fcfcfb;--ink:#0b0b0b;--mut:#898781;--bd:rgba(11,11,11,.12);--leaf:#1f7a3a;--bad:#d03b3b}
+@media(prefers-color-scheme:dark){:root{--bg:#0d0d0d;--sf:#1a1a19;--ink:#fff;--mut:#898781;--bd:rgba(255,255,255,.12);--leaf:#4cc06f}}
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,sans-serif}
+.card{width:min(360px,92vw);background:var(--sf);border:1px solid var(--bd);border-radius:16px;padding:26px}
+h1{font-size:22px;margin:0 0 4px}p{color:var(--mut);margin:0 0 16px;font-size:13px}
+input{width:100%;box-sizing:border-box;font:inherit;padding:10px 12px;border:1px solid var(--bd);border-radius:10px;background:transparent;color:var(--ink)}
+button{width:100%;margin-top:10px;font:inherit;font-weight:600;padding:10px;border:0;border-radius:10px;background:var(--leaf);color:#fff;cursor:pointer}
+.err{color:var(--bad);font-size:13px;min-height:18px;margin-top:8px}
+</style></head><body>
+<form class="card" id="f"><h1>🌿 GNOME Hut</h1><p>เข้าจากนอกบ้าน — ใส่รหัสผ่านของ Hut</p>
+<input id="pw" type="password" placeholder="รหัสผ่าน" autocomplete="current-password" autofocus>
+<button>เข้าสู่ระบบ</button><div class="err" id="err"></div></form>
+<script>
+document.getElementById('f').onsubmit=async e=>{e.preventDefault();const err=document.getElementById('err');err.textContent='';
+try{const r=await fetch('/api/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({password:document.getElementById('pw').value})});const j=await r.json().catch(()=>({}));
+if(r.ok)location.href='/';else err.textContent=j.error||('ผิดพลาด '+r.status)}catch(x){err.textContent='เชื่อมต่อไม่ได้'}};
+</script></body></html>

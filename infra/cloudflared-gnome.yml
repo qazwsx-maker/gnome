@@ -1,0 +1,7 @@
+# Cloudflare Tunnel สำหรับ GNOME Hut → https://gnome.runesteinn.com (แยกจาก tunnel ของ Landex)
+tunnel: 8911cbd3-c416-4be2-9f75-7750f7743835
+credentials-file: /Users/pichaya/.cloudflared/8911cbd3-c416-4be2-9f75-7750f7743835.json
+ingress:
+  - hostname: gnome.runesteinn.com
+    service: http://localhost:8080
+  - service: http_status:404

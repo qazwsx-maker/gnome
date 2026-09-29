@@ -27,6 +27,9 @@ export const config = {
   camDir: process.env.CAM_DIR || new URL('../../infra/data/cam/', import.meta.url).pathname,
   camFullDays: num(process.env.CAM_FULL_DAYS, 30),   // เก็บทุกภาพกี่วัน
   camKeepDays: num(process.env.CAM_KEEP_DAYS, 365),  // หลังจากนั้นเหลือ 1 ภาพ/ชม. จนถึงกี่วัน
+  // external access (Cloudflare Tunnel): login required when the request is not from the LAN
+  hutPassword: process.env.HUT_PASSWORD || '',
+  hutSessionSecret: process.env.HUT_SESSION_SECRET || '',
   // Sage (AI growth analysis): anthropic (default) | ollama
   sageProvider: (process.env.SAGE_PROVIDER || 'anthropic') as 'anthropic' | 'ollama',
   sageModel: process.env.SAGE_MODEL || 'claude-opus-5',

@@ -224,6 +224,13 @@ Mood roleMood() {
 }
 int roleDisplayLines(String* lines, int, int) { lines[0] = String("shots ") + uploads + " fail " + fails; lines[1] = String("last ") + (lastBytes / 1024) + "kB " + lastCode + (cfg.servoPin >= 0 ? String("  ") + cfg.servoAngle + "\xB0" : ""); return 2; }
 
+int roleStats(StatItem* out, int max) {
+  int n = 0;
+  if (n < max) { StatItem s; s.label = "SHOTS"; s.value = String(uploads); s.unit = fails ? "fail " + String(fails) : ""; s.icon = 7; out[n++] = s; }
+  if (n < max && cfg.servoPin >= 0) { StatItem s; s.label = "ANGLE"; s.value = String(cfg.servoAngle); s.unit = "deg"; s.icon = 7; out[n++] = s; }
+  return n;
+}
+
 bool roleCommand(const String& sub, const String& payload) {
   if (sub == "cmd/snap") { lastShot = millis(); bool ok = snapAndUpload("cmd"); mqttEvent(ok ? "snapshot" : "snapshot_failed", "\"bytes\":" + String(lastBytes)); return true; }
   if (sub == "cmd/flash") { String p = payload; p.trim(); p.toUpperCase(); setFlash(p == "ON" || p == "1"); return true; }

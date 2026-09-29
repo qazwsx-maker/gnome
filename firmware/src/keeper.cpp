@@ -109,6 +109,17 @@ int roleDisplayLines(String* lines, int max, int) {
   return n;
 }
 
+int roleStats(StatItem* out, int max) {
+  int n = 0;
+  for (int i = 0; i < cfg.swCount && n < max; i++) {
+    StatItem s; s.label = cfg.sw[i].key; s.label.toUpperCase(); s.icon = 6;
+    s.value = st[i].on ? "ON" : "OFF";
+    s.unit = st[i].on && st[i].offAt ? String((int)((st[i].offAt - millis()) / 1000)) + "s left" : "";
+    out[n++] = s;
+  }
+  return n;
+}
+
 bool roleWebSwitch(const String& key, bool on, int seconds) { int i = findSw(key); if (i < 0) return false; setSwitch(i, on, seconds, "web"); return true; }
 void roleRescan() {}
 #endif

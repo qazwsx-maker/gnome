@@ -38,6 +38,10 @@ bool roleWebSwitch(const String& key, bool on, int seconds);  // จากหน
 void roleRescan();                          // scout: สแกน I2C ใหม่
 int  roleDisplayLines(String* lines, int max, int page);  // ข้อความ 1-3 บรรทัดสำหรับจอ OLED
 
+// ค่าที่เอาไปโชว์ตัวใหญ่บนจอ (วนทีละค่า) — icon: 1 temp · 2 humid · 3 light · 4 soil · 5 rain · 6 switch · 7 cam
+struct StatItem { String label, value, unit; uint8_t icon; };
+int  roleStats(StatItem* out, int max);
+
 // ---- อารมณ์ของภูต (หน้าบนจอ OLED) ----
 enum Mood { MOOD_HAPPY, MOOD_HOT, MOOD_SLEEPY, MOOD_THIRSTY, MOOD_RAIN, MOOD_SICK, MOOD_WATERING, MOOD_FAN };
 Mood roleMood();

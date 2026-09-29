@@ -45,7 +45,7 @@ src/improv.*      Improv Wi-Fi serial (ESP Web Tools)
 src/mqttc.cpp     PubSubClient, LWT, meta, cmd/*, ota
 src/scout.cpp     sensors (compiled only for scout)
 src/keeper.cpp    switches (compiled only for keeper)
-src/display.cpp   OLED สถานะ (U8g2)
+src/display.cpp   OLED: หน้าภูต (port จาก Platypus face engine) + หน้าโชว์ค่า + หน้าสถานะ (U8g2)
 src/web_ui.h      หน้าเว็บบน node (PROGMEM)
 ```
 Build: `pio run` (ทั้งสอง env) — binaries สำหรับหน้า flash ถูกคัดลอกไป `docs/firmware/<role>/`

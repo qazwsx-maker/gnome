@@ -14,7 +14,7 @@
 
 ## Feature ที่ต้องเพิ่มจากที่มี (เรียงตามลำดับที่จะทำ)
 
-1. ✅ **หน้าอารมณ์บน OLED** (Scout / Mini Scout / Keeper): สลับหน้า "ข้อมูล" ↔ "หน้า" ทุก 5 s · อารมณ์คำนวณจากค่าจริง — 😊 ปกติ · 🥵 ร้อน (> 34 °C) · 🥱 ง่วง (กลางคืน lux < 5) · 😰 กระหาย (ดิน < threshold) · 🌧 ฝนตก (raindrop เปียก) · 😵 ป่วย (เซ็นเซอร์อ่านไม่ได้ / MQTT หลุด) · Keeper: 💧 กำลังรดน้ำ · 🌬 พัดลมทำงาน
+1. ✅ **หน้าอารมณ์บน OLED** (v0.4.0 port จาก [Platypus face engine](https://qazwsx-maker.github.io/platypus/): Pose ที่ ease เข้าหาเป้าหมาย, ตาโค้งมนมีประกาย, เปลือกตาบนเอียงได้, กระพริบ, saccade + wander, หายใจ · สลับกับหน้าโชว์ค่าเซ็นเซอร์ตัวใหญ่พร้อมไอคอน และหน้าสถานะเครือข่าย) (Scout / Mini Scout / Keeper): สลับหน้า "ข้อมูล" ↔ "หน้า" ทุก 5 s · อารมณ์คำนวณจากค่าจริง — 😊 ปกติ · 🥵 ร้อน (> 34 °C) · 🥱 ง่วง (กลางคืน lux < 5) · 😰 กระหาย (ดิน < threshold) · 🌧 ฝนตก (raindrop เปียก) · 😵 ป่วย (เซ็นเซอร์อ่านไม่ได้ / MQTT หลุด) · Keeper: 💧 กำลังรดน้ำ · 🌬 พัดลมทำงาน
 2. ✅ **env `scout-s3`** สำหรับ ESP32-S3 UNO: I2C SDA 8 / SCL 9, ADC1 = IO1–IO10 (A0–A5 = IO2 IO1 IO7 IO6 IO5 IO4), DHT ที่ IO10, LED RGB · manifest ESP32-S3 · ต้องดาวน์โหลด toolchain S3
 3. ✅ **Watcher (`cam` env)**: ถ่าย JPEG ทุก N นาที (ตั้งได้) POST ไป Hut `POST /api/cam/<node>/snapshot` + `/stream` MJPEG สำหรับดูสด + status/meta/debug ทาง MQTT + ไฟแฟลช GPIO4 สั่งได้
 4. ✅ **Hut ฝั่งกล้อง** (ยังไม่มี mp4 export และ proxy stream ผ่าน Hut — ดูสดตรงจาก node ใน LAN): เก็บภาพ `infra/data/cam/<node>/YYYY/MM/DD/`, retention (30 วันเต็ม → เก็บ 1 ภาพ/ชม.), หน้า **time-lapse** (เลื่อนดูตามวัน/สร้าง mp4 ด้วย ffmpeg), หน้า **ดูสด** (proxy `/stream` ของ node ผ่าน Hut เพื่อให้ดูจากนอกบ้านผ่าน Cloudflare Tunnel ได้)

@@ -128,6 +128,25 @@ int roleDisplayLines(String* lines, int max, int page) {
   return n;
 }
 
+int roleStats(StatItem* out, int max) {
+  int n = 0;
+  for (int i = 0; i < lastCount && n < max; i++) {
+    if (!last[i].valid || last[i].key.endsWith("_raw")) continue;
+    const String& k = last[i].key;
+    StatItem s; s.unit = last[i].unit;
+    if (k.indexOf("temp") >= 0)       { s.label = "TEMP";  s.icon = 1; s.unit = "C"; }
+    else if (k.indexOf("rh") >= 0)    { s.label = "HUMID"; s.icon = 2; }
+    else if (k == "lux")              { s.label = "LIGHT"; s.icon = 3; }
+    else if (k.startsWith("rain"))    { s.label = "RAIN";  s.icon = 5; }
+    else if (k.startsWith("soil"))    { s.label = "SOIL " + k.substring(4, 5); s.icon = 4; }
+    else if (k == "press_hpa")        { s.label = "PRESS"; s.icon = 0; }
+    else                              { s.label = k; s.label.toUpperCase(); s.icon = 0; }
+    s.value = String(last[i].value, 1);
+    out[n++] = s;
+  }
+  return n;
+}
+
 bool roleCommand(const String& sub, const String&) { if (sub == "cmd/rescan") { roleRescan(); return true; } return false; }
 bool roleWebSwitch(const String&, bool, int) { return false; }
 #endif

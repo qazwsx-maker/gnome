@@ -8,6 +8,7 @@ import { logger } from './log.ts';
 import { query } from './db.ts';
 import { bus } from './bus.ts';
 import { nodes, touch, getNode } from './state.ts';
+import { Readable } from 'node:stream';
 
 const log = logger('cam');
 const NODE_RE = /^[a-z0-9-]+$/;
@@ -41,6 +42,23 @@ export async function registerCam(app: FastifyInstance): Promise<void> {
     log.info(`${node} snapshot ${buf.length} B -> ${rel}${reason ? ' (' + reason + ')' : ''}`);
     return { ok: true, id: r.rows[0].id, url, bytes: buf.length };
   });
+
+  // proxy live MJPEG stream / fresh snapshot from the node (:81) so it works from outside the LAN too
+  const camBase = (node: string): string | null => { const n = nodes.get(node); const s = n?.meta?.cam?.stream as string | undefined; if (s) return s.replace(/\/stream$/, ''); return n?.ip ? `http://${n.ip}:81` : null; };
+  for (const kind of ['stream', 'snapshot'] as const) {
+    app.get<{ Params: { node: string } }>(`/api/cam/:node/${kind === 'stream' ? 'live' : 'live-snapshot'}`, async (req, reply) => {
+      const base = camBase(req.params.node);
+      if (!base) return reply.code(404).send({ error: 'ไม่รู้ที่อยู่กล้อง (node ยังไม่ส่ง meta)' });
+      const ac = new AbortController();
+      req.raw.on('close', () => ac.abort());
+      let up: Response;
+      try { up = await fetch(`${base}/${kind}`, { signal: ac.signal }); } catch (e) { return reply.code(502).send({ error: 'ต่อกล้องไม่ได้: ' + (e as Error).message }); }
+      if (!up.ok || !up.body) return reply.code(502).send({ error: `กล้องตอบ ${up.status}` });
+      reply.header('Content-Type', up.headers.get('content-type') || (kind === 'stream' ? 'multipart/x-mixed-replace;boundary=gnomeframe' : 'image/jpeg'));
+      reply.header('Cache-Control', 'no-store'); reply.header('X-Accel-Buffering', 'no');
+      return reply.send(Readable.fromWeb(up.body as any));
+    });
+  }
 
   // list cam nodes with latest snapshot + stream url
   app.get('/api/cam', async () => {

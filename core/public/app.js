@@ -86,7 +86,7 @@
       <div class="cam-view"><img class="cam-img" src="${c.latest ? esc(c.latest.url) : ''}" alt="" style="${c.latest ? '' : 'display:none'}"><div class="cam-ts muted small">${c.latest ? esc(fmtTs(c.latest.ts)) : ''}</div></div>
       <div class="row">
         <button class="small" data-snap="1" ${c.online ? '' : 'disabled'}>📸 ถ่ายตอนนี้</button>
-        ${c.cam?.stream ? `<a class="btn" href="${esc(c.cam.stream)}" target="_blank" rel="noopener">▶ ดูสด</a>` : ''}
+        <button class="small" data-live="1" ${c.online ? '' : 'disabled'}>▶ ดูสด</button>
         <select class="small cam-day" title="เลือกวัน"><option value="">— time-lapse: เลือกวัน —</option></select>
         <button class="small" data-play="1" disabled>▶ เล่น</button>
         <span class="muted small cam-prog"></span>
@@ -114,7 +114,7 @@
   function onSnapshot(m) {
     const card = $(`.cam-card[data-node="${m.node}"]`);
     if (!card) { if ($('#tab-cam').classList.contains('active')) renderCam(); return; }
-    const img = $('.cam-img', card); img.src = m.url; img.style.display = '';
+    const img = $('.cam-img', card); if (camState.live?.[m.node]) { camState.live[m.node] = m.url; return; } img.src = m.url; img.style.display = '';
     $('.cam-ts', card).textContent = fmtTs(m.ts);
     const c = camState.list.find((x) => x.node === m.node); if (c) { c.latest = { ts: m.ts, url: m.url }; c.count++; }
     const today = camState.day[m.node]; if (today && m.ts.startsWith(today) === false) return; if (today) loadFrames(m.node, today);
@@ -126,6 +126,13 @@
     const btn = e.target.closest('button'); if (!btn) return;
     try {
       if (btn.dataset.snap) { await api(`/nodes/${node}/cmd`, { method: 'POST', body: { cmd: 'snap' } }); toast(`สั่งถ่าย → ${node}`); }
+      else if (btn.dataset.live) {
+        const img = $('.cam-img', card), ts = $('.cam-ts', card);
+        if (camState.live?.[node]) { img.src = camState.live[node]; camState.live[node] = null; btn.textContent = '▶ ดูสด'; ts.textContent = 'หยุดดูสดแล้ว'; return; }
+        camState.live = camState.live || {}; camState.live[node] = img.src; img.style.display = '';
+        img.src = `/api/cam/${node}/live?t=${Date.now()}`; ts.textContent = '🔴 สด (ผ่าน Hut)'; btn.textContent = '⏹ หยุดดูสด';
+        img.onerror = () => { if (camState.live?.[node]) { toast('สตรีมหลุด — กล้องอาจไม่ว่างหรือ WiFi อ่อน', true); img.src = camState.live[node]; camState.live[node] = null; btn.textContent = '▶ ดูสด'; } };
+      }
       else if (btn.dataset.play) {
         if (camState.playing[node]) { clearInterval(camState.playing[node]); camState.playing[node] = null; btn.textContent = '▶ เล่น'; return; }
         const frames = camState.frames[node] || []; let i = 0; btn.textContent = '⏸ หยุด';

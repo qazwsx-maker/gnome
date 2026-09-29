@@ -1,7 +1,7 @@
 {
-  "scout": "0.3.5",
-  "keeper": "0.3.5",
-  "keeper-relayx4": "0.3.5",
-  "scout-s3": "0.3.5",
-  "cam": "0.3.5"
+  "scout": "0.3.6",
+  "keeper": "0.3.6",
+  "keeper-relayx4": "0.3.6",
+  "scout-s3": "0.3.6",
+  "cam": "0.3.6"
 }

@@ -99,7 +99,8 @@ static float lastVal(const char* key, bool* ok = nullptr) { for (int i = 0; i < 
 
 Mood roleMood() {
   if (!mqttIsConnected() && cfg.mqttHost.length()) return MOOD_SICK;
-  if (millis() - lastErrEvent < 600000 && lastErrEvent) return MOOD_SICK;
+  int nValid = 0; for (int i = 0; i < lastCount; i++) if (last[i].valid) nValid++;
+  if (lastCount > 0 && nValid == 0) return MOOD_SICK;   // มีเซ็นเซอร์แต่อ่านไม่ได้เลยในรอบล่าสุด (ไม่ใช่แค่พลาดครั้งเดียวเมื่อ 10 นาทีก่อน)
   bool ok; float v;
   v = lastVal("rain_pct", &ok); if (ok && v > 50) return MOOD_RAIN;
   for (int i = 0; i < lastCount; i++) if (last[i].valid && last[i].key.endsWith("_pct") && !last[i].key.startsWith("rh") && !last[i].key.startsWith("dht") && !last[i].key.startsWith("rain") && last[i].value < cfg.thirstyPct) return MOOD_THIRSTY;
@@ -108,11 +109,13 @@ Mood roleMood() {
   return MOOD_HAPPY;
 }
 
+static String shortKey(String k) { k.replace("dht_", ""); k.replace("_pct", ""); k.replace("_hpa", ""); k.replace("_raw", "~"); if (k.endsWith("_c")) k.remove(k.length() - 2); return k; }
+
 int roleDisplayLines(String* lines, int max, int page) {
   int n = 0, start = page * (max * 2);
   for (int i = start, col = 0; i < lastCount && n < max; i++) {
     String v = last[i].valid ? String(last[i].value, last[i].unit == "raw" ? 0 : 1) : String("--");
-    String cell = last[i].key + " " + v; if (cell.length() > 10) cell = cell.substring(0, 10);
+    String cell = shortKey(last[i].key) + " " + v; if (cell.length() > 10) cell = cell.substring(0, 10);
     while (cell.length() < 11) cell += ' ';
     if (col == 0) { lines[n] = cell; col = 1; } else { lines[n] += cell; col = 0; n++; }
     if (i == lastCount - 1 && col == 1) n++;

@@ -50,7 +50,13 @@ static void readAll(bool publish) {
   if (hasBme) { float t = bme.readTemperature(), h = bme.readHumidity(), p = bme.readPressure() / 100.0f;
     if (!hasSht) { setLast("temp_c", "°C", "bme280", t); setLast("rh_pct", "%", "bme280", h); } setLast("press_hpa", "hPa", "bme280", p); }
   if (hasBh) { float l = bh.readLightLevel(); if (l < 0) { err = true; l = NAN; } setLast("lux", "lx", "bh1750", l); }
-  if (dht) { float t = dht->readTemperature(), h = dht->readHumidity(); if (isnan(t)) err = true; setLast("dht_temp_c", "°C", "dht22", t); setLast("dht_rh_pct", "%", "dht22", h); }
+  if (dht) {
+    float t = dht->readTemperature(), h = dht->readHumidity();
+    // สายยาว / ไม่มี pull-up ภายนอก มักพลาดครั้งแรก → ลองซ้ำแบบบังคับอ่านใหม่ (ต้องห่างกัน > 2 s ตามสเปก DHT)
+    if (publish && (isnan(t) || isnan(h))) { delay(2200); t = dht->readTemperature(false, true); h = dht->readHumidity(true); }
+    if (isnan(t) || isnan(h)) err = true;
+    setLast("dht_temp_c", "°C", "dht22", t); setLast("dht_rh_pct", "%", "dht22", h);
+  }
   if (cfg.soilCount) {
     if (cfg.soilPowerPin >= 0) { digitalWrite(cfg.soilPowerPin, HIGH); delay(150); }   // เปิดไฟหัววัดแค่ตอนอ่าน
     for (int i = 0; i < cfg.soilCount; i++) {

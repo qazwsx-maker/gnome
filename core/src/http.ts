@@ -13,6 +13,9 @@ import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs';
 import { registerCam } from './cam.ts';
 import { registerSage } from './sage.ts';
 import { registerAuth } from './auth.ts';
+import { discordSettings, saveDiscordSettings } from './settings.ts';
+import { discord, webhookUrl } from './discord.ts';
+import { startHeartbeat } from './heartbeat.ts';
 import { join } from 'node:path';
 
 const log = logger('http');
@@ -280,6 +283,60 @@ export async function startHttp() {
   });
 
   // ---- rules -------------------------------------------------------------
+  // ---- ตั้งค่า Discord ----------------------------------------------------
+  // webhook เป็นความลับ (ใครถือ URL ก็โพสต์เข้าห้องได้) จึงไม่ส่งกลับไปหน้าเว็บ
+  // ส่งกลับแค่ id ของ webhook พอให้ผู้ใช้รู้ว่าผูกกับตัวไหนอยู่
+  const WEBHOOK_HOSTS = new Set(['discord.com', 'discordapp.com', 'ptb.discord.com', 'canary.discord.com']);
+  const webhookId = (url: string) => url.match(/\/api\/webhooks\/(\d+)\//)?.[1] || '';
+  const publicDiscord = () => {
+    const s = discordSettings();
+    const url = webhookUrl();
+    const { webhook_url: _omit, ...rest } = s;
+    return { ...rest, webhook_set: !!url, webhook_id: webhookId(url), from_env: !s.webhook_url && !!config.discordWebhookUrl };
+  };
+
+  app.get('/api/settings/discord', async () => publicDiscord());
+
+  app.put<{ Body: Record<string, unknown> }>('/api/settings/discord', async (req, reply) => {
+    const b = req.body || {};
+    const patch: Record<string, unknown> = {};
+    const bools = ['enabled', 'node_status', 'sensor_error', 'rules', 'daily_summary'];
+    for (const k of bools) if (typeof b[k] === 'boolean') patch[k] = b[k];
+    if (b.node_debounce_s !== undefined) {
+      const n = Number(b.node_debounce_s);
+      if (!Number.isFinite(n) || n < 0 || n > 3600) return bad(reply, 'node_debounce_s ต้องอยู่ระหว่าง 0–3600 วินาที');
+      patch.node_debounce_s = Math.floor(n);
+    }
+    for (const k of ['summary_time', 'quiet_start', 'quiet_end']) {
+      if (b[k] === undefined) continue;
+      const v = b[k];
+      if (v === null || v === '') { patch[k] = k === 'summary_time' ? '07:00' : null; continue; }
+      if (typeof v !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(v)) return bad(reply, `${k} ต้องเป็นเวลารูปแบบ HH:MM`);
+      patch[k] = v;
+    }
+    if (b.clear_webhook === true) patch.webhook_url = '';
+    else if (typeof b.webhook_url === 'string' && b.webhook_url.trim()) {
+      const raw = b.webhook_url.trim();
+      let u: URL;
+      try { u = new URL(raw); } catch { return bad(reply, 'webhook URL ไม่ถูกต้อง'); }
+      if (u.protocol !== 'https:' || !WEBHOOK_HOSTS.has(u.hostname) || !u.pathname.startsWith('/api/webhooks/')) {
+        return bad(reply, 'ต้องเป็น Discord webhook เช่น https://discord.com/api/webhooks/...');
+      }
+      patch.webhook_url = raw;
+    }
+    const before = discordSettings();
+    const next = await saveDiscordSettings(patch);
+    if (next.summary_time !== before.summary_time) startHeartbeat();   // ตั้งตารางสรุปใหม่ทันที
+    log.info(`discord settings updated (${Object.keys(patch).join(', ') || 'ไม่มีการเปลี่ยน'})`);
+    return publicDiscord();
+  });
+
+  app.post('/api/settings/discord/test', async (_req, reply) => {
+    if (!webhookUrl()) return bad(reply, 'ยังไม่ได้ตั้ง webhook');
+    const ok = await discord(`🧪 ทดสอบจาก **GNOME Hut** — ${new Date().toLocaleString('th-TH', { timeZone: config.tz })}`, 'test');
+    return ok ? { ok: true } : reply.code(502).send({ error: 'ส่งไม่สำเร็จ — ตรวจว่า webhook ยังใช้ได้อยู่' });
+  });
+
   app.get('/api/rules', async () => listRules());
 
   app.post<{ Body: any }>('/api/rules', async (req, reply) => {

@@ -2,6 +2,7 @@
 import { query } from './db.ts';
 import { config } from './config.ts';
 import { discord } from './discord.ts';
+import { discordSettings } from './settings.ts';
 import { bus } from './bus.ts';
 import { logger } from './log.ts';
 
@@ -122,6 +123,25 @@ export async function recordEvent(node: string | null, type: string, payload: un
 
 // ---- online / offline -------------------------------------------------
 
+// แจ้ง Discord เรื่องสถานะ node แบบหน่วงไว้ก่อน — node ที่กระพริบถี่ๆ จะไม่ยิงข้อความรัวๆ
+// ครบเวลาแล้วค่อยเช็กว่าสถานะยังเป็นแบบนั้นอยู่จริงไหม ถ้ากลับไปเหมือนเดิมก็เงียบไป
+const statusTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+function notifyStatus(name: string, online: boolean, why: string): void {
+  const msg = online ? `🟢 **${name}** กลับมาออนไลน์` : `🔴 **${name}** ออฟไลน์ (${why})`;
+  const t = statusTimers.get(name);
+  if (t) { clearTimeout(t); statusTimers.delete(name); }
+  const gap = discordSettings().node_debounce_s * 1000;
+  if (gap <= 0) { void discord(msg, 'node'); return; }
+  const timer = setTimeout(() => {
+    statusTimers.delete(name);
+    if (nodes.get(name)?.online === online) void discord(msg, 'node');
+  }, gap);
+  timer.unref?.();
+  statusTimers.set(name, timer);
+}
+
+
 export async function setOnline(name: string, online: boolean, via: string): Promise<void> {
   const n = getNode(name);
   const changed = n.online !== online;
@@ -140,7 +160,7 @@ export async function setOnline(name: string, online: boolean, via: string): Pro
     await recordEvent(name, online ? 'node_online' : 'node_offline', { via });
     bus.emit(online ? 'node_online' : 'node_offline', name);
     const why = via === 'timeout' ? `ไม่มีข้อมูล > ${config.offlineAfterMs / 1000} s` : via === 'lwt' ? 'หลุดจาก MQTT (LWT)' : via;
-    await discord(online ? `🟢 **${name}** กลับมาออนไลน์` : `🔴 **${name}** ออฟไลน์ (${why})`);
+    notifyStatus(name, online, why);
   }
 }
 

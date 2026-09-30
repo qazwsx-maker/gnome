@@ -59,6 +59,7 @@
     if (name === 'chart') chart.load();
     if (name === 'events') loadEvents();
     if (name === 'rules') loadRules();
+    if (name === 'settings') loadDiscord();
   };
   $$('#tabs a').forEach((a) => (a.onclick = (e) => { e.preventDefault(); location.hash = a.dataset.tab; showTab(a.dataset.tab); }));
 
@@ -890,12 +891,71 @@
     if (!n.online) renderStatus();
   }
 
+
+  // ---- (g) ตั้งค่า Discord ------------------------------------------------------
+  // server ไม่ส่ง webhook URL กลับมา (เป็นความลับ) ช่องนี้จึงว่างเสมอ
+  // เว้นว่างไว้ = ใช้ของเดิมต่อ พิมพ์ใหม่ = เปลี่ยน
+  async function loadDiscord() {
+    try {
+      const d = await api('/settings/discord');
+      $('#ds-enabled').checked = !!d.enabled;
+      $('#ds-node').checked = !!d.node_status;
+      $('#ds-sensor').checked = !!d.sensor_error;
+      $('#ds-rules').checked = !!d.rules;
+      $('#ds-summary').checked = !!d.daily_summary;
+      $('#ds-debounce').value = d.node_debounce_s ?? 180;
+      $('#ds-summary-time').value = d.summary_time || '07:00';
+      $('#ds-quiet-start').value = d.quiet_start || '';
+      $('#ds-quiet-end').value = d.quiet_end || '';
+      $('#ds-url').value = '';
+      $('#ds-url-note').textContent = d.webhook_set
+        ? `ตั้งไว้แล้ว${d.webhook_id ? ` (webhook id ${d.webhook_id})` : ''}${d.from_env ? ' · มาจาก infra/.env' : ''} — เว้นช่องนี้ว่างไว้ถ้าไม่ต้องการเปลี่ยน`
+        : 'ยังไม่ได้ตั้ง webhook — วางลิงก์จาก Discord ลงช่องด้านบน';
+      $('#ds-state').textContent = !d.webhook_set ? 'ยังไม่ได้ตั้ง webhook' : d.enabled ? '🟢 เปิดใช้งานอยู่' : '⚪️ ปิดอยู่';
+    } catch (e) { toast('โหลดตั้งค่าไม่ได้: ' + e.message, true); }
+  }
+
+  const dsBody = () => {
+    const body = {
+      enabled: $('#ds-enabled').checked,
+      node_status: $('#ds-node').checked,
+      sensor_error: $('#ds-sensor').checked,
+      rules: $('#ds-rules').checked,
+      daily_summary: $('#ds-summary').checked,
+      node_debounce_s: Number($('#ds-debounce').value || 0),
+      summary_time: $('#ds-summary-time').value || '07:00',
+      quiet_start: $('#ds-quiet-start').value || null,
+      quiet_end: $('#ds-quiet-end').value || null,
+    };
+    const url = $('#ds-url').value.trim();
+    if (url) body.webhook_url = url;
+    return body;
+  };
+
+  $('#ds-save').onclick = async () => {
+    try { await api('/settings/discord', { method: 'PUT', body: dsBody() }); toast('บันทึกแล้ว'); loadDiscord(); }
+    catch (e) { toast('ผิดพลาด: ' + e.message, true); }
+  };
+  $('#ds-test').onclick = async () => {
+    try {
+      const url = $('#ds-url').value.trim();
+      if (url) await api('/settings/discord', { method: 'PUT', body: dsBody() });   // บันทึกก่อน แล้วค่อยยิงทดสอบ
+      await api('/settings/discord/test', { method: 'POST', body: {} });
+      toast('ส่งแล้ว — ไปดูในห้อง Discord'); loadDiscord();
+    } catch (e) { toast('ส่งไม่สำเร็จ: ' + e.message, true); }
+  };
+  $('#ds-clear').onclick = async () => {
+    if (!confirm('ลบ webhook ที่บันทึกไว้?')) return;
+    try { await api('/settings/discord', { method: 'PUT', body: { clear_webhook: true } }); toast('ลบแล้ว'); loadDiscord(); }
+    catch (e) { toast('ผิดพลาด: ' + e.message, true); }
+  };
+
   // ---- boot ---------------------------------------------------------------------------
   (async () => {
     try { await loadNodes(); } catch (e) { $('#banner').textContent = 'เชื่อมต่อ server ไม่ได้: ' + e.message; $('#banner').className = 'banner warn'; }
     connectWs();
     const tab = location.hash.replace('#', '');
-    showTab(['status', 'chart', 'rules', 'events', 'cam', 'sage'].includes(tab) ? tab : 'status');
+    showTab(['status', 'chart', 'rules', 'events', 'cam', 'sage', 'settings'].includes(tab) ? tab : 'status');
     if (tab === 'cam') renderCam();
     if (tab === 'sage') { renderSage(); const q = new URLSearchParams(location.search).get('analysis'); if (q) openReport(Number(q)); }
   })();

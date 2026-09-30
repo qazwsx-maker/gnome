@@ -188,7 +188,7 @@ async function onEvent(node: string, ev: any): Promise<void> {
       .filter(([k]) => k !== 'type')
       .map(([k, v]) => `${k}=${typeof v === 'object' ? JSON.stringify(v) : v}`)
       .join(' ');
-    await discord(`⚠️ **${node}** ${type}${extra ? ' — ' + extra : ''}`);
+    await discord(`⚠️ **${node}** ${type}${extra ? ' — ' + extra : ''}`, 'sensor_error');
   }
 }
 

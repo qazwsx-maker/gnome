@@ -7,6 +7,7 @@ import { startMqtt, stopMqtt, healthTick } from './mqtt.ts';
 import { reloadRules, startRules } from './rules.ts';
 import { startRetention } from './retention.ts';
 import { startHeartbeat } from './heartbeat.ts';
+import { loadSettings } from './settings.ts';
 import { startHttp } from './http.ts';
 
 const log = logger('core');
@@ -15,6 +16,7 @@ async function main() {
   log.info(`gnome-core starting (node ${process.version}, tz ${config.tz})`);
   await waitForDb();
   await migrate();
+  await loadSettings();
   await loadState();
   startMqtt();
   await reloadRules();

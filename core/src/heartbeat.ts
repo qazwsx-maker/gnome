@@ -5,6 +5,7 @@ import { logger } from './log.ts';
 import { query } from './db.ts';
 import { nodes } from './state.ts';
 import { discord } from './discord.ts';
+import { discordSettings } from './settings.ts';
 
 const log = logger('heartbeat');
 
@@ -62,13 +63,21 @@ export async function buildSummary(): Promise<string> {
   return lines.join('\n');
 }
 
+let job: Cron | null = null;
+
+/** ตั้ง/ตั้งใหม่ตารางสรุปประจำวันตามเวลาที่ผู้ใช้เลือกในหน้าตั้งค่า */
 export function startHeartbeat(): void {
-  new Cron('0 7 * * *', { timezone: config.tz }, async () => {
+  const t = discordSettings().summary_time;
+  const [h, m] = t.split(':').map((x) => Number(x));
+  const hh = Number.isFinite(h) ? Math.min(23, Math.max(0, h)) : 7;
+  const mm = Number.isFinite(m) ? Math.min(59, Math.max(0, m)) : 0;
+  job?.stop();
+  job = new Cron(`${mm} ${hh} * * *`, { timezone: config.tz }, async () => {
     try {
-      await discord(await buildSummary());
+      await discord(await buildSummary(), 'summary');
     } catch (e) {
       log.error('summary failed', (e as Error).message);
     }
   });
-  log.info(`daily summary scheduled 07:00 ${config.tz}`);
+  log.info(`daily summary scheduled ${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')} ${config.tz}`);
 }

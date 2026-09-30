@@ -271,7 +271,7 @@ async function fire(rule: Rule, via: string, ctx: Record<string, string>): Promi
       else deferred.push({ discord: text });
     }
   }
-  for (const a of deferred) if ('discord' in a) await discord(render(a.discord, ctx));
+  for (const a of deferred) if ('discord' in a) await discord(render(a.discord, ctx), 'rule');
 }
 
 async function finishRun(run: ActiveRun, reason: string): Promise<void> {
@@ -290,7 +290,7 @@ async function finishRun(run: ActiveRun, reason: string): Promise<void> {
   await recordEvent(run.node, 'rule_run_end', { rule_id: run.ruleId, switch: run.key, reason, minutes: Number(ctx.duration) });
   for (const a of run.after) {
     const text = 'discord' in a ? a.discord : 'notify' in a ? a.notify : null;
-    if (text) await discord(render(text, ctx));
+    if (text) await discord(render(text, ctx), 'rule');
   }
 }
 

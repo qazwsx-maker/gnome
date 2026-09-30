@@ -212,3 +212,7 @@ td.pl{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--ink2);
 .flab{display:block;font-size:13px;color:var(--ink2);margin-bottom:6px}
 .picker:empty::after{content:"ยังไม่มี node ที่ส่งค่าเซ็นเซอร์";color:var(--muted);font-size:13px}
 .plot-env{margin-top:10px;padding-top:10px;border-top:1px solid var(--border)}
+label.wide{margin-top:10px}
+label.wide input{width:100%}
+.chip:has(input:checked){color:var(--ink);font-weight:600;border-color:currentColor}
+.chip:has(input:checked) i{background:var(--leaf)}

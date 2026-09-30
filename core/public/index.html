@@ -19,6 +19,7 @@
       <a href="#events" data-tab="events">เหตุการณ์</a>
       <a href="#cam" data-tab="cam">กล้อง</a>
       <a href="#sage" data-tab="sage">Sage</a>
+      <a href="#settings" data-tab="settings">ตั้งค่า</a>
     </nav>
     <span id="ws" class="ws" title="การเชื่อมต่อสด"><span class="dot"></span></span>
     <button id="theme" class="icon" title="สลับธีม" aria-label="สลับธีม">◐</button>
@@ -165,6 +166,47 @@
         <thead><tr><th>เวลา</th><th>node</th><th>ชนิด</th><th>รายละเอียด</th></tr></thead>
         <tbody></tbody>
       </table>
+    </div>
+  </section>
+
+  <!-- (g) ตั้งค่า -->
+  <section id="tab-settings" class="tab">
+    <h2>ตั้งค่า</h2>
+    <div class="card">
+      <div class="row-between"><h3>แจ้งเตือนเข้า Discord</h3><span id="ds-state" class="muted small"></span></div>
+      <p class="muted small">สร้าง webhook ได้จาก Discord: ตั้งค่าห้อง → Integrations → Webhooks → New Webhook → Copy Webhook URL</p>
+
+      <label class="wide">Webhook URL
+        <input id="ds-url" type="password" autocomplete="off" placeholder="https://discord.com/api/webhooks/...">
+      </label>
+      <p class="muted small" id="ds-url-note"></p>
+
+      <div class="grid form">
+        <label>หน่วงก่อนแจ้งสถานะ node (วินาที)
+          <input id="ds-debounce" type="number" min="0" max="3600" step="10">
+        </label>
+        <label>เวลาสรุปประจำวัน <input id="ds-summary-time" type="time"></label>
+        <label>ห้ามรบกวน ตั้งแต่ <input id="ds-quiet-start" type="time"></label>
+        <label>ถึง <input id="ds-quiet-end" type="time"></label>
+      </div>
+      <p class="muted small">หน่วงสถานะ node ช่วยกันสแปมตอนสัญญาณไม่นิ่ง — จะแจ้งก็ต่อเมื่อสถานะใหม่อยู่ครบเวลาที่ตั้งไว้ ใส่ 0 = แจ้งทันที · ช่วงห้ามรบกวนใช้กับสถานะ node และเซ็นเซอร์ผิดพลาดเท่านั้น</p>
+
+      <div class="fieldset">
+        <span class="flab">เปิดรับเรื่องอะไรบ้าง</span>
+        <div class="picker">
+          <label class="chip"><input type="checkbox" id="ds-enabled"><i></i>เปิดใช้งาน</label>
+          <label class="chip"><input type="checkbox" id="ds-node"><i></i>node ออนไลน์/ออฟไลน์</label>
+          <label class="chip"><input type="checkbox" id="ds-sensor"><i></i>เซ็นเซอร์ผิดพลาด</label>
+          <label class="chip"><input type="checkbox" id="ds-rules"><i></i>กฎอัตโนมัติ</label>
+          <label class="chip"><input type="checkbox" id="ds-summary"><i></i>สรุปประจำวัน</label>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:12px">
+        <button id="ds-save" class="primary">บันทึก</button>
+        <button id="ds-test">ส่งข้อความทดสอบ</button>
+        <button id="ds-clear" class="ghost danger">ลบ webhook</button>
+      </div>
     </div>
   </section>
 </main>

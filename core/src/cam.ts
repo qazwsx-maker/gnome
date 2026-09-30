@@ -79,16 +79,20 @@ export async function registerCam(app: FastifyInstance): Promise<void> {
 
   // list cam nodes with latest snapshot + stream url
   app.get('/api/cam', async () => {
-    const latest = await query<{ node: string; ts: Date; path: string; bytes: number; cnt: string }>(
+    const latest = await query<{ node: string; ts: Date; path: string; bytes: number; caption: string | null; mood: string | null; cnt: string }>(
       `SELECT DISTINCT ON (node) node, ts, path, bytes, caption, mood, (SELECT count(*) FROM snapshots s2 WHERE s2.node = s.node) AS cnt FROM snapshots s ORDER BY node, ts DESC`);
+    // ข้อความล่าสุดที่โหมดคิดสรุปไว้ (ไม่จำเป็นต้องเป็นภาพล่าสุด เพราะเว้นระยะการคิด)
+    const glances = await query<{ node: string; ts: Date; caption: string; mood: string }>(
+      `SELECT DISTINCT ON (node) node, ts, caption, mood FROM snapshots WHERE caption IS NOT NULL ORDER BY node, ts DESC`);
+    const lastGlance = new Map(glances.rows.map((g) => [g.node, { ts: g.ts.toISOString(), caption: g.caption, mood: g.mood }]));
     const angles = await query<{ node: string; angle: number; cnt: string }>(
       `SELECT node, angle, count(*) AS cnt FROM snapshots WHERE angle IS NOT NULL GROUP BY node, angle ORDER BY node, angle`);
     const byNode = new Map<string, { angle: number; count: number }[]>();
     for (const a of angles.rows) { if (!byNode.has(a.node)) byNode.set(a.node, []); byNode.get(a.node)!.push({ angle: a.angle, count: Number(a.cnt) }); }
     const out: any[] = [];
     const seen = new Set<string>();
-    for (const r of latest.rows) { seen.add(r.node); const n = nodes.get(r.node); out.push({ node: r.node, online: n?.online ?? false, ip: n?.ip ?? null, cam: n?.meta?.cam ?? null, latest: { ts: r.ts.toISOString(), url: `/cam/${r.path}`, bytes: r.bytes }, count: Number(r.cnt), angles: byNode.get(r.node) || [] }); }
-    for (const n of nodes.values()) if (n.role === 'cam' && !seen.has(n.node)) out.push({ node: n.node, online: n.online, ip: n.ip, cam: n.meta?.cam ?? null, latest: null, count: 0, angles: [] });
+    for (const r of latest.rows) { seen.add(r.node); const n = nodes.get(r.node); out.push({ node: r.node, online: n?.online ?? false, ip: n?.ip ?? null, cam: n?.meta?.cam ?? null, latest: { ts: r.ts.toISOString(), url: `/cam/${r.path}`, bytes: r.bytes, caption: r.caption, mood: r.mood }, count: Number(r.cnt), angles: byNode.get(r.node) || [], last_glance: lastGlance.get(r.node) || null }); }
+    for (const n of nodes.values()) if (n.role === 'cam' && !seen.has(n.node)) out.push({ node: n.node, online: n.online, ip: n.ip, cam: n.meta?.cam ?? null, latest: null, count: 0, angles: [], last_glance: null });
     return out.sort((a, b) => a.node.localeCompare(b.node));
   });
 
@@ -101,11 +105,12 @@ export async function registerCam(app: FastifyInstance): Promise<void> {
   app.get<{ Params: { node: string }; Querystring: { day?: string; limit?: string; since?: string } }>('/api/cam/:node/snapshots', async (req) => {
     const { node } = req.params; const limit = Math.min(2000, Number(req.query.limit) || 500);
     let r;
-    if (req.query.day) r = await query<{ id: number; ts: Date; path: string; bytes: number; angle: number | null }>(
+    type Row = { id: number; ts: Date; path: string; bytes: number; angle: number | null; caption: string | null; mood: string | null };
+    if (req.query.day) r = await query<Row>(
       `SELECT id, ts, path, bytes, angle, caption, mood FROM snapshots WHERE node = $1 AND to_char(ts AT TIME ZONE $3, 'YYYY-MM-DD') = $2 ORDER BY ts ASC LIMIT $4`, [node, req.query.day, config.tz, limit]);
-    else r = await query<{ id: number; ts: Date; path: string; bytes: number; angle: number | null }>(
+    else r = await query<Row>(
       `SELECT id, ts, path, bytes, angle, caption, mood FROM snapshots WHERE node = $1 ${req.query.since ? 'AND ts > $3' : ''} ORDER BY ts DESC LIMIT $2`, req.query.since ? [node, limit, req.query.since] : [node, limit]);
-    return r.rows.map((x) => ({ id: x.id, ts: x.ts.toISOString(), url: `/cam/${x.path}`, bytes: x.bytes, angle: x.angle }));
+    return r.rows.map((x) => ({ id: x.id, ts: x.ts.toISOString(), url: `/cam/${x.path}`, bytes: x.bytes, angle: x.angle, caption: x.caption, mood: x.mood }));
   });
 
   // ลบภาพ: ทั้งหมด หรือเฉพาะวัน (?day=YYYY-MM-DD) หรือก่อนเวลา (?before=ISO)

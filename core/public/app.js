@@ -79,7 +79,9 @@
   // ---- (e) กล้อง / Watcher ---------------------------------------------------
   const camState = { list: [], day: {}, frames: {}, playing: {} };
   const MOOD_ICON = { happy: '🙂', hot: '🥵', sleepy: '😴', thirsty: '🥀', rain: '🌧', sick: '🤒' };
-  const capLine = (o) => (o && o.caption ? `<div class="cam-cap">${MOOD_ICON[o.mood] || '👁'} ${esc(o.caption)}</div>` : '<div class="cam-cap"></div>');
+  const capLine = (o) => (o && o.caption
+    ? `<div class="cam-cap">${MOOD_ICON[o.mood] || '👁'} ${esc(o.caption)}${o.ts ? ` <span class="muted">· ${esc(fmtTs(o.ts).slice(-8))}</span>` : ''}</div>`
+    : '<div class="cam-cap"></div>');
   async function renderCam() {
     try { camState.list = await api('/cam'); } catch (e) { toast('โหลดกล้องไม่ได้: ' + e.message, true); return; }
     $('#cam-empty').classList.toggle('hidden', camState.list.length > 0);
@@ -87,7 +89,7 @@
       <div class="head"><span class="status-dot ${c.online ? 'on' : ''}"></span><span class="name">${esc(c.node)}</span><span class="badge cam">watcher</span>
         <span class="muted small" style="margin-left:auto">${c.latest ? esc(ago(c.latest.ts)) : 'ยังไม่มีภาพ'} · ${c.count} ภาพ</span></div>
       <div class="cam-view"><img class="cam-img" src="${c.latest ? esc(c.latest.url) : ''}" alt="" style="${c.latest ? '' : 'display:none'}"><div class="cam-ts muted small">${c.latest ? esc(fmtTs(c.latest.ts)) : ''}</div></div>
-      ${capLine(c.latest)}
+      ${capLine(c.last_glance)}
       <div class="row">
         <button class="small" data-snap="1" ${c.online ? '' : 'disabled'}>📸 ถ่ายตอนนี้</button>
         <button class="small" data-live="1" ${c.online ? '' : 'disabled'}>▶ ดูสด</button>
@@ -130,13 +132,13 @@
     const img = $('.cam-img', card); if (camState.live?.[m.node]) { camState.live[m.node] = m.url; return; } img.src = m.url; img.style.display = '';
     $('.cam-ts', card).textContent = fmtTs(m.ts);
     const c = camState.list.find((x) => x.node === m.node); if (c) { c.latest = { ts: m.ts, url: m.url }; c.count++; }
-    const cap = $('.cam-cap', card); if (cap) cap.textContent = '';
+
     const today = camState.day[m.node]; if (today && m.ts.startsWith(today) === false) return; if (today) loadFrames(m.node, today);
   }
   function onGlance(m) {
     const card = $(`.cam-card[data-node="${m.node}"]`); if (!card) return;
-    const cap = $('.cam-cap', card); if (cap) cap.innerHTML = `${MOOD_ICON[m.mood] || '👁'} ${esc(m.caption)}`;
-    const c = camState.list.find((x) => x.node === m.node); if (c?.latest) { c.latest.caption = m.caption; c.latest.mood = m.mood; }
+    const cap = $('.cam-cap', card); if (cap) cap.innerHTML = `${MOOD_ICON[m.mood] || '👁'} ${esc(m.caption)} <span class="muted">· ${esc(fmtTs(new Date().toISOString()).slice(-8))}</span>`;
+    const c = camState.list.find((x) => x.node === m.node); if (c) c.last_glance = { ts: new Date().toISOString(), caption: m.caption, mood: m.mood };
     const fr = camState.frames[m.node]?.find((f) => f.id === m.id); if (fr) { fr.caption = m.caption; fr.mood = m.mood; }
   }
   $('#cam-list').addEventListener('input', (e) => { const r = e.target.closest('.pan-range'); if (r) $('.pan-val', r.closest('.pan')).textContent = r.value + '°'; });

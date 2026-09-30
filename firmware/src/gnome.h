@@ -45,6 +45,10 @@ int  roleStats(StatItem* out, int max);
 // ---- อารมณ์ของภูต (หน้าบนจอ OLED) ----
 enum Mood { MOOD_HAPPY, MOOD_HOT, MOOD_SLEEPY, MOOD_THIRSTY, MOOD_RAIN, MOOD_SICK, MOOD_WATERING, MOOD_FAN };
 Mood roleMood();
+Mood moodFromName(const String& name);     // แปลงชื่ออารมณ์จาก Hut เป็น enum
+
+// ข้อความสั้นจาก Hut ที่อยากให้จอโชว์ (โหมดคิดของ Watcher) — "" = ไม่มี
+String roleCaption();
 
 // ---- display (OLED) ----
 void displaySetup();

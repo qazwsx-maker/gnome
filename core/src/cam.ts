@@ -10,6 +10,7 @@ import { bus } from './bus.ts';
 import { nodes, touch, getNode } from './state.ts';
 import { sendCmd } from './mqtt.ts';
 import { Readable } from 'node:stream';
+import { glanceOnSnapshot } from './glance.ts';
 
 const log = logger('cam');
 const NODE_RE = /^[a-z0-9-]+$/;
@@ -42,6 +43,7 @@ export async function registerCam(app: FastifyInstance): Promise<void> {
     const n = getNode(node); if (!n.role) n.role = 'cam'; touch(node);
     const url = `/cam/${rel}`;
     bus.live({ type: 'snapshot', node, ts: now.toISOString(), url, bytes: buf.length, id: r.rows[0].id, angle } as any);
+    glanceOnSnapshot(node, r.rows[0].id, rel);     // โหมดคิด — ทำเบื้องหลัง ไม่ให้ node รอ
     log.info(`${node} snapshot ${buf.length} B -> ${rel}${reason ? ' (' + reason + ')' : ''}`);
     return { ok: true, id: r.rows[0].id, url, bytes: buf.length };
   });
@@ -78,7 +80,7 @@ export async function registerCam(app: FastifyInstance): Promise<void> {
   // list cam nodes with latest snapshot + stream url
   app.get('/api/cam', async () => {
     const latest = await query<{ node: string; ts: Date; path: string; bytes: number; cnt: string }>(
-      `SELECT DISTINCT ON (node) node, ts, path, bytes, (SELECT count(*) FROM snapshots s2 WHERE s2.node = s.node) AS cnt FROM snapshots s ORDER BY node, ts DESC`);
+      `SELECT DISTINCT ON (node) node, ts, path, bytes, caption, mood, (SELECT count(*) FROM snapshots s2 WHERE s2.node = s.node) AS cnt FROM snapshots s ORDER BY node, ts DESC`);
     const angles = await query<{ node: string; angle: number; cnt: string }>(
       `SELECT node, angle, count(*) AS cnt FROM snapshots WHERE angle IS NOT NULL GROUP BY node, angle ORDER BY node, angle`);
     const byNode = new Map<string, { angle: number; count: number }[]>();
@@ -100,9 +102,9 @@ export async function registerCam(app: FastifyInstance): Promise<void> {
     const { node } = req.params; const limit = Math.min(2000, Number(req.query.limit) || 500);
     let r;
     if (req.query.day) r = await query<{ id: number; ts: Date; path: string; bytes: number; angle: number | null }>(
-      `SELECT id, ts, path, bytes, angle FROM snapshots WHERE node = $1 AND to_char(ts AT TIME ZONE $3, 'YYYY-MM-DD') = $2 ORDER BY ts ASC LIMIT $4`, [node, req.query.day, config.tz, limit]);
+      `SELECT id, ts, path, bytes, angle, caption, mood FROM snapshots WHERE node = $1 AND to_char(ts AT TIME ZONE $3, 'YYYY-MM-DD') = $2 ORDER BY ts ASC LIMIT $4`, [node, req.query.day, config.tz, limit]);
     else r = await query<{ id: number; ts: Date; path: string; bytes: number; angle: number | null }>(
-      `SELECT id, ts, path, bytes, angle FROM snapshots WHERE node = $1 ${req.query.since ? 'AND ts > $3' : ''} ORDER BY ts DESC LIMIT $2`, req.query.since ? [node, limit, req.query.since] : [node, limit]);
+      `SELECT id, ts, path, bytes, angle, caption, mood FROM snapshots WHERE node = $1 ${req.query.since ? 'AND ts > $3' : ''} ORDER BY ts DESC LIMIT $2`, req.query.since ? [node, limit, req.query.since] : [node, limit]);
     return r.rows.map((x) => ({ id: x.id, ts: x.ts.toISOString(), url: `/cam/${x.path}`, bytes: x.bytes, angle: x.angle }));
   });
 

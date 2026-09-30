@@ -59,7 +59,7 @@
     if (name === 'chart') chart.load();
     if (name === 'events') loadEvents();
     if (name === 'rules') loadRules();
-    if (name === 'settings') loadDiscord();
+    if (name === 'settings') { loadDiscord(); loadGlance(); }
   };
   $$('#tabs a').forEach((a) => (a.onclick = (e) => { e.preventDefault(); location.hash = a.dataset.tab; showTab(a.dataset.tab); }));
 
@@ -78,6 +78,8 @@
 
   // ---- (e) กล้อง / Watcher ---------------------------------------------------
   const camState = { list: [], day: {}, frames: {}, playing: {} };
+  const MOOD_ICON = { happy: '🙂', hot: '🥵', sleepy: '😴', thirsty: '🥀', rain: '🌧', sick: '🤒' };
+  const capLine = (o) => (o && o.caption ? `<div class="cam-cap">${MOOD_ICON[o.mood] || '👁'} ${esc(o.caption)}</div>` : '<div class="cam-cap"></div>');
   async function renderCam() {
     try { camState.list = await api('/cam'); } catch (e) { toast('โหลดกล้องไม่ได้: ' + e.message, true); return; }
     $('#cam-empty').classList.toggle('hidden', camState.list.length > 0);
@@ -85,6 +87,7 @@
       <div class="head"><span class="status-dot ${c.online ? 'on' : ''}"></span><span class="name">${esc(c.node)}</span><span class="badge cam">watcher</span>
         <span class="muted small" style="margin-left:auto">${c.latest ? esc(ago(c.latest.ts)) : 'ยังไม่มีภาพ'} · ${c.count} ภาพ</span></div>
       <div class="cam-view"><img class="cam-img" src="${c.latest ? esc(c.latest.url) : ''}" alt="" style="${c.latest ? '' : 'display:none'}"><div class="cam-ts muted small">${c.latest ? esc(fmtTs(c.latest.ts)) : ''}</div></div>
+      ${capLine(c.latest)}
       <div class="row">
         <button class="small" data-snap="1" ${c.online ? '' : 'disabled'}>📸 ถ่ายตอนนี้</button>
         <button class="small" data-live="1" ${c.online ? '' : 'disabled'}>▶ ดูสด</button>
@@ -118,7 +121,7 @@
     const frames = await api(`/cam/${node}/snapshots?day=${day}`).catch(() => []);
     camState.frames[node] = frames; camState.day[node] = day;
     $('[data-play]', card).disabled = frames.length < 2;
-    $('.film', card).innerHTML = frames.slice(-40).map((f, i) => `<img src="${esc(f.url)}" title="${esc(fmtTs(f.ts))}" data-i="${frames.length - Math.min(40, frames.length) + i}" loading="lazy">`).join('');
+    $('.film', card).innerHTML = frames.slice(-40).map((f, i) => `<img src="${esc(f.url)}" title="${esc(fmtTs(f.ts))}${f.caption ? ' — ' + esc(f.caption) : ''}" data-i="${frames.length - Math.min(40, frames.length) + i}" loading="lazy">`).join('');
     $('.cam-prog', card).textContent = `${frames.length} ภาพ`;
   }
   function onSnapshot(m) {
@@ -127,7 +130,14 @@
     const img = $('.cam-img', card); if (camState.live?.[m.node]) { camState.live[m.node] = m.url; return; } img.src = m.url; img.style.display = '';
     $('.cam-ts', card).textContent = fmtTs(m.ts);
     const c = camState.list.find((x) => x.node === m.node); if (c) { c.latest = { ts: m.ts, url: m.url }; c.count++; }
+    const cap = $('.cam-cap', card); if (cap) cap.textContent = '';
     const today = camState.day[m.node]; if (today && m.ts.startsWith(today) === false) return; if (today) loadFrames(m.node, today);
+  }
+  function onGlance(m) {
+    const card = $(`.cam-card[data-node="${m.node}"]`); if (!card) return;
+    const cap = $('.cam-cap', card); if (cap) cap.innerHTML = `${MOOD_ICON[m.mood] || '👁'} ${esc(m.caption)}`;
+    const c = camState.list.find((x) => x.node === m.node); if (c?.latest) { c.latest.caption = m.caption; c.latest.mood = m.mood; }
+    const fr = camState.frames[m.node]?.find((f) => f.id === m.id); if (fr) { fr.caption = m.caption; fr.mood = m.mood; }
   }
   $('#cam-list').addEventListener('input', (e) => { const r = e.target.closest('.pan-range'); if (r) $('.pan-val', r.closest('.pan')).textContent = r.value + '°'; });
   $('#cam-list').addEventListener('change', async (e) => {
@@ -874,6 +884,7 @@
         case 'debug': if (!n) return loadNodes(); n.debug = { ...m.debug, ts: m.ts }; if (m.debug.ip) n.ip = m.debug.ip; n.last_seen = m.ts; renderStatus(); break;
         case 'node': loadNodes(); break;
         case 'snapshot': onSnapshot(m); break;
+        case 'glance': onGlance(m); break;
         case 'sage': onSageProgress(m); break;
         case 'event': events.unshift({ id: m.id, ts: m.ts, node: m.node, type: m.event, payload: m.payload }); events = events.slice(0, 200); if ($('#tab-events').classList.contains('active')) renderEvents(); break;
         case 'rules': if ($('#tab-rules').classList.contains('active')) loadRules(); break;
@@ -948,6 +959,38 @@
     if (!confirm('ลบ webhook ที่บันทึกไว้?')) return;
     try { await api('/settings/discord', { method: 'PUT', body: { clear_webhook: true } }); toast('ลบแล้ว'); loadDiscord(); }
     catch (e) { toast('ผิดพลาด: ' + e.message, true); }
+  };
+
+
+  // ---- โหมดคิดของกล้อง ----------------------------------------------------------
+  const glPick = new Set();
+  async function loadGlance() {
+    try {
+      const g = await api('/settings/glance');
+      $('#gl-enabled').checked = !!g.enabled;
+      $('#gl-gap').value = g.min_gap_s;
+      $('#gl-ttl').value = g.ttl_s;
+      glPick.clear(); (g.nodes || []).forEach((n) => glPick.add(n));
+      const cams = g.cam_nodes || [];
+      $('#gl-nodes').innerHTML = cams.length
+        ? cams.map((n) => `<label class="chip"><input type="checkbox" data-node="${esc(n)}"${glPick.has(n) ? ' checked' : ''}><i></i>${esc(n)}</label>`).join('')
+        : '<span class="muted small">ยังไม่มี node กล้องส่งข้อมูลเข้ามา</span>';
+      $$('#gl-nodes input').forEach((el) => (el.onchange = () => { el.checked ? glPick.add(el.dataset.node) : glPick.delete(el.dataset.node); }));
+      const perDay = Math.floor(86400 / Math.max(1, g.min_gap_s));
+      $('#gl-note').textContent = g.ready
+        ? `ใช้โมเดล ${g.model} · เว้นเท่านี้จะคิดได้มากสุดราว ${perDay} ครั้ง/วัน/กล้อง`
+        : 'ยังใช้ไม่ได้ — ต้องใส่ ANTHROPIC_API_KEY ใน infra/.env แล้วรีสตาร์ท Hut';
+      $('#gl-state').textContent = !g.ready ? 'ยังไม่ได้ตั้งค่า AI' : g.enabled && g.nodes.length ? `🟢 เปิดอยู่ (${g.nodes.join(', ')})` : '⚪️ ปิดอยู่';
+    } catch (e) { toast('โหลดโหมดคิดไม่ได้: ' + e.message, true); }
+  }
+  $('#gl-save').onclick = async () => {
+    try {
+      await api('/settings/glance', { method: 'PUT', body: {
+        enabled: $('#gl-enabled').checked, nodes: [...glPick],
+        min_gap_s: Number($('#gl-gap').value || 900), ttl_s: Number($('#gl-ttl').value || 1800),
+      } });
+      toast('บันทึกแล้ว'); loadGlance();
+    } catch (e) { toast('ผิดพลาด: ' + e.message, true); }
   };
 
   // ---- boot ---------------------------------------------------------------------------

@@ -129,6 +129,12 @@ static esp_err_t streamHandler(httpd_req_t* req) {
   }
   return ESP_OK;
 }
+// ---- โหมดคิด: ข้อความ + อารมณ์ที่ Hut ส่งกลับมาหลังดูภาพ ----
+static String glanceText;          // ข้อความอังกฤษสั้นๆ ที่จะขึ้นจอ
+static Mood   glanceMood = MOOD_HAPPY;
+static uint32_t glanceUntil = 0;   // millis() ที่ข้อความหมดอายุ (0 = ไม่มี)
+static bool glanceValid() { return glanceUntil && (int32_t)(glanceUntil - millis()) > 0; }
+
 static void startStream() {
   httpd_config_t c = HTTPD_DEFAULT_CONFIG(); c.server_port = 81; c.ctrl_port = 32781; c.max_uri_handlers = 4;
   if (httpd_start(&streamd, &c) != ESP_OK) { Serial.println("[cam] stream server failed"); return; }
@@ -192,7 +198,10 @@ void roleLoop() {
 
 void roleOnMqttConnect() {
   mqttPublish("sensor/snapshot_kb/meta", "{\"unit\":\"kB\",\"src\":\"ov2640\"}", true, 1);
-  lastShot = 0;   // ถ่ายทันทีหลังต่อ MQTT ได้
+  // ถ่ายทันทีเฉพาะครั้งแรกหลังบูตเท่านั้น
+  // ถ้าถ่ายทุกครั้งที่ต่อใหม่ การอัปโหลดที่ช้าจะบล็อกลูปจน MQTT หลุด แล้ววนเป็นลูปไม่รู้จบ
+  static bool firstConnect = true;
+  if (firstConnect) { firstConnect = false; lastShot = 0; }
 }
 
 void roleMeta(JsonObject meta) {
@@ -212,16 +221,23 @@ void roleStatus(JsonObject st) {
   cam["uploads"] = uploads; cam["fails"] = fails; cam["last_code"] = lastCode; cam["last_kb"] = lastBytes / 1024;
   cam["last_upload_s_ago"] = lastUploadMs ? (int)((millis() - lastUploadMs) / 1000) : -1; cam["hut"] = hutBase(); cam["flash"] = flashOn;
   cam["servo"] = cfg.servoPin >= 0; cam["angle"] = cfg.servoAngle; cam["servo_pin"] = cfg.servoPin;
+  JsonObject gl = st["glance"].to<JsonObject>();     // โหมดคิด — ไว้ตรวจจากภายนอกว่าข้อความถึงจอจริงไหม
+  gl["active"] = glanceValid();
+  gl["text"] = glanceText;
+  gl["left_s"] = glanceValid() ? (int)((glanceUntil - millis()) / 1000) : 0;
   JsonArray pre = cam["presets"].to<JsonArray>();
   for (int i = 0; i < cfg.presetCount; i++) { JsonObject p = pre.add<JsonObject>(); p["name"] = cfg.preset[i].name; p["angle"] = cfg.preset[i].angle; }
 }
 
 Mood roleMood() {
-  if (!camOk) return MOOD_SICK;
+  if (!camOk) return MOOD_SICK;                                     // ของจริงที่พังมาก่อนเสมอ
   if (!mqttIsConnected() && cfg.mqttHost.length()) return MOOD_SICK;
+  if (glanceValid()) return glanceMood;                             // โหมดคิด: อารมณ์ตามภาพที่เห็น
   if (fails > uploads && fails > 2) return MOOD_THIRSTY;
   return MOOD_HAPPY;
 }
+
+String roleCaption() { return glanceValid() ? glanceText : String(); }
 int roleDisplayLines(String* lines, int, int) { lines[0] = String("shots ") + uploads + " fail " + fails; lines[1] = String("last ") + (lastBytes / 1024) + "kB " + lastCode + (cfg.servoPin >= 0 ? String("  ") + cfg.servoAngle + "\xB0" : ""); return 2; }
 
 int roleStats(StatItem* out, int max) {
@@ -247,6 +263,20 @@ bool roleCommand(const String& sub, const String& payload) {
     return true;
   }
   if (sub == "cmd/patrol") { int n = patrol("patrol"); mqttEvent("patrol", "\"shots\":" + String(n)); return true; }
+  if (sub == "cmd/glance") {
+    // {"text":"gerbera in bloom","mood":"happy","ttl_s":900}  — ttl_s = 0 คือล้างทิ้ง
+    JsonDocument d;
+    if (deserializeJson(d, payload)) { mqttEvent("glance_error"); return true; }
+    String txt = d["text"] | "";
+    int ttl = d["ttl_s"] | 900;
+    if (txt.length() > 64) txt = txt.substring(0, 64);
+    if (!txt.length() || ttl <= 0) { glanceUntil = 0; glanceText = ""; return true; }
+    glanceText = txt;
+    glanceMood = moodFromName(d["mood"] | "happy");
+    glanceUntil = millis() + (uint32_t)ttl * 1000;
+    if (glanceUntil == 0) glanceUntil = 1;    // กันค่า 0 ที่แปลว่า "ไม่มี" ตอน millis วน
+    return true;
+  }
   return false;
 }
 bool roleWebSwitch(const String& key, bool on, int seconds) {

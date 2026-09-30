@@ -292,6 +292,44 @@ static void drawStatus() {
   u8->setFont(u8g2_font_4x6_tf); u8->drawStr(128 - 4 * strlen(up), 64, up);
 }
 
+Mood moodFromName(const String& name) {
+  String n = name; n.toLowerCase(); n.trim();
+  if (n == "hot") return MOOD_HOT;
+  if (n == "sleepy" || n == "dark" || n == "night") return MOOD_SLEEPY;
+  if (n == "thirsty" || n == "dry" || n == "wilting") return MOOD_THIRSTY;
+  if (n == "rain" || n == "wet") return MOOD_RAIN;
+  if (n == "sick" || n == "sad" || n == "unhappy") return MOOD_SICK;
+  if (n == "watering") return MOOD_WATERING;
+  if (n == "fan" || n == "windy") return MOOD_FAN;
+  return MOOD_HAPPY;
+}
+
+// ---------------- หน้าข้อความจากโหมดคิด ----------------
+// ตัดคำตามช่องว่างให้พอดี 128 px แล้ววางกลางจอ พร้อมกรอบลูกโป่งความคิด
+static void drawCaption(const String& text) {
+  u8->setFont(u8g2_font_6x12_tf);
+  const int CPL = 20;                 // 6 px/ตัว เว้นขอบข้างละ 4 px
+  String lines[4]; int n = 0;
+  String rest = text; rest.trim();
+  while (rest.length() && n < 4) {
+    if ((int)rest.length() <= CPL) { lines[n++] = rest; break; }
+    int cut = -1;
+    for (int i = CPL; i > 0; i--) if (rest[i] == ' ') { cut = i; break; }
+    if (cut <= 0) cut = CPL;          // คำเดียวยาวเกิน ตัดดื้อๆ
+    lines[n++] = rest.substring(0, cut);
+    rest = rest.substring(cut); rest.trim();
+  }
+  u8->drawRFrame(0, 10, 128, 12 * n + 10, 6);
+  u8->drawDisc(12, 10 + 12 * n + 13, 3);
+  u8->drawDisc(6, 10 + 12 * n + 18, 2);
+  for (int i = 0; i < n; i++) {
+    const int w = 6 * lines[i].length();
+    u8->drawStr((128 - w) / 2, 24 + i * 12, lines[i].c_str());
+  }
+  u8->setFont(u8g2_font_4x6_tf);
+  u8->drawStr(4, 8, "I SEE");
+}
+
 // ---------------- setup / loop ----------------
 void displaySetup() {
   if (u8) { delete u8; u8 = nullptr; }
@@ -320,17 +358,22 @@ void displayLoop() {
 
   static uint8_t step = 0; static uint32_t pageAt = 0;
   StatItem stats[8]; const int nStat = roleStats(stats, 8);
+  const String cap = roleCaption();
+  // ลำดับหน้า: หน้าตา สลับกับ ค่าแต่ละตัว → สถานะ → ข้อความจากโหมดคิด (ถ้ามี)
+  const int nPage = nStat + 1 + (cap.length() ? 1 : 0);
   const bool facePage = (step % 2) == 0;
   if (pageAt == 0) pageAt = now;
-  if (now - pageAt > (uint32_t)(facePage ? 5000 : 3500)) { pageAt = now; step = (step + 1) % (uint8_t)(2 * (nStat + 1)); }
+  if (now - pageAt > (uint32_t)(facePage ? 5000 : 3500)) { pageAt = now; step = (step + 1) % (uint8_t)(2 * nPage); }
 
   faceUpdate(dt);
   u8->clearBuffer();
   u8->setDrawColor(1);
   if (facePage) drawFace();
   else {
-    const int idx = (step / 2) % (nStat + 1);
-    if (idx < nStat) drawStat(stats[idx]); else drawStatus();
+    const int idx = (step / 2) % nPage;
+    if (idx < nStat) drawStat(stats[idx]);
+    else if (idx == nStat) drawStatus();
+    else drawCaption(cap);
   }
   u8->sendBuffer();
 }

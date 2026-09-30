@@ -122,4 +122,5 @@ int roleStats(StatItem* out, int max) {
 
 bool roleWebSwitch(const String& key, bool on, int seconds) { int i = findSw(key); if (i < 0) return false; setSwitch(i, on, seconds, "web"); return true; }
 void roleRescan() {}
+String roleCaption() { return String(); }
 #endif

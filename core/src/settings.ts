@@ -74,3 +74,40 @@ export function inQuietHours(s: DiscordSettings, now = new Date()): boolean {
   const a = s.quiet_start, b = s.quiet_end;
   return a <= b ? hhmm >= a && hhmm < b : hhmm >= a || hhmm < b;
 }
+
+// ---- โหมดคิดของ Watcher ----------------------------------------------------
+export type GlanceSettings = {
+  enabled: boolean;
+  /** node กล้องที่เปิดโหมดคิด (ว่าง = ไม่เปิดกับใครเลย) */
+  nodes: string[];
+  /** เว้นอย่างน้อยกี่วินาทีระหว่างการคิดสองครั้งของ node เดียวกัน — คุมค่าโมเดล */
+  min_gap_s: number;
+  /** ข้อความอยู่บนจอได้นานแค่ไหน */
+  ttl_s: number;
+};
+
+const GLANCE_DEFAULTS: GlanceSettings = { enabled: false, nodes: [], min_gap_s: 900, ttl_s: 1800 };
+
+export function glanceSettings(): GlanceSettings {
+  const s = { ...GLANCE_DEFAULTS, ...(cache.get('glance') || {}) } as GlanceSettings;
+  if (!Array.isArray(s.nodes)) s.nodes = [];
+  s.nodes = s.nodes.filter((n) => typeof n === 'string').slice(0, 8);
+  for (const k of ['min_gap_s', 'ttl_s'] as const) {
+    const v = Number(s[k]);
+    s[k] = Number.isFinite(v) && v > 0 ? Math.floor(v) : GLANCE_DEFAULTS[k];
+  }
+  s.min_gap_s = Math.min(86400, Math.max(30, s.min_gap_s));
+  s.ttl_s = Math.min(86400, Math.max(60, s.ttl_s));
+  return s;
+}
+
+export async function saveGlanceSettings(patch: Partial<GlanceSettings>): Promise<GlanceSettings> {
+  const next = { ...glanceSettings(), ...patch };
+  await query(
+    `INSERT INTO settings(key, value) VALUES ('glance', $1::jsonb)
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
+    [JSON.stringify(next)],
+  );
+  cache.set('glance', next);
+  return next;
+}

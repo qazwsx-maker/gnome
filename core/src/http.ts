@@ -13,7 +13,8 @@ import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs';
 import { registerCam } from './cam.ts';
 import { registerSage } from './sage.ts';
 import { registerAuth } from './auth.ts';
-import { discordSettings, saveDiscordSettings } from './settings.ts';
+import { discordSettings, saveDiscordSettings, glanceSettings, saveGlanceSettings } from './settings.ts';
+import { glanceReady, clearGlance } from './glance.ts';
 import { discord, webhookUrl } from './discord.ts';
 import { startHeartbeat } from './heartbeat.ts';
 import { join } from 'node:path';
@@ -335,6 +336,37 @@ export async function startHttp() {
     if (!webhookUrl()) return bad(reply, 'ยังไม่ได้ตั้ง webhook');
     const ok = await discord(`🧪 ทดสอบจาก **GNOME Hut** — ${new Date().toLocaleString('th-TH', { timeZone: config.tz })}`, 'test');
     return ok ? { ok: true } : reply.code(502).send({ error: 'ส่งไม่สำเร็จ — ตรวจว่า webhook ยังใช้ได้อยู่' });
+  });
+
+  // ---- โหมดคิดของ Watcher --------------------------------------------------
+  app.get('/api/settings/glance', async () => ({
+    ...glanceSettings(),
+    ready: glanceReady(),
+    model: config.sageModel,
+    cam_nodes: [...nodes.values()].filter((n) => n.role === 'cam').map((n) => n.node).sort(),
+  }));
+
+  app.put<{ Body: Record<string, unknown> }>('/api/settings/glance', async (req, reply) => {
+    const b = req.body || {};
+    const patch: Record<string, unknown> = {};
+    if (typeof b.enabled === 'boolean') patch.enabled = b.enabled;
+    if (b.nodes !== undefined) {
+      if (!Array.isArray(b.nodes) || b.nodes.some((n) => typeof n !== 'string' || !NODE_RE.test(n))) return bad(reply, 'nodes ไม่ถูกต้อง');
+      patch.nodes = (b.nodes as string[]).slice(0, 8);
+    }
+    for (const [k, lo, hi] of [['min_gap_s', 30, 86400], ['ttl_s', 60, 86400]] as const) {
+      if (b[k] === undefined) continue;
+      const v = Number(b[k]);
+      if (!Number.isFinite(v) || v < lo || v > hi) return bad(reply, `${k} ต้องอยู่ระหว่าง ${lo}–${hi} วินาที`);
+      patch[k] = Math.floor(v);
+    }
+    const before = glanceSettings();
+    const next = await saveGlanceSettings(patch);
+    // node ที่ถูกปิดไป ให้ล้างข้อความบนจอทิ้ง จะได้ไม่ค้างคำเก่า
+    const off = before.nodes.filter((n) => !next.enabled || !next.nodes.includes(n));
+    for (const n of off) await clearGlance(n).catch(() => {});
+    log.info(`glance settings updated (enabled=${next.enabled}, nodes=${next.nodes.join(',') || '-'})`);
+    return next;
   });
 
   app.get('/api/rules', async () => listRules());

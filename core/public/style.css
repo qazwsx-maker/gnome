@@ -216,3 +216,4 @@ label.wide{margin-top:10px}
 label.wide input{width:100%}
 .chip:has(input:checked){color:var(--ink);font-weight:600;border-color:currentColor}
 .chip:has(input:checked) i{background:var(--leaf)}
+.cam-cap{min-height:18px;font-size:13px;color:var(--ink2);margin:4px 0 2px;line-height:1.35}

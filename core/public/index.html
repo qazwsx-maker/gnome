@@ -208,6 +208,27 @@
         <button id="ds-clear" class="ghost danger">ลบ webhook</button>
       </div>
     </div>
+
+    <div class="card">
+      <div class="row-between"><h3>โหมดคิดของกล้อง</h3><span id="gl-state" class="muted small"></span></div>
+      <p class="muted small">ทุกครั้งที่ Watcher ส่งภาพขึ้น Hut จะให้ AI ดูภาพแล้วสรุปเป็นข้อความอังกฤษสั้นๆ 1 บรรทัดว่าเห็นอะไร ส่งกลับไปขึ้นจอของ node พร้อมกำหนดอารมณ์บนหน้าภูต</p>
+
+      <div class="fieldset">
+        <span class="flab">เปิดกับกล้องตัวไหน</span>
+        <div class="picker">
+          <label class="chip"><input type="checkbox" id="gl-enabled"><i></i>เปิดโหมดคิด</label>
+        </div>
+        <div id="gl-nodes" class="picker" style="margin-top:6px"></div>
+      </div>
+
+      <div class="grid form">
+        <label>เว้นระยะระหว่างคิด (วินาที) <input id="gl-gap" type="number" min="30" max="86400" step="30"></label>
+        <label>ข้อความอยู่บนจอนาน (วินาที) <input id="gl-ttl" type="number" min="60" max="86400" step="60"></label>
+      </div>
+      <p class="muted small" id="gl-note"></p>
+
+      <div class="row" style="margin-top:12px"><button id="gl-save" class="primary">บันทึก</button></div>
+    </div>
   </section>
 </main>
 

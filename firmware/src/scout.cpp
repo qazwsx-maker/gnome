@@ -149,4 +149,5 @@ int roleStats(StatItem* out, int max) {
 
 bool roleCommand(const String& sub, const String&) { if (sub == "cmd/rescan") { roleRescan(); return true; } return false; }
 bool roleWebSwitch(const String&, bool, int) { return false; }
+String roleCaption() { return String(); }
 #endif

@@ -31,6 +31,7 @@
 | `cmd/flash` | no | 1 | →node (cam) | `ON` / `OFF` ไฟแฟลช GPIO4 |
 | `cmd/pan` | no | 1 | →node (cam) | มุม `0`–`180` หรือชื่อ preset · เติม ` +snap` เพื่อถ่ายหลังหันเสร็จ |
 | `cmd/patrol` | no | 1 | →node (cam) | หันไปทุก preset แล้วถ่ายทีละมุม กลับมุมเดิมเมื่อจบ |
+| `cmd/flip` | no | 1 | →node (cam) | JSON `{"vflip":bool,"mirror":bool}` ใส่เฉพาะคีย์ที่จะเปลี่ยน · มีผลทันทีและจำลง NVS ไม่รีบูต · config เทียบเท่า `cam_vflip`/`cam_mirror` (`cam_flip` เก่า = ตั้งทั้งคู่) · meta/status มี `cam.vflip`, `cam.mirror` |
 
 Server: `gnome/server/status` retained `online`/`offline` (LWT) — Keeper ใช้ร่วมกับการขาด MQTT เพื่อ failsafe
 

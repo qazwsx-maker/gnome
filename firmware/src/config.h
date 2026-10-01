@@ -75,7 +75,8 @@ struct Config {
   String hutUrl;            // ว่าง = http://<mqtt_host>:8080
   String camSize = "svga";  // vga | svga | xga | uxga
   bool camFlash = false;    // เปิดไฟแฟลช GPIO4 ตอนถ่าย
-  bool camFlip = false;     // กลับภาพ 180°
+  bool camVflip = false;    // กลับบน-ล่าง
+  bool camMirror = false;   // กลับซ้าย-ขวา (กระจก)
   // servo หัน (pan) ของ Watcher — ESP32-CAM ใช้ขาว่าง 13/14/15 ได้ (เมื่อไม่ใช้ SD card)
   int servoPin = -1;        // -1 = ไม่มี servo
   int servoMinUs = 500, servoMaxUs = 2400;

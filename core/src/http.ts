@@ -119,7 +119,12 @@ export async function startHttp() {
     const { node } = req.params;
     const cmd = req.body?.cmd;
     if (!NODE_RE.test(node)) return bad(reply, 'bad node');
-    if (!cmd || !['reboot', 'identify', 'config', 'ota', 'snap', 'flash', 'rescan'].includes(cmd)) return bad(reply, 'cmd must be reboot|identify|config|ota|snap|flash|rescan');
+    if (!cmd || !['reboot', 'identify', 'config', 'ota', 'snap', 'flash', 'rescan', 'flip'].includes(cmd)) return bad(reply, 'cmd must be reboot|identify|config|ota|snap|flash|rescan|flip');
+    if (cmd === 'flip') {
+      const pl = req.body.payload as any;
+      if (typeof pl !== 'object' || pl === null || (pl.vflip !== undefined && typeof pl.vflip !== 'boolean') || (pl.mirror !== undefined && typeof pl.mirror !== 'boolean'))
+        return bad(reply, 'flip payload ต้องเป็น {vflip?: boolean, mirror?: boolean}');
+    }
     if (cmd === 'ota' && typeof req.body.payload !== 'string') return bad(reply, 'ota payload must be a URL string');
     if (cmd === 'config' && (typeof req.body.payload !== 'object' || req.body.payload === null)) return bad(reply, 'config payload must be JSON');
     const body = await sendCmd(node, cmd, req.body.payload);

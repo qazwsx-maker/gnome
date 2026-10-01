@@ -80,6 +80,14 @@ static framesize_t sizeFromCfg() {
   return FRAMESIZE_SVGA;                              // 800x600 (default)
 }
 
+// ใช้ค่ากลับภาพกับเซ็นเซอร์ตรงๆ — เปลี่ยนได้ทันทีไม่ต้องรีบูต
+static void applyFlip() {
+  sensor_t* s = esp_camera_sensor_get();
+  if (!s) return;
+  s->set_vflip(s, cfg.camVflip ? 1 : 0);
+  s->set_hmirror(s, cfg.camMirror ? 1 : 0);
+}
+
 static bool camInit() {
   camera_config_t c = {};
   c.ledc_channel = LEDC_CHANNEL_0; c.ledc_timer = LEDC_TIMER_0;
@@ -96,7 +104,7 @@ static bool camInit() {
   esp_err_t err = esp_camera_init(&c);
   if (err != ESP_OK) { Serial.printf("[cam] init failed 0x%x\n", err); return false; }
   sensor_t* s = esp_camera_sensor_get();
-  if (s) { s->set_vflip(s, cfg.camFlip ? 1 : 0); s->set_hmirror(s, cfg.camFlip ? 1 : 0); }
+  applyFlip();
   Serial.printf("[cam] ok psram=%d size=%s\n", psramFound(), cfg.camSize.c_str());
   return true;
 }
@@ -208,7 +216,7 @@ void roleMeta(JsonObject meta) {
   JsonObject cam = meta["cam"].to<JsonObject>();
   String ip = WiFi.localIP().toString();
   cam["stream"] = "http://" + ip + ":81/stream"; cam["snapshot"] = "http://" + ip + ":81/snapshot";
-  cam["interval_s"] = cfg.intervalS; cam["size"] = cfg.camSize; cam["ok"] = camOk; cam["flash"] = cfg.camFlash;
+  cam["interval_s"] = cfg.intervalS; cam["size"] = cfg.camSize; cam["ok"] = camOk; cam["flash"] = cfg.camFlash; cam["vflip"] = cfg.camVflip; cam["mirror"] = cfg.camMirror;
   cam["servo"] = cfg.servoPin >= 0; cam["angle"] = cfg.servoAngle;
   JsonArray pre = cam["presets"].to<JsonArray>();
   for (int i = 0; i < cfg.presetCount; i++) { JsonObject p = pre.add<JsonObject>(); p["name"] = cfg.preset[i].name; p["angle"] = cfg.preset[i].angle; }
@@ -219,7 +227,7 @@ void roleStatus(JsonObject st) {
   String ip = netIp();
   cam["ok"] = camOk; cam["stream"] = "http://" + ip + ":81/stream"; cam["snapshot"] = "http://" + ip + ":81/snapshot";
   cam["uploads"] = uploads; cam["fails"] = fails; cam["last_code"] = lastCode; cam["last_kb"] = lastBytes / 1024;
-  cam["last_upload_s_ago"] = lastUploadMs ? (int)((millis() - lastUploadMs) / 1000) : -1; cam["hut"] = hutBase(); cam["flash"] = flashOn;
+  cam["last_upload_s_ago"] = lastUploadMs ? (int)((millis() - lastUploadMs) / 1000) : -1; cam["hut"] = hutBase(); cam["flash"] = flashOn; cam["vflip"] = cfg.camVflip; cam["mirror"] = cfg.camMirror;
   cam["servo"] = cfg.servoPin >= 0; cam["angle"] = cfg.servoAngle; cam["servo_pin"] = cfg.servoPin;
   JsonObject gl = st["glance"].to<JsonObject>();     // โหมดคิด — ไว้ตรวจจากภายนอกว่าข้อความถึงจอจริงไหม
   gl["active"] = glanceValid();
@@ -263,6 +271,15 @@ bool roleCommand(const String& sub, const String& payload) {
     return true;
   }
   if (sub == "cmd/patrol") { int n = patrol("patrol"); mqttEvent("patrol", "\"shots\":" + String(n)); return true; }
+  if (sub == "cmd/flip") {
+    JsonDocument d;
+    if (deserializeJson(d, payload)) { mqttEvent("flip_error"); return true; }
+    if (d["vflip"].is<bool>()) cfg.camVflip = d["vflip"].as<bool>();
+    if (d["mirror"].is<bool>()) cfg.camMirror = d["mirror"].as<bool>();
+    applyFlip(); configSave(); mqttPublishMeta();
+    mqttEvent("flip", String("\"vflip\":") + (cfg.camVflip ? "true" : "false") + ",\"mirror\":" + (cfg.camMirror ? "true" : "false"));
+    return true;
+  }
   if (sub == "cmd/glance") {
     // {"text":"gerbera in bloom","mood":"happy","ttl_s":900}  — ttl_s = 0 คือล้างทิ้ง
     JsonDocument d;

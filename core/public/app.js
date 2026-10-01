@@ -95,6 +95,8 @@
       <div class="row">
         <button class="small" data-snap="1" ${c.online ? '' : 'disabled'}>📸 ถ่ายตอนนี้</button>
         <button class="small" data-live="1" ${c.online ? '' : 'disabled'}>▶ ดูสด</button>
+        <button class="small${c.cam?.vflip ? ' on' : ''}" data-vflip="1" ${c.online ? '' : 'disabled'} title="กลับภาพบน-ล่าง (มีผลทันที ไม่รีบูต)">↕ ${c.cam?.vflip ? 'บน-ล่าง ✓' : 'บน-ล่าง'}</button>
+        <button class="small${c.cam?.mirror ? ' on' : ''}" data-mirror="1" ${c.online ? '' : 'disabled'} title="กลับภาพซ้าย-ขวา (มีผลทันที ไม่รีบูต)">↔ ${c.cam?.mirror ? 'ซ้าย-ขวา ✓' : 'ซ้าย-ขวา'}</button>
         <select class="small cam-day" title="เลือกวัน"><option value="">— time-lapse: เลือกวัน —</option></select>
         <button class="small" data-play="1" disabled>▶ เล่น</button>
         <span class="muted small cam-prog"></span>
@@ -156,6 +158,12 @@
     const btn = e.target.closest('button'); if (!btn) return;
     try {
       if (btn.dataset.snap) { await api(`/nodes/${node}/cmd`, { method: 'POST', body: { cmd: 'snap' } }); toast(`สั่งถ่าย → ${node}`); }
+      else if (btn.dataset.vflip || btn.dataset.mirror) {
+        // สลับค่าปัจจุบัน node ใช้ทันทีและจำไว้ แล้วส่ง meta ใหม่มาให้การ์ดวาดสถานะ
+        const c = camState.list.find((x) => x.node === node); const key = btn.dataset.vflip ? 'vflip' : 'mirror';
+        await api(`/nodes/${node}/cmd`, { method: 'POST', body: { cmd: 'flip', payload: { [key]: !c?.cam?.[key] } } });
+        toast(key === 'vflip' ? 'กลับบน-ล่างแล้ว' : 'กลับซ้าย-ขวาแล้ว'); setTimeout(renderCam, 1200);
+      }
       else if (btn.dataset.preset) { await api(`/cam/${node}/pan`, { method: 'POST', body: { preset: btn.dataset.preset, snap: true } }); toast(`หันไป ${btn.dataset.preset} แล้วถ่าย`); }
       else if (btn.dataset.patrol) { await api(`/cam/${node}/pan`, { method: 'POST', body: { patrol: true } }); toast('กำลังถ่ายทุกมุม…'); }
       else if (btn.dataset.delday) { const day = camState.day[node]; if (!day) return toast('เลือกวันใน time-lapse ก่อน', true); if (!confirm(`ลบภาพของ ${node} วันที่ ${day} ทั้งหมด?`)) return; const r = await api(`/cam/${node}/snapshots?day=${day}`, { method: 'DELETE' }); toast(`ลบ ${r.deleted} ภาพ`); renderCam(); }

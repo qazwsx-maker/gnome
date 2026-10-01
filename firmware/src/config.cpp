@@ -52,7 +52,7 @@ void configToJson(JsonObject o, bool includeSecrets) {
   if (includeSecrets) o["mqtt_pass"] = cfg.mqttPass; else o["mqtt_pass_set"] = cfg.mqttPass.length() > 0;
   o["interval_s"] = cfg.intervalS; o["i2c_sda"] = cfg.i2cSda; o["i2c_scl"] = cfg.i2cScl; o["dht_pin"] = cfg.dhtPin; o["soil_power_pin"] = cfg.soilPowerPin;
   o["failsafe_s"] = cfg.failsafeS; o["oled"] = cfg.oled; o["board"] = GNOME_BOARD; o["thirsty_pct"] = cfg.thirstyPct; o["hot_c"] = cfg.hotC;
-  o["hut_url"] = cfg.hutUrl; o["cam_size"] = cfg.camSize; o["cam_flash"] = cfg.camFlash; o["cam_flip"] = cfg.camFlip;
+  o["hut_url"] = cfg.hutUrl; o["cam_size"] = cfg.camSize; o["cam_flash"] = cfg.camFlash; o["cam_vflip"] = cfg.camVflip; o["cam_mirror"] = cfg.camMirror;
   o["servo_pin"] = cfg.servoPin; o["servo_min_us"] = cfg.servoMinUs; o["servo_max_us"] = cfg.servoMaxUs; o["servo_angle"] = cfg.servoAngle; o["servo_invert"] = cfg.servoInvert;
   JsonArray pre = o["presets"].to<JsonArray>();
   for (int i = 0; i < cfg.presetCount; i++) { JsonObject p = pre.add<JsonObject>(); p["name"] = cfg.preset[i].name; p["angle"] = cfg.preset[i].angle; }
@@ -84,7 +84,9 @@ bool configApplyJson(JsonObjectConst o) {
   setS("mqtt_host", cfg.mqttHost); setI("mqtt_port", cfg.mqttPort); setS("mqtt_user", cfg.mqttUser); setS("mqtt_pass", cfg.mqttPass);
   setI("interval_s", cfg.intervalS); setI("i2c_sda", cfg.i2cSda); setI("i2c_scl", cfg.i2cScl); setI("dht_pin", cfg.dhtPin); setI("soil_power_pin", cfg.soilPowerPin); setI("failsafe_s", cfg.failsafeS); setI("thirsty_pct", cfg.thirstyPct); setI("hot_c", cfg.hotC);
   setS("hut_url", cfg.hutUrl); if (o["cam_size"].is<const char*>()) { String v = o["cam_size"].as<String>(); if (v == "vga" || v == "svga" || v == "xga" || v == "uxga") { if (v != cfg.camSize) { cfg.camSize = v; changed = true; } } }
-  if (o["cam_flash"].is<bool>()) { cfg.camFlash = o["cam_flash"].as<bool>(); changed = true; } if (o["cam_flip"].is<bool>()) { cfg.camFlip = o["cam_flip"].as<bool>(); changed = true; }
+  if (o["cam_flash"].is<bool>()) { cfg.camFlash = o["cam_flash"].as<bool>(); changed = true; } if (o["cam_vflip"].is<bool>()) { cfg.camVflip = o["cam_vflip"].as<bool>(); changed = true; }
+  if (o["cam_mirror"].is<bool>()) { cfg.camMirror = o["cam_mirror"].as<bool>(); changed = true; }
+  if (o["cam_flip"].is<bool>()) { cfg.camVflip = cfg.camMirror = o["cam_flip"].as<bool>(); changed = true; }   // คีย์เก่า = หมุน 180°
   setI("servo_pin", cfg.servoPin); setI("servo_min_us", cfg.servoMinUs); setI("servo_max_us", cfg.servoMaxUs); setI("servo_angle", cfg.servoAngle);
   if (o["servo_invert"].is<bool>()) { cfg.servoInvert = o["servo_invert"].as<bool>(); changed = true; }
   cfg.servoAngle = constrain(cfg.servoAngle, 0, 180);

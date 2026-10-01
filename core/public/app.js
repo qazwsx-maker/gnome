@@ -59,6 +59,8 @@
     if (name === 'chart') chart.load();
     if (name === 'events') loadEvents();
     if (name === 'rules') loadRules();
+    if (name === 'cam') renderCam();
+    if (name === 'sage') renderSage();
     if (name === 'settings') { loadDiscord(); loadGlance(); }
   };
   $$('#tabs a').forEach((a) => (a.onclick = (e) => { e.preventDefault(); location.hash = a.dataset.tab; showTab(a.dataset.tab); }));
@@ -481,7 +483,11 @@
 
     colorOf(s) { const i = this.order.indexOf(s); return CPAL[(i < 0 ? 0 : i) % CPAL.length]; },
     unitOf(s) { const [n, k] = unsid(s); return unit(k, nodes.get(n)) || ''; },
-    nameOf(s) { const [n, k] = unsid(s); return `${label(k)} · ${n}`; },
+    nameOf(s) {
+      const [n, k] = unsid(s);
+      const many = new Set([...this.sel].map((x) => unsid(x)[0])).size > 1;
+      return many ? `${label(k)} · ${n}` : label(k);
+    },
 
     restore() {
       try { const v = JSON.parse(localStorage.getItem('gnome-chart-sel') || '[]'); if (Array.isArray(v)) this.sel = new Set(v); } catch {}
@@ -658,12 +664,15 @@
         const tip = this.tip;
         if (rowsAt.length) {
           const ts = rowsAt.reduce((a, o) => (a == null || o.r.t > a ? o.r.t : a), null);
-          tip.innerHTML = `<b>${esc(fmtTs(new Date(ts).toISOString()))}</b><table>${rowsAt.map((o) =>
-            `<tr><td><i style="background:${col(this.colorOf(o.s))}"></i>${esc(this.nameOf(o.s))}</td><td class="n">${fmtV(o.r.v)}${esc(this.unitOf(o.s))}</td></tr>`).join('')}</table>`;
+          tip.innerHTML = `<b>${esc(fmtTs(new Date(ts).toISOString()))}</b>${rowsAt.map((o) =>
+            `<div class="r"><i style="background:${col(this.colorOf(o.s))}"></i><span class="k">${esc(this.nameOf(o.s))}</span><span class="v">${fmtV(o.r.v)}${esc(this.unitOf(o.s))}</span></div>`).join('')}`;
           tip.classList.remove('hidden');
           const tw = tip.offsetWidth, th = tip.offsetHeight;
-          tip.style.left = Math.max(0, Math.min(W - tw - 4, x + 12)) + 'px';
-          tip.style.top = Math.max(0, Math.min(H - th - 4, (rowsAt.length ? 20 : 20))) + 'px';
+          // จอแคบ: กล่องเกือบเท่าความกว้างกราฟอยู่แล้ว ตามเส้นไปก็ล้นขอบ จึงตรึงชิดซ้าย
+          const wide = tw > W - 24;
+          tip.style.width = wide ? (W - 8) + 'px' : '';   // จอแคบ: ตรึงความกว้างให้แน่นอน แถวจะได้เรียงตรงกัน
+          tip.style.left = (wide ? 2 : Math.max(0, Math.min(W - tw - 4, x + 12))) + 'px';
+          tip.style.top = Math.max(0, Math.min(H - th - 4, 14)) + 'px';
         } else tip.classList.add('hidden');
       } else this.tip.classList.add('hidden');
 
@@ -687,6 +696,13 @@
   chart.canvas.addEventListener('touchstart', onMove, { passive: true });
   chart.canvas.addEventListener('touchmove', onMove, { passive: true });
   chart.canvas.addEventListener('mouseleave', () => { chart.hover = null; chart.draw(); });
+  // บนมือถือไม่มี mouseleave — ถ้าไม่เก็บเอง tooltip จะค้างบังกราฟตลอด
+  // ปล่อยนิ้วแล้วให้อ่านต่อได้อีกครู่ค่อยซ่อน
+  let tipHide = null;
+  const holdTip = () => { clearTimeout(tipHide); tipHide = setTimeout(() => { chart.hover = null; chart.draw(); }, 3000); };
+  chart.canvas.addEventListener('touchstart', () => clearTimeout(tipHide), { passive: true });
+  chart.canvas.addEventListener('touchend', holdTip, { passive: true });
+  chart.canvas.addEventListener('touchcancel', holdTip, { passive: true });
   addEventListener('resize', () => chart.draw());
   $('#c-clear').onclick = () => { chart.sel.clear(); chart.save(); chart.load(); };
   $$('#c-range button').forEach((b) => (b.onclick = () => {
@@ -1001,7 +1017,6 @@
     connectWs();
     const tab = location.hash.replace('#', '');
     showTab(['status', 'chart', 'rules', 'events', 'cam', 'sage', 'settings'].includes(tab) ? tab : 'status');
-    if (tab === 'cam') renderCam();
-    if (tab === 'sage') { renderSage(); const q = new URLSearchParams(location.search).get('analysis'); if (q) openReport(Number(q)); }
+    if (tab === 'sage') { const q = new URLSearchParams(location.search).get('analysis'); if (q) openReport(Number(q)); }
   })();
 })();

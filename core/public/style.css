@@ -131,12 +131,12 @@ main{padding:14px 16px 60px}
 .c-legend span{display:inline-flex;align-items:center;gap:6px}
 .c-legend i{width:14px;height:3px;border-radius:2px;flex:none}
 .c-legend b{font-variant-numeric:tabular-nums;color:var(--ink)}
-.tip table{border-collapse:collapse;margin-top:4px}
-.tip td{padding:1px 0 1px 8px;font-size:12px;white-space:nowrap}
-.tip td:first-child{padding-left:0}
-.tip td.n{text-align:right;font-variant-numeric:tabular-nums;color:var(--ink);font-weight:600}
-.tip i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:-1px}
-.tip{position:absolute;pointer-events:none;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12px;box-shadow:0 4px 14px rgba(0,0,0,.12);white-space:nowrap}
+.tip{position:absolute;pointer-events:none;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12px;box-shadow:0 4px 14px rgba(0,0,0,.12);white-space:nowrap;max-width:calc(100% - 8px);box-sizing:border-box}
+/* แถวในกล่อง: ชื่อยืดหดได้และตัดด้วย ... ส่วนตัวเลขไม่ยอมหด จึงล้นขอบไม่ได้ */
+.tip .r{display:flex;align-items:baseline;gap:6px;margin-top:3px}
+.tip .r i{width:9px;height:9px;border-radius:50%;flex:none;align-self:center}
+.tip .r .k{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink2)}
+.tip .r .v{flex:none;margin-left:auto;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
 
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
 .row.end{justify-content:flex-end;margin-top:16px}

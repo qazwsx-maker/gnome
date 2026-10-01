@@ -879,8 +879,40 @@
   // ---- (d) events ---------------------------------------------------------------
   const BAD = new Set(['node_offline', 'max_on_reached', 'failsafe_off', 'sensor_error', 'interlock_blocked']);
   const GOOD = new Set(['node_online', 'rule_fired', 'boot']);
-  const evRow = (e) => `<tr><td class="ts">${esc(fmtTs(e.ts))}</td><td>${esc(e.node || '—')}</td><td><span class="evtype ${BAD.has(e.type) ? 'bad' : GOOD.has(e.type) ? 'good' : ''}">${esc(e.type)}</span></td><td class="pl" title="${esc(JSON.stringify(e.payload))}">${esc(e.payload ? JSON.stringify(e.payload) : '')}</td></tr>`;
-  function renderEvents() { $('#events tbody').innerHTML = events.map(evRow).join('') || '<tr><td colspan="4" class="muted">ยังไม่มีเหตุการณ์</td></tr>'; }
+  // ชื่อชนิดเหตุการณ์แบบอ่านง่าย (ชนิดที่ไม่รู้จักโชว์ชื่อดิบ)
+  const EV_TH = {
+    node_online: '🟢 ออนไลน์', node_offline: '🔴 ออฟไลน์', boot: '⚡ บูต', renamed: '✏️ เปลี่ยนชื่อ',
+    ota_sent: '📦 สั่ง OTA', ota_start: '⬇️ เริ่ม OTA', ota_failed: '❌ OTA ล้มเหลว', config_changed: '⚙️ แก้ตั้งค่า', reboot_cmd: '🔁 สั่งรีบูต',
+    snapshot: '📸 ถ่ายภาพ', snapshot_failed: '📸 ถ่ายไม่สำเร็จ', pan: '↔️ หันกล้อง', pan_failed: '↔️ หันไม่ได้', patrol: '🔄 ถ่ายทุกมุม', flip: '🔃 กลับภาพ', glance_error: '👁 โหมดคิดผิดพลาด',
+    rule_fired: '📜 กฎทำงาน', max_on_reached: '⏱ เปิดครบเวลาสูงสุด', failsafe_off: '🛟 failsafe ตัด', interlock_blocked: '🚫 interlock กัน', sensor_error: '⚠️ เซ็นเซอร์ผิดพลาด',
+  };
+  const VIA_TH = { lwt: 'หลุดจาก MQTT', timeout: 'ไม่มีข้อมูลเกินเวลา', status: 'รายงานสถานะ', message: 'ส่งข้อมูลเข้ามา', retained: 'ค่าค้างใน broker' };
+  // แปลง payload เป็นประโยคสั้นๆ ตามชนิด — ของที่ไม่รู้จักโชว์เป็น key=value แทน JSON ดิบ
+  function evSummary(e) {
+    const p = e.payload || {};
+    switch (e.type) {
+      case 'node_online': case 'node_offline': return VIA_TH[p.via] || p.via || '';
+      case 'boot': return `${p.fw || ''}${p.ip ? ' · ' + p.ip : ''}`;
+      case 'renamed': return `จาก ${p.from || '?'}${p.mac ? ' · ' + p.mac : ''}`;
+      case 'ota_sent': return `→ ${p.version || '?'} (${p.env || '?'})`;
+      case 'ota_start': return `กำลังดาวน์โหลด ${(p.url || '').split('/firmware/')[1] || p.url || ''}`;
+      case 'ota_failed': return p.error || p.msg || '';
+      case 'snapshot': return p.bytes ? `${Math.round(p.bytes / 1024)} kB` : '';
+      case 'flip': return `บน-ล่าง ${p.vflip ? 'เปิด' : 'ปิด'} · ซ้าย-ขวา ${p.mirror ? 'เปิด' : 'ปิด'}`;
+      case 'pan': return p.angle !== undefined ? `${p.angle}°` : '';
+      case 'patrol': return p.shots !== undefined ? `${p.shots} ภาพ` : '';
+      case 'rule_fired': return p.rule || p.name || '';
+      default: {
+        const skip = new Set(['node', 'type', 'uptime_s']);
+        return Object.entries(p).filter(([k]) => !skip.has(k)).map(([k, v]) => `${k}=${typeof v === 'object' ? JSON.stringify(v) : v}`).join(' · ');
+      }
+    }
+  }
+  const evRow = (e) => `<div class="ev" title="${esc(JSON.stringify(e.payload || {}))}">
+    <div class="ev-head"><span class="ev-ts">${esc(fmtTs(e.ts))}</span><b class="ev-node">${esc(e.node || '—')}</b><span class="evtype ${BAD.has(e.type) ? 'bad' : GOOD.has(e.type) ? 'good' : ''}">${esc(EV_TH[e.type] || e.type)}</span></div>
+    ${evSummary(e) ? `<div class="ev-sum">${esc(evSummary(e))}</div>` : ''}
+  </div>`;
+  function renderEvents() { $('#events').innerHTML = events.map(evRow).join('') || '<p class="muted">ยังไม่มีเหตุการณ์</p>'; }
   async function loadEvents() { events = await api('/events?limit=200'); renderEvents(); }
   $('#ev-refresh').onclick = loadEvents;
 

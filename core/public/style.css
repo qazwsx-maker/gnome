@@ -169,7 +169,7 @@ th,td{text-align:left;padding:8px 12px;border-bottom:1px solid var(--border);ver
 th{font-weight:600;color:var(--ink2);font-size:12px;white-space:nowrap}
 td.ts{white-space:nowrap;color:var(--ink2)}
 td.pl{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--ink2);max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.evtype{display:inline-block;font-size:12px;padding:1px 8px;border-radius:999px;background:var(--tile)}
+.evtype{display:inline-block;font-size:12px;padding:1px 8px;border-radius:999px;background:var(--tile);white-space:nowrap}
 .evtype.bad{background:color-mix(in srgb,var(--critical) 15%,var(--tile));color:var(--critical)}
 .evtype.good{background:color-mix(in srgb,var(--good) 15%,var(--tile));color:var(--good)}
 
@@ -217,3 +217,12 @@ label.wide input{width:100%}
 .chip:has(input:checked){color:var(--ink);font-weight:600;border-color:currentColor}
 .chip:has(input:checked) i{background:var(--leaf)}
 .cam-cap{min-height:18px;font-size:13px;color:var(--ink2);margin:4px 0 2px;line-height:1.35}
+
+/* เหตุการณ์: รายการแทนตาราง จอแคบไม่บีบคอลัมน์ */
+.evlist{padding:0 14px}
+.ev{padding:9px 0;border-bottom:1px solid var(--border)}
+.ev:last-child{border-bottom:0}
+.ev-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px}
+.ev-ts{color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.ev-node{color:var(--ink)}
+.ev-sum{font-size:13px;color:var(--ink2);margin-top:2px;overflow-wrap:anywhere}

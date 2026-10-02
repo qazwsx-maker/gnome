@@ -226,3 +226,11 @@ label.wide input{width:100%}
 .ev-ts{color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
 .ev-node{color:var(--ink)}
 .ev-sum{font-size:13px;color:var(--ink2);margin-top:2px;overflow-wrap:anywhere}
+
+/* iOS Safari ซูมเข้าเองเมื่อแตะช่องกรอกที่ตัวอักษรเล็กกว่า 16px แล้วไม่ซูมกลับ
+   พอปิดปฏิทินหน้าเลยค้างอยู่ในสภาพซูม ขอบขวาหาย — บังคับ 16px บนจอสัมผัส/จอแคบ */
+@media (pointer: coarse), (max-width: 820px) {
+  input, select, textarea,
+  .grid.form input, .grid.form select,
+  .controls input, .controls select { font-size: 16px; }
+}

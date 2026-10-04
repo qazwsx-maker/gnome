@@ -25,10 +25,15 @@ table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:4px;borde
 <div class="g2"><div><label>MQTT host (IP ของ Mac mini)</label><input id="mqtt_host"></div><div><label>MQTT port</label><input id="mqtt_port" type="number"></div></div>
 <div class="g2"><div><label>MQTT user</label><input id="mqtt_user"></div><div><label>MQTT password</label><input id="mqtt_pass" type="password" placeholder="(คงเดิมถ้าเว้นว่าง)"></div></div>
 <div class="g2"><div><label>I2C SDA</label><input id="i2c_sda" type="number"></div><div><label>I2C SCL</label><input id="i2c_scl" type="number"></div></div>
-<div id="scoutcfg"><div class="g2"><div><label>ส่งค่าทุก (วินาที)</label><input id="interval_s" type="number"></div><div><label>DHT22 pin (-1 = ไม่ใช้)</label><input id="dht_pin" type="number"></div></div>
-<label>หัววัด analog: ความชื้นดิน / ฝน (ADC1: 32 33 34 35 36 39) — key ว่าง = soil1, soil2… ใส่ <b>rain</b> สำหรับแผ่นวัดฝน · dry/wet = ค่า raw ที่วัดจริง</label>
-<table><thead><tr><th>pin</th><th>key</th><th>dry (แห้ง)</th><th>wet (จุ่มน้ำ)</th><th></th></tr></thead><tbody id="soil"></tbody></table>
-<div class="g2"><div><label>ขาจ่ายไฟหัววัด (VCC ของโมดูลต่อขานี้ เปิดเฉพาะตอนวัด ลดการกร่อน · -1 = ต่อ 3V3 ตรง)</label><input id="soil_power_pin" type="number"></div></div><button type="button" onclick="addSoil()">+ เพิ่มหัววัดดิน</button></div>
+<div id="scoutcfg"><div class="g2"><div><label>ส่งค่าทุก (วินาที)</label><input id="interval_s" type="number"></div></div>
+<label>เซ็นเซอร์ที่ต่ออยู่ — ติ๊กตัวที่เสียบจริง ขาถูกกำหนดไว้ให้แล้ว ไม่ต้องกรอกเลขเอง</label>
+<div id="slots"></div>
+<p class="mut">อุปกรณ์ I2C (โดมวัดแสง SHT31 BME280 และจอ) ไม่ต้องติ๊ก ระบบหาเจอเองตอนบูต</p>
+<details><summary>ขั้นสูง — ปรับเทียบค่าดิบ / ตั้งขาเอง</summary>
+<div class="g2"><div><label>DHT pin (-1 = ไม่ใช้)</label><input id="dht_pin" type="number"></div><div><label>ขาจ่ายไฟหัววัด (-1 = ต่อ 3V3 ตรง)</label><input id="soil_power_pin" type="number"></div></div>
+<label>ค่า dry = raw ตอนหัวแห้งในอากาศ · wet = raw ตอนปักดินที่เพิ่งรดน้ำ · ไม่ปรับเทียบ เปอร์เซ็นต์จะเพี้ยน</label>
+<table><thead><tr><th>pin</th><th>key</th><th>dry (แห้ง)</th><th>wet (เปียก)</th><th></th></tr></thead><tbody id="soil"></tbody></table>
+<button type="button" onclick="addSoil()">+ เพิ่มช่อง analog</button></details></div>
 <div class="g2"><div><label>จอ OLED (I2C 0x3C)</label><select id="oled"><option value="sh1106">SH1106 (1.3")</option><option value="ssd1306">SSD1306 (0.96")</option><option value="none">ไม่มีจอ</option></select></div><div><label>บอร์ด</label><input id="board" disabled></div></div>
 <div id="camcfg"><div class="g2"><div><label>ถ่ายภาพทุก (วินาที)</label><input id="cam_interval" type="number"></div><div><label>Hut URL (ว่าง = http://MQTT host:8080)</label><input id="hut_url" placeholder="http://192.168.1.111:8080"></div></div>
 <label>Servo หัน (pan) — ขาว่างของ ESP32-CAM: 13, 14, 15 · -1 = ไม่มี servo</label>
@@ -53,11 +58,14 @@ async function load(){const c=await (await fetch('/api/config')).json();role=c.r
 for(const k of ['node','wifi_ssid','mqtt_host','mqtt_port','mqtt_user','interval_s','dht_pin','soil_power_pin','i2c_sda','i2c_scl','failsafe_s','oled','board'])if($(k))$(k).value=c[k]??'';
 $('scoutcfg').style.display=role==='scout'?'':'none';$('keepercfg').style.display=role==='keeper'?'':'none';$('rescan').style.display=role==='scout'?'':'none';$('camcfg').style.display=role==='cam'?'':'none';if(role==='cam'){$('cam_interval').value=c.interval_s??60;$('hut_url').value=c.hut_url||'';$('cam_size').value=c.cam_size||'svga';$('cam_flash').checked=!!c.cam_flash;$('cam_vflip').checked=!!c.cam_vflip;$('cam_mirror').checked=!!c.cam_mirror;
 $('servo_pin').value=c.servo_pin??-1;$('servo_min_us').value=c.servo_min_us??500;$('servo_max_us').value=c.servo_max_us??2400;$('servo_angle').value=c.servo_angle??90;$('ang_v').textContent=(c.servo_angle??90)+'\u00B0';$('servo_invert').checked=!!c.servo_invert;$('pre').innerHTML='';(c.presets||[]).forEach(p=>addPre(p))}
-$('soil').innerHTML='';(c.soil||[]).forEach(s=>addSoil(s));$('sw').innerHTML='';(c.switches||[]).forEach(s=>addSw(s));status()}
+drawSlots(c);$('soil').innerHTML='';(c.soil||[]).forEach(s=>addSoil(s));$('sw').innerHTML='';(c.switches||[]).forEach(s=>addSw(s));status()}
+function drawSlots(c){const el=$('slots');if(!el)return;el.innerHTML=(c.slots||[]).map(s=>
+`<label style="display:block;margin:6px 0"><input type="checkbox" class="slot" data-id="${s.id}" style="width:auto" ${s.on?'checked':''}> <b>${s.label}</b> <span class="mut">— ขา ${s.pin}</span><br><span class="mut" style="font-size:12px">${s.wiring}</span></label>`).join('')||'<p class="mut">บอร์ดนี้ไม่มีช่องให้เลือก</p>'}
 function addSoil(s={}){const tr=document.createElement('tr');tr.innerHTML=`<td><input value="${s.pin??34}" type="number"></td><td><input value="${s.key??''}" placeholder="soil1"></td><td><input value="${s.dry??3100}" type="number"></td><td><input value="${s.wet??1300}" type="number"></td><td><button type="button" onclick="this.closest('tr').remove()">ลบ</button></td>`;$('soil').appendChild(tr)}
 function addPre(p={}){const tr=document.createElement('tr');tr.innerHTML=`<td><input value="${p.name??''}" placeholder="plot-a"></td><td><input value="${p.angle??90}" type="number" min="0" max="180"></td><td><button type="button" onclick="post('/api/switch',{key:'pan',state:'ON',seconds:+this.closest('tr').querySelectorAll('input')[1].value})">ดู</button><button type="button" onclick="this.closest('tr').remove()">ลบ</button></td>`;$('pre').appendChild(tr)}
 function addSw(s={}){const tr=document.createElement('tr');tr.innerHTML=`<td><input value="${s.key??''}" placeholder="drip"></td><td><input value="${s.pin??26}" type="number"></td><td><input type="checkbox" ${s.active_low!==false?'checked':''}></td><td><input value="${s.max_on_s??600}" type="number"></td><td><input value="${(s.exclusive||[]).join(',')}" placeholder="mist"></td><td><button type="button" onclick="this.closest('tr').remove()">ลบ</button></td>`;$('sw').appendChild(tr)}
 async function save(){const b={};for(const k of ['node','wifi_ssid','mqtt_host','mqtt_user','oled'])b[k]=$(k).value;for(const k of ['mqtt_port','interval_s','dht_pin','soil_power_pin','i2c_sda','i2c_scl','failsafe_s'])if($(k).value!=='')b[k]=+$(k).value;
+if(role==='scout')b.sensors=[...document.querySelectorAll('.slot')].filter(i=>i.checked).map(i=>i.dataset.id);
 if($('wifi_pass').value)b.wifi_pass=$('wifi_pass').value;if($('mqtt_pass').value)b.mqtt_pass=$('mqtt_pass').value;
 if(role==='cam'){b.interval_s=+$('cam_interval').value||60;b.hut_url=$('hut_url').value;b.cam_size=$('cam_size').value;b.cam_flash=$('cam_flash').checked;b.cam_vflip=$('cam_vflip').checked;b.cam_mirror=$('cam_mirror').checked;
 b.servo_pin=+$('servo_pin').value;b.servo_min_us=+$('servo_min_us').value;b.servo_max_us=+$('servo_max_us').value;b.servo_angle=+$('servo_angle').value;b.servo_invert=$('servo_invert').checked;

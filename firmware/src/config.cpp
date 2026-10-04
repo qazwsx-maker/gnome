@@ -1,4 +1,5 @@
 #include "config.h"
+#include "sensors.h"
 #include <Preferences.h>
 #include <WiFi.h>
 #include <esp_system.h>
@@ -56,6 +57,9 @@ void configToJson(JsonObject o, bool includeSecrets) {
   o["servo_pin"] = cfg.servoPin; o["servo_min_us"] = cfg.servoMinUs; o["servo_max_us"] = cfg.servoMaxUs; o["servo_angle"] = cfg.servoAngle; o["servo_invert"] = cfg.servoInvert;
   JsonArray pre = o["presets"].to<JsonArray>();
   for (int i = 0; i < cfg.presetCount; i++) { JsonObject p = pre.add<JsonObject>(); p["name"] = cfg.preset[i].name; p["angle"] = cfg.preset[i].angle; }
+#if !defined(GNOME_ROLE_KEEPER) && !defined(GNOME_ROLE_CAM)
+  sensorsToJson(o);          // รายการช่องที่รองรับ + ช่องที่เปิดอยู่ (ให้หน้าเว็บทำเป็นรายการติ๊ก)
+#endif
   JsonArray soil = o["soil"].to<JsonArray>();
   for (int i = 0; i < cfg.soilCount; i++) { JsonObject s = soil.add<JsonObject>(); s["pin"] = cfg.soil[i].pin; s["dry"] = cfg.soil[i].dry; s["wet"] = cfg.soil[i].wet; s["key"] = cfg.soil[i].key; }
   JsonArray sw = o["switches"].to<JsonArray>();
@@ -107,6 +111,11 @@ bool configApplyJson(JsonObjectConst o) {
       cfg.soil[n].pin = pin; cfg.soil[n].dry = s["dry"] | 3100; cfg.soil[n].wet = s["wet"] | 1300; cfg.soil[n].key = sanitizeNode(s["key"] | ""); n++; }
     cfg.soilCount = n; changed = true;
   }
+#if !defined(GNOME_ROLE_KEEPER) && !defined(GNOME_ROLE_CAM)
+  // ต้องมาหลัง soil[] เสมอ: ค่าปรับเทียบเข้ามาก่อน แล้วรายการช่องยึดตามที่ติ๊กไว้
+  if (o["sensors"].is<JsonArrayConst>()) { sensorsApplyIds(o["sensors"].as<JsonArrayConst>()); changed = true; }
+#endif
+
   if (o["switches"].is<JsonArrayConst>()) {
     int n = 0; for (JsonObjectConst s : o["switches"].as<JsonArrayConst>()) { if (n >= GNOME_MAX_SWITCH) break; String key = sanitizeNode(s["key"] | ""); int pin = s["pin"] | -1; if (pin < 0 || key.length() == 0) continue;
       cfg.sw[n].key = key; cfg.sw[n].pin = pin; cfg.sw[n].activeLow = s["active_low"] | true; cfg.sw[n].maxOnS = s["max_on_s"] | 600; if (cfg.sw[n].maxOnS < 5) cfg.sw[n].maxOnS = 5;

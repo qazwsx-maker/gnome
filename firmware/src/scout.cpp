@@ -10,6 +10,7 @@
 static Adafruit_SHT31 sht; static bool hasSht = false; static uint8_t shtAddr = 0;
 static Adafruit_BME280 bme; static bool hasBme = false;
 static BH1750 bh; static bool hasBh = false;
+static String i2cFound;   // แอดเดรสที่เจอบนบัส ไว้วินิจฉัยตอนต่อสายผิด
 static DHT* dht = nullptr;
 static uint32_t lastPub = 0, lastErrEvent = 0, retryAt = 0;
 static bool dhtRetryPending = false;
@@ -26,7 +27,12 @@ void roleRescan() {
   Wire.end(); Wire.begin(cfg.i2cSda, cfg.i2cScl); Wire.setTimeOut(50);
   hasSht = hasBme = hasBh = false; shtAddr = 0;
   Serial.printf("[scout] I2C scan (SDA %d SCL %d): ", cfg.i2cSda, cfg.i2cScl);
-  for (uint8_t a = 1; a < 127; a++) { Wire.beginTransmission(a); if (Wire.endTransmission() == 0) Serial.printf("0x%02X ", a); }
+  i2cFound = "";
+  for (uint8_t a = 1; a < 127; a++) {
+    Wire.beginTransmission(a);
+    if (Wire.endTransmission() == 0) { char b[8]; snprintf(b, sizeof b, "0x%02X ", a); Serial.print(b); i2cFound += b; }
+  }
+  i2cFound.trim();
   Serial.println();
   for (uint8_t a : {0x44, 0x45}) if (!hasSht && sht.begin(a)) { hasSht = true; shtAddr = a; }
   for (uint8_t a : {0x23, 0x5C}) if (!hasBh && bh.begin(BH1750::CONTINUOUS_HIGH_RES_MODE, a, &Wire)) hasBh = true;
@@ -96,6 +102,7 @@ void roleMeta(JsonObject meta) {
 void roleStatus(JsonObject st) {
   JsonObject s = st["sensors"].to<JsonObject>();
   for (int i = 0; i < lastCount; i++) { JsonObject o = s[last[i].key].to<JsonObject>(); if (last[i].valid) o["value"] = last[i].value; else o["value"] = nullptr; o["unit"] = last[i].unit; o["src"] = last[i].src; }
+  st["i2c_found"] = i2cFound;
   st["detected"] = String(hasSht ? "sht3x " : "") + (hasBh ? "bh1750 " : "") + (hasBme ? "bme280 " : "") + (dht ? "dht22 " : "");
 }
 

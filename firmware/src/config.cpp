@@ -58,7 +58,9 @@ void configToJson(JsonObject o, bool includeSecrets) {
   JsonArray pre = o["presets"].to<JsonArray>();
   for (int i = 0; i < cfg.presetCount; i++) { JsonObject p = pre.add<JsonObject>(); p["name"] = cfg.preset[i].name; p["angle"] = cfg.preset[i].angle; }
 #if !defined(GNOME_ROLE_KEEPER) && !defined(GNOME_ROLE_CAM)
-  sensorsToJson(o);          // รายการช่องที่รองรับ + ช่องที่เปิดอยู่ (ให้หน้าเว็บทำเป็นรายการติ๊ก)
+  // เฉพาะตอนตอบ API เท่านั้น ห้ามใส่ลง blob ที่เซฟ — ไม่งั้นตอนบูต configApplyJson จะเจอ
+  // sensors[] แล้วคำนวณ soil[]/soilPowerPin ใหม่ทับค่าที่ผู้ใช้ตั้งไว้ (เช่น ปิดไฟเลี้ยง หรือขาเอง)
+  if (!includeSecrets) sensorsToJson(o);
 #endif
   JsonArray soil = o["soil"].to<JsonArray>();
   for (int i = 0; i < cfg.soilCount; i++) { JsonObject s = soil.add<JsonObject>(); s["pin"] = cfg.soil[i].pin; s["dry"] = cfg.soil[i].dry; s["wet"] = cfg.soil[i].wet; s["key"] = cfg.soil[i].key; }

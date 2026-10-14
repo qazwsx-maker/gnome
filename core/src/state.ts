@@ -92,7 +92,13 @@ export async function loadState(): Promise<void> {
     `SELECT DISTINCT ON (node, key) node, key, value, ts FROM readings
       WHERE ts > now() - interval '1 day' ORDER BY node, key, ts DESC`,
   );
-  for (const r of last.rows) if (nodes.has(r.node)) getNode(r.node).latest.set(r.key, { value: Number(r.value), ts: r.ts.getTime() });
+  for (const r of last.rows) if (nodes.has(r.node)) {
+    const n = getNode(r.node);
+    // โหลดเฉพาะค่าที่ node ยังประกาศอยู่ใน meta.sensors — ค่าที่ถูกติ๊กออกไปแล้วไม่ต้องฟื้นกลับมา
+    const adv = Array.isArray(n.meta?.sensors) ? new Set(n.meta.sensors.map((s: any) => s?.key)) : null;
+    if (adv && !adv.has(r.key)) continue;
+    n.latest.set(r.key, { value: Number(r.value), ts: r.ts.getTime() });
+  }
   log.info(`loaded ${nodes.size} nodes, ${sw.rows.length} switches, ${last.rows.length} latest readings`);
 }
 

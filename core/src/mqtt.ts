@@ -85,6 +85,20 @@ async function onMeta(node: string, meta: any, retained = false): Promise<void> 
   n.ip = meta.ip ?? n.ip;
   n.mac = meta.mac ?? n.mac;
   n.meta = { ...n.meta, ...meta };
+  // node ประกาศรายการค่าที่มันส่งใน meta.sensors — ค่าไหนไม่อยู่ในรายการแล้ว (เช่น ติ๊กเซ็นเซอร์ออก)
+  // ให้ทิ้งจากการ์ดและล้าง retained meta ของค่านั้นด้วย ไม่งั้นค่าเก่าจะค้างโชว์ตลอดไป
+  if (Array.isArray(meta.sensors)) {
+    const keep = new Set<string>(meta.sensors.map((s: any) => s?.key).filter(Boolean));
+    const stale = [...n.latest.keys()].filter((k) => !keep.has(k));
+    const sm = { ...(n.meta.sensor_meta || {}) };
+    for (const k of Object.keys(sm)) if (!keep.has(k)) { delete sm[k]; if (!stale.includes(k)) stale.push(k); }
+    if (stale.length) {
+      for (const k of stale) { n.latest.delete(k); await publish(`gnome/${node}/sensor/${k}/meta`, '', { qos: 1, retain: true }).catch(() => {}); }
+      n.meta = { ...n.meta, sensor_meta: sm };
+      meta = { ...meta, sensor_meta: sm };   // ให้ upsert เขียนทับ sensor_meta ใน DB ด้วย
+      log.info(`${node} dropped stale sensor keys: ${stale.join(', ')}`);
+    }
+  }
   // บอร์ดเดิมเปลี่ยนชื่อ (MAC เดียวกัน ชื่อต่างกัน) → ลบชื่อเก่าให้อัตโนมัติ — เชื่อเฉพาะ meta สด (ไม่ใช่ retained replay ตอน Hut เริ่ม)
   if (!retained && n.mac) for (const other of [...nodes.values()]) if (other.node !== node && other.mac === n.mac) {
     log.info(`node ${other.node} renamed to ${node} (same MAC ${n.mac}) — forgetting old name`);

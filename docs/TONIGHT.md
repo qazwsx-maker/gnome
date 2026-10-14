@@ -1,7 +1,7 @@
 # คืนแรก: flash 3 บอร์ด → ต่อเน็ต → ขึ้น dashboard → ลอง OTA
 
 **เตรียม**: เสียบบอร์ดกับ **Mac mini** (ถ้าทำได้) ผมจะเห็นพอร์ต flash และอ่าน serial log ให้ · หรือใช้ MacBook เปิด Chrome ที่หน้า flash เอง
-**ข้อมูลที่ต้องใส่**: WiFi บ้าน 2.4G · MQTT host `192.168.1.111` · user `gnome` · password จาก `infra/.env` บน Mac mini
+**ข้อมูลที่ต้องใส่**: WiFi บ้าน 2.4G · MQTT host = IP ของ Mac mini (ตอนนี้ `192.168.1.107` — เช็กด้วย `ipconfig getifaddr en1`) · user `gnome` · password จาก `infra/.env` บน Mac mini
 
 | ลำดับ | บอร์ด | firmware | ชื่อ node ที่แนะนำ | หมายเหตุ |
 |---|---|---|---|---|
@@ -13,7 +13,7 @@
 1. เสียบ USB → เปิด https://qazwsx-maker.github.io/gnome/flash/ (Chrome) → กดปุ่มของบอร์ด → เลือกพอร์ต → **Install** (ติ๊ก Erase) 
 2. เสร็จแล้วหน้าจะถาม WiFi → เลือก SSID ใส่รหัส → ได้ลิงก์ `http://<ip>/`
 3. เปิดลิงก์ → ตั้ง **ชื่อ node**, **MQTT host / user / password** → บันทึกและรีบูต
-4. ดู http://192.168.1.111:8080/ → node ต้องขึ้นเป็นออนไลน์ภายใน ~10 วิ (มี boot event ในแท็บเหตุการณ์)
+4. ดู http://<IP ของ Mac mini>:8080/ → node ต้องขึ้นเป็นออนไลน์ภายใน ~10 วิ (มี boot event ในแท็บเหตุการณ์)
 5. **ทดสอบ OTA**: บน Mac mini รัน `tools/release.sh 0.3.1` → dashboard จะโชว์ปุ่ม "อัปเดต OTA → 0.3.1" ที่ node → กด → node รีบูตกลับมาพร้อม fw 0.3.1 (ดูในการ์ด node)
 
 ## ถ้าติด

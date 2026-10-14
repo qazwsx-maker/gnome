@@ -6,7 +6,7 @@
 
 | ชื่อ | ฮาร์ดแวร์ | หน้าที่ | สถานะ |
 |---|---|---|---|
-| **GNOME Hut** (ระบบกลาง) | Mac mini M4 · Mosquitto + gnome-core + PostgreSQL | สั่งงาน/ตรวจสถานะทุก node, เก็บ log, วิเคราะห์, automation, OTA, รายงานผลให้ webapp/app, Discord | ✅ รันอยู่ (dashboard `http://192.168.1.111:8080/`) |
+| **GNOME Hut** (ระบบกลาง) | Mac mini M4 · Mosquitto + gnome-core + PostgreSQL | สั่งงาน/ตรวจสถานะทุก node, เก็บ log, วิเคราะห์, automation, OTA, รายงานผลให้ webapp/app, Discord | ✅ รันอยู่ (dashboard `http://<IP ของ Mac mini>:8080/` — ตอนนี้ 192.168.1.107 (เปลี่ยนได้ถ้า router แจก IP ใหม่ ควรจอง DHCP reservation)) |
 | **Keeper** | ESP32-Relay-X4 (relay 220V 10A ×4) + OLED 1.3" | relay 1 = ปั๊ม 12V น้ำหยด (ยังไม่มีปั๊ม) · relay 2 = เต้ารับพัดลม 220V · relay 3–4 ว่าง (หมอก/ไฟ/อื่นๆ) · max-on, interlock, failsafe | ✅ firmware `keeper-relayx4` 0.3.0 พร้อม OLED + หน้าอารมณ์ (รดน้ำ/พัดลม) |
 | **Scout** | ESP32-S3 UNO + OLED 1.3" | จอแสดงข้อมูล + **หน้าอารมณ์** · BH1750 โดม (แสง) · DHT22 (อุณหภูมิ/ความชื้น) · raindrop · ดิน | ✅ env `scout-s3` 0.3.0 + หน้าอารมณ์ (ยังไม่ทดสอบบนบอร์ด) |
 | **Mini Scout** | ESP32 DevKit 30 pin + terminal adapter + OLED 1.3" | จอแสดงข้อมูล + หน้าอารมณ์ · DHT22 · ดิน | ✅ firmware `scout` 0.3.0 จอสถานะ + หน้าอารมณ์ |

@@ -156,24 +156,59 @@ static String hutBase() { String b = cfg.hutUrl.length() ? cfg.hutUrl : ("http:/
 static void setFlash(bool on) { flashOn = on; pinMode(CAM_FLASH_PIN, OUTPUT); digitalWrite(CAM_FLASH_PIN, on ? HIGH : LOW); }
 
 // ถ่าย + ส่งขึ้น Hut
+// ---- อัปโหลดเบื้องหลัง ----
+// เดิม http.POST บล็อกลูปหลักไว้จนกว่าจะส่งเสร็จ (ลิงก์แย่ = นานเกิน 45 วิ) → MQTT keepalive ขาด → หลุด
+// ตอนนี้ก๊อปเฟรมไว้ใน PSRAM แล้วปล่อยกล้องทันที ส่วนการส่งทำใน task แยก ลูปหลักเดินต่อ
+struct UploadJob { uint8_t* buf; size_t len; char reason[16]; int angle; };
+static volatile bool upBusy = false;
+static volatile int  upDoneCode = 0;     // 0 = ไม่มีผลค้าง
+static size_t upDoneBytes = 0;
+static char upDoneReason[16] = "";
+
+static void uploadTask(void* arg) {
+  UploadJob* j = (UploadJob*)arg;
+  String url = hutBase() + "/api/cam/" + cfg.node + "/snapshot";
+  WiFiClient c; HTTPClient http; http.setTimeout(10000); http.setConnectTimeout(5000); http.begin(c, url);
+  http.addHeader("Content-Type", "image/jpeg"); http.addHeader("X-Node", cfg.node); http.addHeader("X-Reason", j->reason);
+  if (j->angle >= 0) http.addHeader("X-Angle", String(j->angle));
+  int code = http.POST(j->buf, j->len);
+  http.end();
+  lastCode = code; lastBytes = j->len; lastUploadMs = millis();
+  if (code >= 200 && code < 300) { uploads++; Serial.printf("[cam] uploaded %u bytes (%s) -> %d\n", (unsigned)j->len, j->reason, code); }
+  else { fails++; Serial.printf("[cam] upload failed %d (%s)\n", code, j->reason); }
+  upDoneBytes = j->len; strlcpy(upDoneReason, j->reason, sizeof upDoneReason); upDoneCode = code ? code : -99;
+  free(j->buf); delete j;
+  upBusy = false;
+  vTaskDelete(nullptr);
+}
+
+/** ถ่าย 1 เฟรม แล้วส่งเบื้องหลัง — คืน true ถ้าเริ่มงานได้ (ผลส่งจริงดูจาก event ทีหลัง) */
 static bool snapAndUpload(const char* reason) {
   if (!camOk || !netWifiConnected()) return false;
+  if (upBusy) { Serial.println("[cam] upload still running, skip"); return false; }
   if (cfg.camFlash) { setFlash(true); delay(120); }
   if (xSemaphoreTake(camLock, pdMS_TO_TICKS(3000)) != pdTRUE) { if (cfg.camFlash) setFlash(false); return false; }
   camera_fb_t* fb = esp_camera_fb_get();
   if (cfg.camFlash) setFlash(false);
   if (!fb) { xSemaphoreGive(camLock); fails++; Serial.println("[cam] capture failed"); mqttEvent("sensor_error", "\"msg\":\"capture failed\""); return false; }
-  String url = hutBase() + "/api/cam/" + cfg.node + "/snapshot";
-  WiFiClient c; HTTPClient http; http.setTimeout(15000); http.begin(c, url);
-  http.addHeader("Content-Type", "image/jpeg"); http.addHeader("X-Node", cfg.node); http.addHeader("X-Reason", reason);
-  if (cfg.servoPin >= 0) http.addHeader("X-Angle", String(cfg.servoAngle));
-  int code = http.POST(fb->buf, fb->len);
-  http.end();
-  lastCode = code; lastBytes = fb->len; lastUploadMs = millis();
-  esp_camera_fb_return(fb); xSemaphoreGive(camLock);
-  if (code >= 200 && code < 300) { uploads++; Serial.printf("[cam] uploaded %d bytes (%s) -> %d\n", lastBytes, reason, code); return true; }
-  fails++; Serial.printf("[cam] upload failed %d -> %s\n", code, url.c_str());
-  return false;
+  UploadJob* j = new UploadJob();
+  j->buf = (uint8_t*)(psramFound() ? ps_malloc(fb->len) : malloc(fb->len));
+  if (!j->buf) { esp_camera_fb_return(fb); xSemaphoreGive(camLock); delete j; fails++; return false; }
+  memcpy(j->buf, fb->buf, fb->len); j->len = fb->len;
+  esp_camera_fb_return(fb); xSemaphoreGive(camLock);          // ปล่อยกล้องทันที :81/stream ไม่ต้องรอส่งเสร็จ
+  strlcpy(j->reason, reason, sizeof j->reason); j->angle = cfg.servoPin >= 0 ? cfg.servoAngle : -1;
+  lastBytes = j->len;
+  upBusy = true;
+  if (xTaskCreatePinnedToCore(uploadTask, "camup", 8192, j, 1, nullptr, 0) != pdPASS) { free(j->buf); delete j; upBusy = false; fails++; return false; }
+  return true;
+}
+
+/** เรียกจากลูปหลัก: ประกาศผลการส่งที่ task ทำเสร็จ (PubSubClient ไม่ thread-safe เลยส่งจากตรงนี้) */
+static void uploadReport() {
+  if (!upDoneCode) return;
+  int code = upDoneCode; upDoneCode = 0;
+  bool ok = code >= 200 && code < 300;
+  mqttEvent(ok ? "snapshot" : "snapshot_failed", String("\"bytes\":") + upDoneBytes + ",\"code\":" + code + ",\"reason\":\"" + upDoneReason + "\"");
 }
 
 void roleSetup() {
@@ -189,6 +224,7 @@ static int patrol(const char* reason) {
   int back = cfg.servoAngle, n = 0;
   for (int i = 0; i < cfg.presetCount; i++) {
     panTo(cfg.preset[i].angle, false);
+    uint32_t t0 = millis(); while (upBusy && millis() - t0 < 20000) { mqttLoop(); delay(20); }
     if (snapAndUpload(reason)) n++;
     mqttLoop();
   }
@@ -197,6 +233,7 @@ static int patrol(const char* reason) {
 }
 
 void roleLoop() {
+  uploadReport();
   if (servoOn && millis() > servoIdleAt) servoRelease();
   static bool streamStarted = false;
   if (!streamStarted && netWifiConnected()) { startStream(); streamStarted = true; }
@@ -256,7 +293,7 @@ int roleStats(StatItem* out, int max) {
 }
 
 bool roleCommand(const String& sub, const String& payload) {
-  if (sub == "cmd/snap") { lastShot = millis(); bool ok = snapAndUpload("cmd"); mqttEvent(ok ? "snapshot" : "snapshot_failed", "\"bytes\":" + String(lastBytes)); return true; }
+  if (sub == "cmd/snap") { lastShot = millis(); if (!snapAndUpload("cmd")) mqttEvent("snapshot_failed", "\"msg\":\"busy or capture failed\""); return true; }
   if (sub == "cmd/flash") { String p = payload; p.trim(); p.toUpperCase(); setFlash(p == "ON" || p == "1"); return true; }
   if (sub == "cmd/pan") {
     String p = payload; p.trim();

@@ -145,6 +145,7 @@ static bool glanceValid() { return glanceUntil && (int32_t)(glanceUntil - millis
 
 static void startStream() {
   httpd_config_t c = HTTPD_DEFAULT_CONFIG(); c.server_port = 81; c.ctrl_port = 32781; c.max_uri_handlers = 4;
+  c.lru_purge_enable = true; c.send_wait_timeout = 5; c.recv_wait_timeout = 5;   // client ที่ตายคาอยู่ต้องถูกเตะออก ไม่งั้นซ็อกเก็ตหมดทั้งบอร์ด
   if (httpd_start(&streamd, &c) != ESP_OK) { Serial.println("[cam] stream server failed"); return; }
   httpd_uri_t u1 = { .uri = "/stream", .method = HTTP_GET, .handler = streamHandler, .user_ctx = nullptr };
   httpd_uri_t u2 = { .uri = "/snapshot", .method = HTTP_GET, .handler = snapshotHandler, .user_ctx = nullptr };
@@ -204,10 +205,17 @@ static bool snapAndUpload(const char* reason) {
 }
 
 /** เรียกจากลูปหลัก: ประกาศผลการส่งที่ task ทำเสร็จ (PubSubClient ไม่ thread-safe เลยส่งจากตรงนี้) */
+static int connFailStreak = 0;   // -1/-3/-11 ติดกันกี่ครั้ง (2026-10-15 ค้างแบบนี้ 215 ครั้งข้ามคืน จนต้องสั่งรีบูต)
 static void uploadReport() {
   if (!upDoneCode) return;
   int code = upDoneCode; upDoneCode = 0;
   bool ok = code >= 200 && code < 300;
+  if (ok) connFailStreak = 0;
+  else if (code < 0 && netWifiConnected()) {
+    connFailStreak++;
+    if (connFailStreak == 3) { Serial.println("[cam] 3 connect failures — WiFi reconnect"); mqttEvent("selfheal", "\"action\":\"wifi_reconnect\""); WiFi.disconnect(); delay(200); WiFi.reconnect(); }
+    else if (connFailStreak >= 6) { Serial.println("[cam] 6 connect failures — restart"); mqttEvent("selfheal", "\"action\":\"restart\""); netRequestReboot(1500); connFailStreak = 0; }
+  }
   mqttEvent(ok ? "snapshot" : "snapshot_failed", String("\"bytes\":") + upDoneBytes + ",\"code\":" + code + ",\"reason\":\"" + upDoneReason + "\"");
 }
 

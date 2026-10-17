@@ -50,7 +50,8 @@ static void onMessage(char* topic, byte* payload, unsigned int len) {
     client.disconnect();                       // ตัดแบบ clean → broker ไม่ยิง LWT offline ระหว่างดาวน์โหลด
     Serial.printf("[ota] %s\n", p.c_str());
     httpUpdate.rebootOnUpdate(true); httpUpdate.setLedPin(GNOME_LED_PIN >= 0 ? GNOME_LED_PIN : -1, HIGH);
-    t_httpUpdate_return r = httpUpdate.update(otaClient, p);
+    String otaUrl = netResolveUrl(p);           // เผื่อ Hut ส่ง URL เป็นชื่อ .local
+    t_httpUpdate_return r = httpUpdate.update(otaClient, otaUrl);
     // มาถึงตรงนี้ = ไม่สำเร็จ (สำเร็จจะรีบูตไปแล้ว)
     pendingFail = String(httpUpdate.getLastError()) + " " + httpUpdate.getLastErrorString(); if (r == HTTP_UPDATE_NO_UPDATES) pendingFail = "no update";
     Serial.printf("[ota] failed: %s\n", pendingFail.c_str()); lastTry = 0;
@@ -66,9 +67,12 @@ void mqttSetup() {
 
 static void tryConnect() {
   if (cfg.mqttHost.length() == 0) return;
-  client.setServer(cfg.mqttHost.c_str(), cfg.mqttPort);
+  String hostIp = netResolveHost(cfg.mqttHost);
+  if (!hostIp.length()) { Serial.printf("[mqtt] cannot resolve %s\n", cfg.mqttHost.c_str()); return; }
+  static String serverIp; if (serverIp != hostIp) { serverIp = hostIp; }
+  client.setServer(serverIp.c_str(), cfg.mqttPort);
   String will = base + "status";
-  Serial.printf("[mqtt] connecting %s:%d as %s\n", cfg.mqttHost.c_str(), cfg.mqttPort, cfg.node.c_str());
+  Serial.printf("[mqtt] connecting %s (%s):%d as %s\n", cfg.mqttHost.c_str(), serverIp.c_str(), cfg.mqttPort, cfg.node.c_str());
   bool ok = client.connect(cfg.node.c_str(), cfg.mqttUser.length() ? cfg.mqttUser.c_str() : nullptr, cfg.mqttPass.length() ? cfg.mqttPass.c_str() : nullptr,
                            will.c_str(), 1, true, "offline");
   if (!ok) { Serial.printf("[mqtt] failed rc=%d\n", client.state()); return; }

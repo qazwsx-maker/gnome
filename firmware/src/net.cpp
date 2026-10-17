@@ -173,3 +173,34 @@ void netLoop() {
     if (portal && millis() - lastStaTry > 60000) stopPortal();
   }
 }
+
+// ---- ชื่อ → IP ----
+// ถ้า host ลงท้าย .local ใช้ mDNS (ถามหาเครื่องในวง LAN) ไม่งั้นใช้ DNS ปกติ
+// ถ้าเป็น IP อยู่แล้วคืนเดิม · cache ผลล่าสุดไว้ 60 วิ ลดการถาม mDNS ทุกครั้งที่ต่อ
+static String resolvedCache, resolvedFor; static uint32_t resolvedAt = 0;
+String netResolveHost(const String& host) {
+  IPAddress ip;
+  if (ip.fromString(host)) return host;
+  if (resolvedFor == host && resolvedCache.length() && millis() - resolvedAt < 60000) return resolvedCache;
+  if (!netWifiConnected()) return "";
+  String out;
+  if (host.endsWith(".local")) {
+    String name = host.substring(0, host.length() - 6);
+    for (int i = 0; i < 3 && !out.length(); i++) { IPAddress r = MDNS.queryHost(name, 2000); if (r != IPAddress(0, 0, 0, 0)) out = r.toString(); }
+  } else {
+    if (WiFi.hostByName(host.c_str(), ip)) out = ip.toString();
+  }
+  if (out.length()) { resolvedFor = host; resolvedCache = out; resolvedAt = millis(); Serial.printf("[net] %s -> %s\n", host.c_str(), out.c_str()); }
+  else Serial.printf("[net] resolve %s failed\n", host.c_str());
+  return out;
+}
+
+String netResolveUrl(const String& url) {
+  int a = url.indexOf("://"); if (a < 0) return url;
+  int hs = a + 3; int he = url.indexOf('/', hs); if (he < 0) he = url.length();
+  String hostport = url.substring(hs, he);
+  int c = hostport.indexOf(':'); String host = c >= 0 ? hostport.substring(0, c) : hostport; String port = c >= 0 ? hostport.substring(c) : "";
+  String ip = netResolveHost(host);
+  if (!ip.length()) return url;
+  return url.substring(0, hs) + ip + port + url.substring(he);
+}

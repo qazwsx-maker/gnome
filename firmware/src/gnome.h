@@ -14,6 +14,10 @@ void netLoop();
 bool netPortalActive();
 String netIp();
 int netRssi();
+// แปลงชื่อโฮสต์เป็น IP — รองรับ *.local ผ่าน mDNS (Hut ย้าย IP แล้วบอร์ดยังตามเจอ) · คืน "" ถ้าหาไม่เจอ
+String netResolveHost(const String& host);
+// "http://host:port/..." → เปลี่ยน host เป็น IP ที่ resolve ได้ (ถ้าจำเป็น)
+String netResolveUrl(const String& url);
 bool netWifiConnected();
 void netRequestReboot(uint32_t delayMs = 600);
 

@@ -153,6 +153,8 @@ static void startStream() {
 }
 
 static String hutBase() { String b = cfg.hutUrl.length() ? cfg.hutUrl : ("http://" + cfg.mqttHost + ":8080"); while (b.endsWith("/")) b.remove(b.length() - 1); return b; }
+// ใช้ตอนจะต่อจริง: แปลงชื่อ .local ใน URL เป็น IP (HTTPClient ไม่รู้จัก mDNS)
+static String hutBaseResolved() { return netResolveUrl(hutBase()); }
 
 static void setFlash(bool on) { flashOn = on; pinMode(CAM_FLASH_PIN, OUTPUT); digitalWrite(CAM_FLASH_PIN, on ? HIGH : LOW); }
 
@@ -168,7 +170,7 @@ static char upDoneReason[16] = "";
 
 static void uploadTask(void* arg) {
   UploadJob* j = (UploadJob*)arg;
-  String url = hutBase() + "/api/cam/" + cfg.node + "/snapshot";
+  String url = hutBaseResolved() + "/api/cam/" + cfg.node + "/snapshot";
   WiFiClient c; HTTPClient http; http.setTimeout(10000); http.setConnectTimeout(5000); http.begin(c, url);
   http.addHeader("Content-Type", "image/jpeg"); http.addHeader("X-Node", cfg.node); http.addHeader("X-Reason", j->reason);
   if (j->angle >= 0) http.addHeader("X-Angle", String(j->angle));

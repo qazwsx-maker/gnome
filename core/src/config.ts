@@ -39,7 +39,9 @@ export const config = {
   // OTA: firmware binaries served at /firmware/<env>/firmware.bin (default = docs/firmware in the repo)
   firmwareDir: process.env.FIRMWARE_DIR || new URL('../../docs/firmware/', import.meta.url).pathname,
   // URL nodes use to reach this server on the LAN
-  publicUrl: (process.env.CORE_PUBLIC_URL || `http://${lanIp()}:${num(process.env.PORT, 8080)}`).replace(/\/$/, ''),
+  // URL ที่ node ใช้โหลด firmware — ถ้าไม่ได้ตั้ง CORE_PUBLIC_URL จะหา IP ของเครื่องใหม่ทุกครั้งที่ถูกเรียก
+  // (router แจก IP ใหม่ให้ Mac mini มาแล้ว 3 ครั้งใน 4 วัน ค่าตายตัวจึงพังทุกครั้ง)
+  get publicUrl(): string { return (process.env.CORE_PUBLIC_URL || `http://${lanIp()}:${num(process.env.PORT, 8080)}`).replace(/\/$/, ''); },
 
   // behaviour
   offlineAfterMs: num(process.env.OFFLINE_AFTER_S, 90) * 1000,

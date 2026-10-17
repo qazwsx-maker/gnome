@@ -1,7 +1,7 @@
 # คืนแรก: flash 3 บอร์ด → ต่อเน็ต → ขึ้น dashboard → ลอง OTA
 
 **เตรียม**: เสียบบอร์ดกับ **Mac mini** (ถ้าทำได้) ผมจะเห็นพอร์ต flash และอ่าน serial log ให้ · หรือใช้ MacBook เปิด Chrome ที่หน้า flash เอง
-**ข้อมูลที่ต้องใส่**: WiFi บ้าน 2.4G · MQTT host = IP ของ Mac mini (ตอนนี้ `192.168.1.107` — เช็กด้วย `ipconfig getifaddr en1`) · user `gnome` · password จาก `infra/.env` บน Mac mini
+**ข้อมูลที่ต้องใส่**: WiFi บ้าน 2.4G · MQTT host = `pichaya-mac-mini.local` (ชื่อ mDNS ของ Mac mini — firmware ≥0.6.5 แปลงเป็น IP เอง ไม่ต้องตามเวลา router แจก IP ใหม่) · user `gnome` · password จาก `infra/.env` บน Mac mini
 
 | ลำดับ | บอร์ด | firmware | ชื่อ node ที่แนะนำ | หมายเหตุ |
 |---|---|---|---|---|

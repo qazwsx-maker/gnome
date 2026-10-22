@@ -6,6 +6,7 @@ import { query } from './db.ts';
 import { bus } from './bus.ts';
 import { getNode, setOnline, touch, recordEvent, nodes, forgetNode } from './state.ts';
 import { discord } from './discord.ts';
+import { isSonoffNode, sonoffCommand } from './sonoff.ts';
 
 const log = logger('mqtt');
 const SERVER_STATUS = 'gnome/server/status';
@@ -248,7 +249,7 @@ async function handle(topic: string, buf: Buffer, retained: boolean): Promise<vo
         const j = parseJson(buf);
         if (j) return onSwitchMeta(node, key, j);
       }
-      if (parts[4] === 'command') return; // our own outgoing commands
+      if (parts[4] === 'command') { if (isSonoffNode(node)) await sonoffCommand(node, key, payload); return; }   // คำสั่งของเราเอง — ยกเว้น node ที่ Hut เป็นตัวแทน (Sonoff)
       break;
     }
     case 'debug': {

@@ -15,6 +15,7 @@ import { registerSage } from './sage.ts';
 import { registerAuth } from './auth.ts';
 import { discordSettings, saveDiscordSettings, glanceSettings, saveGlanceSettings } from './settings.ts';
 import { glanceReady, clearGlance } from './glance.ts';
+import { listSonoff } from './sonoff.ts';
 import { discord, webhookUrl } from './discord.ts';
 import { startHeartbeat } from './heartbeat.ts';
 import { join } from 'node:path';
@@ -373,6 +374,8 @@ export async function startHttp() {
     log.info(`glance settings updated (enabled=${next.enabled}, nodes=${next.nodes.join(',') || '-'})`);
     return next;
   });
+
+  app.get('/api/sonoff', async () => listSonoff());
 
   app.get('/api/rules', async () => listRules());
 

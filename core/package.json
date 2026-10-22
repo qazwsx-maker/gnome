@@ -9,6 +9,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "dev": "node --watch src/index.ts",
+    "sonoff-mock": "node tools/sonoff-mock.js",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "engines": {
@@ -21,6 +22,7 @@
     "croner": "^9.1.0",
     "fastify": "^5.4.0",
     "mqtt": "^5.13.0",
+    "multicast-dns": "^7.2.5",
     "pg": "^8.16.0",
     "zod": "^4.6.5"
   },

@@ -71,3 +71,25 @@ soil `_pct` = map(raw, dry→0, wet→100) clamp; calibration `dry`/`wet` ต่
 - `switch_states` (node, key, state, ts) + `switch_log`
 - `events` (ts, node, type, payload)
 - `rules` (id, name, enabled, json)
+
+## Sonoff DIY mode (bridge ใน Hut)
+
+สวิตช์ Sonoff ที่เปิด **DIY mode** ในแอป eWeLink (รุ่น BASICR3 / RFR3 / MINI / MINIR2 / MINIR3, firmware ≥ 3.5.0)
+ประกาศตัวเองในวง LAN ด้วย mDNS `_ewelink._tcp` และรับคำสั่ง HTTP ที่พอร์ต 8081 — Hut (`core/src/sonoff.ts`)
+ค้นหาเองแล้ว **ทำตัวเป็น node แทน** ตามสัญญาเดิม ไม่ต้องผ่านคลาวด์ ไม่ต้องแฟลช
+
+| หัวข้อ | ทิศทาง | ความหมาย |
+|---|---|---|
+| `gnome/sonoff-<4 ตัวท้ายของ deviceid>/meta` | Hut (retained) | `role: keeper`, `bridge: "sonoff"`, `diy: true/false`, `switches:[{key:"relay"}]` |
+| `…/status` | Hut (retained) | online เมื่อเห็นใน mDNS/info ตอบ · offline เมื่อเงียบเกิน 150 วิ |
+| `…/switch/relay/state` | Hut (retained) | `ON`/`OFF` จาก `/zeroconf/info` (ถามทุก 30 วิ เผื่อถูกกดที่ตัว/แอป) |
+| `…/switch/relay/command` | ใครก็ได้ → Hut | `ON` · `ON <วินาที>` · `OFF` — เหมือน Keeper ทุกประการ |
+| `…/debug` | Hut | `rssi`, `ip`, `startup`, `pulse`, `pulse_width_ms` |
+
+- `ON <วินาที>` ใช้ **pulse ของตัวอุปกรณ์** (`/zeroconf/pulse` → ตัดเองเมื่อครบเวลา) แล้วค่อย `switch on`
+  → ถึง Hut ตายกลางทาง วาล์ว/ปั๊มก็ปิดเอง · ปัดเป็นทวีคูณ 500 ms ช่วง 0.5 วิ – 10 ชม.
+- ครั้งแรกที่เจอ Hut ตั้ง `startup = off` ให้ (ไฟดับ-ไฟมาแล้วต้องไม่เปิดเอง)
+- อุปกรณ์ที่ยังอยู่โหมด eWeLink LAN (TXT เข้ารหัส) จะโผล่เป็น node ที่ `diy: false` สั่งไม่ได้ และมี event `sonoff_needs_diy`
+- events: `sonoff_found`, `sonoff_needs_diy`, `switch_failed`
+- ดูรายการที่เจอ: `GET /api/sonoff` · จำลองอุปกรณ์เพื่อทดสอบ: `cd core && npm run sonoff-mock -- 100000140e 8081`
+- **ไม่รองรับ**: POWR3/POWR316, MINIR4 (ไม่มี DIY mode) — ทางเลือกคือแฟลช Tasmota แล้วคุยผ่าน MQTT

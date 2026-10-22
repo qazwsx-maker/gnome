@@ -8,6 +8,7 @@ import { reloadRules, startRules } from './rules.ts';
 import { startRetention } from './retention.ts';
 import { startHeartbeat } from './heartbeat.ts';
 import { loadSettings } from './settings.ts';
+import { startSonoff } from './sonoff.ts';
 import { startHttp } from './http.ts';
 
 const log = logger('core');
@@ -19,6 +20,7 @@ async function main() {
   await loadSettings();
   await loadState();
   startMqtt();
+  startSonoff();
   await reloadRules();
   startRules();
   startRetention();

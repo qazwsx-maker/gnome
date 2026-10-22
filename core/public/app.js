@@ -399,7 +399,7 @@
         <span class="badge ${esc(role)}">${esc(role)}</span>
         <span class="muted small" style="margin-left:auto">${n.online ? 'ออนไลน์' : 'ออฟไลน์'} · ${esc(ago(n.last_seen))}</span>
       </div>
-      <div class="meta">
+      <div class="meta">${n.meta?.bridge === 'sonoff' ? `<span class="badge" title="Hut สั่งผ่าน LAN แทน">🔌 Sonoff ${n.meta?.diy === false ? '· <b style="color:var(--critical)">ต้องเปิด DIY mode ในแอป eWeLink</b>' : 'DIY'}</span>` : ''}
         ${dbg.rssi !== undefined ? `<span>RSSI ${esc(dbg.rssi)} dBm</span>` : ''}
         ${n.ip ? `<span>IP ${esc(n.ip)}</span>` : ''}
         ${n.fw ? `<span>${esc(n.fw)}</span>` : ''}

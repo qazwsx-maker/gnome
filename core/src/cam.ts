@@ -1,8 +1,10 @@
 // Watcher (ESP32-CAM) support: receive snapshots, store on disk + DB, list/serve them, retention
 import type { FastifyInstance } from 'fastify';
 import fastifyStatic from '@fastify/static';
-import { mkdirSync, writeFileSync, copyFileSync, unlinkSync, existsSync, rmSync } from 'node:fs';
+import { mkdirSync, writeFileSync, copyFileSync, unlinkSync, existsSync, rmSync, readdirSync, statSync, renameSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
+import { spawn, execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { config } from './config.ts';
 import { logger } from './log.ts';
 import { query } from './db.ts';
@@ -126,9 +128,98 @@ export async function registerCam(app: FastifyInstance): Promise<void> {
     return { ok: true, deleted: r.rowCount };
   });
 
+  // time-lapse → mp4 ด้วย ffmpeg: ?day=YYYY-MM-DD · ?from=YYYY-MM-DD&to=YYYY-MM-DD · ?all=1
+  //   &hourly=1 เอา 1 ภาพ/ชม. · &angle=N เฉพาะมุม · &fps=10 (1–30)
+  // ไฟล์เก็บที่ <camDir>/<node>/_export/ (static plugin เสิร์ฟพร้อม Range → เล่นใน Safari ได้) ชื่อมี hash ของชุดภาพ = cache เอง
+  app.get<{ Params: { node: string }; Querystring: { day?: string; from?: string; to?: string; all?: string; hourly?: string; angle?: string; fps?: string } }>('/api/cam/:node/timelapse', async (req, reply) => {
+    const { node } = req.params; const q = req.query;
+    if (!NODE_RE.test(node)) return reply.code(400).send({ error: 'bad node' });
+    const fps = Math.max(1, Math.min(30, Number(q.fps) || 10));
+    const DAY = /^\d{4}-\d{2}-\d{2}$/;
+    const where: string[] = ['node = $1']; const args: unknown[] = [node];
+    let label: string;
+    if (q.day) { if (!DAY.test(q.day)) return reply.code(400).send({ error: 'day ต้องเป็น YYYY-MM-DD' }); args.push(q.day); where.push(`to_char(ts AT TIME ZONE '${config.tz}', 'YYYY-MM-DD') = $${args.length}`); label = q.day; }
+    else if (q.from || q.to) {
+      if ((q.from && !DAY.test(q.from)) || (q.to && !DAY.test(q.to))) return reply.code(400).send({ error: 'from/to ต้องเป็น YYYY-MM-DD' });
+      if (q.from) { args.push(q.from); where.push(`to_char(ts AT TIME ZONE '${config.tz}', 'YYYY-MM-DD') >= $${args.length}`); }
+      if (q.to) { args.push(q.to); where.push(`to_char(ts AT TIME ZONE '${config.tz}', 'YYYY-MM-DD') <= $${args.length}`); }
+      label = `${q.from || 'start'}_${q.to || 'now'}`;
+    } else if (q.all) label = 'all';
+    else return reply.code(400).send({ error: 'ต้องระบุ day, from/to หรือ all=1' });
+    if (q.angle !== undefined && q.angle !== '') { args.push(Number(q.angle)); where.push(`angle = $${args.length}`); label += `-a${Number(q.angle)}`; }
+    const hourly = q.hourly === '1' || q.hourly === 'true'; if (hourly) label += '-hourly';
+    const sql = hourly
+      ? `SELECT DISTINCT ON (date_trunc('hour', ts)) id, path FROM snapshots WHERE ${where.join(' AND ')} ORDER BY date_trunc('hour', ts), ts`
+      : `SELECT id, path FROM snapshots WHERE ${where.join(' AND ')} ORDER BY ts`;
+    const r = await query<{ id: number; path: string }>(sql, args);
+    let frames = r.rows.filter((x) => existsSync(join(config.camDir, x.path)));
+    if (frames.length > MAX_FRAMES) { const step = frames.length / MAX_FRAMES; frames = Array.from({ length: MAX_FRAMES }, (_, i) => frames[Math.floor(i * step)]); }
+    if (frames.length < 2) return reply.code(404).send({ error: `มีภาพแค่ ${frames.length} ภาพ ทำ time-lapse ไม่ได้` });
+    const hash = createHash('sha1').update(frames.map((f) => f.id).join(',') + `@${fps}#2`).digest('hex').slice(0, 8);
+    const dir = join(config.camDir, node, '_export'); mkdirSync(dir, { recursive: true });
+    const name = `${label}-${fps}fps-${hash}.mp4`; const out = join(dir, name);
+    const url = `/cam/${node}/_export/${name}`;
+    if (!existsSync(out)) {
+      try { await encodeTimelapse(frames.map((f) => join(config.camDir, f.path)), fps, out); }
+      catch (e) { log.error(`${node} timelapse ${label}: ${(e as Error).message}`); return reply.code(500).send({ error: 'ffmpeg ล้มเหลว: ' + (e as Error).message }); }
+      // ไฟล์เก่าของช่วงเดียวกัน (ชุดภาพเปลี่ยน → hash เปลี่ยน) ทิ้งได้
+      for (const f of readdirSync(dir)) if (f.startsWith(`${label}-${fps}fps-`) && f !== name) try { unlinkSync(join(dir, f)); } catch { /* ignore */ }
+      log.info(`${node} timelapse ${label}: ${frames.length} frames @${fps}fps -> ${name} (${Math.round(statSync(out).size / 1024)} kB)`);
+    }
+    return { ok: true, url, frames: frames.length, fps, seconds: Math.round((frames.length / fps) * 10) / 10, bytes: statSync(out).size };
+  });
+
   // ตรวจสอบ DB กับไฟล์จริง (เผื่อลบไฟล์ตรงในโฟลเดอร์): ลบแถวที่ไฟล์หาย
   app.post<{ Params: { node: string } }>('/api/cam/:node/reconcile', async (req) => ({ ok: true, removed: await reconcile(req.params.node) }));
   setTimeout(() => void reconcile().catch(() => {}), 15_000).unref();
+}
+
+const MAX_FRAMES = 3000;                 // เกินนี้สุ่มเว้นระยะให้พอดี (3000 @10fps = 5 นาที)
+const EXPORT_KEEP_MS = 7 * 86_400_000;   // mp4 ที่ไม่มีใครขอซ้ำเกิน 7 วันลบทิ้ง (สร้างใหม่ได้เสมอ)
+const encoding = new Map<string, Promise<void>>();
+
+function probeSize(file: string): Promise<{ w: number; h: number }> {
+  return new Promise((resolve, reject) => {
+    execFile('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', file], { timeout: 10_000 }, (err, stdout) => {
+      if (err) return reject(new Error('ffprobe: ' + err.message));
+      const [w, h] = String(stdout).trim().split(/[,\s]/).map(Number);
+      if (!w || !h) return reject(new Error('ffprobe: อ่านขนาดภาพไม่ได้'));
+      resolve({ w, h });
+    });
+  });
+}
+
+/** ป้อน JPEG ทีละไฟล์เข้า stdin ของ ffmpeg (image2pipe) → H.264 mp4 · ภาพต่างขนาดถูก scale+pad ให้เท่าภาพแรก */
+function encodeTimelapse(files: string[], fps: number, out: string): Promise<void> {
+  const inflight = encoding.get(out); if (inflight) return inflight;   // ขอซ้ำระหว่างกำลังเข้ารหัส → รอตัวเดิม
+  const p = (async () => {
+    const { w, h } = await probeSize(files[0]);
+    const W = Math.floor(w / 2) * 2, H = Math.floor(h / 2) * 2;      // yuv420p ต้องเป็นเลขคู่
+    const tmp = out + '.tmp';
+    await new Promise<void>((resolve, reject) => {
+      const ff = spawn('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', String(fps), '-c:v', 'mjpeg', '-i', '-',
+        '-vf', `scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:-1:-1,format=yuv420p`,
+        '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23', '-movflags', '+faststart', '-f', 'mp4', tmp], { stdio: ['pipe', 'ignore', 'pipe'] });
+      let err = ''; ff.stderr.on('data', (d) => { err += d; });
+      ff.on('error', reject);
+      ff.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`ffmpeg exit ${code}: ${err.trim().slice(-300)}`))));
+      (async () => {
+        try {
+          for (const f of files) {
+            if (ff.stdin.destroyed) break;
+            // OV2640 บางครั้งให้ JPEG สองเฟรมต่อกันในไฟล์เดียว → ตัดที่ EOI (FF D9) แรก ไม่งั้น ffmpeg นับเป็น 2 เฟรม
+            let buf = readFileSync(f); const eoi = buf.indexOf(Buffer.from([0xff, 0xd9]), 2); if (eoi > 0 && eoi + 2 < buf.length) buf = buf.subarray(0, eoi + 2);
+            if (!ff.stdin.write(buf)) await new Promise((r) => ff.stdin.once('drain', r));
+          }
+          ff.stdin.end();
+        }
+        catch (e) { ff.kill('SIGKILL'); reject(e as Error); }
+      })();
+    });
+    renameSync(tmp, out);
+  })().finally(() => encoding.delete(out));
+  encoding.set(out, p);
+  return p;
 }
 
 /** ลบแถว snapshot ที่ไฟล์ไม่มีแล้วบนดิสก์ (ทุก node หรือ node เดียว) */
@@ -148,5 +239,10 @@ export async function camRetention(): Promise<{ thinned: number; expired: number
        SELECT id FROM (SELECT id, row_number() OVER (PARTITION BY node, date_trunc('hour', ts) ORDER BY ts) AS rn
                        FROM snapshots WHERE ts < now() - ($1 || ' days')::interval) x WHERE rn > 1) RETURNING id, path`, [config.camFullDays]);
   for (const r of [...old.rows, ...thin.rows]) { const p = join(config.camDir, r.path); if (existsSync(p)) try { unlinkSync(p); } catch { /* ignore */ } }
+  // mp4 ที่ export ไว้: ไม่ได้เปิด (atime) / ไม่ได้สร้าง (mtime) เกิน 7 วัน → ลบ
+  if (existsSync(config.camDir)) for (const node of readdirSync(config.camDir)) {
+    const dir = join(config.camDir, node, '_export'); if (!existsSync(dir)) continue;
+    for (const f of readdirSync(dir)) { try { const st = statSync(join(dir, f)); if (Date.now() - Math.max(st.atimeMs, st.mtimeMs) > EXPORT_KEEP_MS) unlinkSync(join(dir, f)); } catch { /* ignore */ } }
+  }
   return { thinned: thin.rowCount ?? 0, expired: old.rowCount ?? 0 };
 }

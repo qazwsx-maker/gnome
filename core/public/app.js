@@ -99,6 +99,8 @@
         <button class="small${c.cam?.mirror ? ' on' : ''}" data-mirror="1" ${c.online ? '' : 'disabled'} title="กลับภาพซ้าย-ขวา (มีผลทันที ไม่รีบูต)">↔ ${c.cam?.mirror ? 'ซ้าย-ขวา ✓' : 'ซ้าย-ขวา'}</button>
         <select class="small cam-day" title="เลือกวัน"><option value="">— time-lapse: เลือกวัน —</option></select>
         <button class="small" data-play="1" disabled>▶ เล่น</button>
+        <button class="small" data-mp4="1" disabled title="สร้างไฟล์ mp4 ของวันที่เลือก (10 ภาพ/วิ) เล่นในการ์ดและดาวน์โหลดได้">🎬 mp4</button>
+        <button class="small" data-mp4all="1" ${c.count > 1 ? '' : 'disabled'} title="mp4 ของทุกวัน 1 ภาพ/ชม. — ดูต้นไม้โตทั้งช่วง">🎬 ทั้งช่วง</button>
         <span class="muted small cam-prog"></span>
         ${c.ip ? `<a class="btn" href="http://${esc(c.ip)}/" target="_blank" rel="noopener">⚙ ตั้งค่า</a>` : ''}
         <button class="ghost small danger" data-delday="1" title="ลบภาพของวันที่เลือกใน time-lapse">ลบวันนี้</button>
@@ -126,10 +128,12 @@
     const card = $(`.cam-card[data-node="${node}"]`); if (!card) return;
     const frames = await api(`/cam/${node}/snapshots?day=${day}`).catch(() => []);
     camState.frames[node] = frames; camState.day[node] = day;
-    $('[data-play]', card).disabled = frames.length < 2;
+    $('[data-play]', card).disabled = frames.length < 2; $('[data-mp4]', card).disabled = frames.length < 2;
     $('.film', card).innerHTML = frames.slice(-40).map((f, i) => `<img src="${esc(f.url)}" title="${esc(fmtTs(f.ts))}${f.caption ? ' — ' + esc(f.caption) : ''}" data-i="${frames.length - Math.min(40, frames.length) + i}" loading="lazy">`).join('');
     $('.cam-prog', card).textContent = `${frames.length} ภาพ`;
   }
+  // ปิดวิดีโอ time-lapse ที่เล่นอยู่ในการ์ด กลับไปโชว์ภาพนิ่ง (ก่อนดูสด/เล่นเฟรม/คลิกฟิล์ม)
+  const closeVideo = (card) => { const v = $('.cam-video', card); if (v) { v.pause(); v.remove(); $('.cam-img', card).style.display = ''; } };
   function onSnapshot(m) {
     const card = $(`.cam-card[data-node="${m.node}"]`);
     if (!card) { if ($('#tab-cam').classList.contains('active')) renderCam(); return; }
@@ -154,7 +158,7 @@
   });
   $('#cam-list').addEventListener('click', async (e) => {
     const card = e.target.closest('.cam-card'); if (!card) return; const node = card.dataset.node;
-    const img = e.target.closest('.film img'); if (img) { const f = camState.frames[node]?.[Number(img.dataset.i)]; if (f) { $('.cam-img', card).src = f.url; $('.cam-ts', card).textContent = fmtTs(f.ts); } return; }
+    const img = e.target.closest('.film img'); if (img) { const f = camState.frames[node]?.[Number(img.dataset.i)]; if (f) { closeVideo(card); $('.cam-img', card).src = f.url; $('.cam-ts', card).textContent = fmtTs(f.ts); } return; }
     const btn = e.target.closest('button'); if (!btn) return;
     try {
       if (btn.dataset.snap) { await api(`/nodes/${node}/cmd`, { method: 'POST', body: { cmd: 'snap' } }); toast(`สั่งถ่าย → ${node}`); }
@@ -169,15 +173,30 @@
       else if (btn.dataset.delday) { const day = camState.day[node]; if (!day) return toast('เลือกวันใน time-lapse ก่อน', true); if (!confirm(`ลบภาพของ ${node} วันที่ ${day} ทั้งหมด?`)) return; const r = await api(`/cam/${node}/snapshots?day=${day}`, { method: 'DELETE' }); toast(`ลบ ${r.deleted} ภาพ`); renderCam(); }
       else if (btn.dataset.delall) { if (!confirm(`ลบภาพทั้งหมดของ ${node}? (กู้คืนไม่ได้)`)) return; const r = await api(`/cam/${node}/snapshots`, { method: 'DELETE' }); toast(`ลบ ${r.deleted} ภาพ`); renderCam(); }
       else if (btn.dataset.live) {
-        const img = $('.cam-img', card), ts = $('.cam-ts', card);
+        closeVideo(card); const img = $('.cam-img', card), ts = $('.cam-ts', card);
         if (camState.live?.[node]) { img.src = camState.live[node]; camState.live[node] = null; btn.textContent = '▶ ดูสด'; ts.textContent = 'หยุดดูสดแล้ว'; return; }
         camState.live = camState.live || {}; camState.live[node] = img.src; img.style.display = '';
         img.src = `/api/cam/${node}/live?t=${Date.now()}`; ts.textContent = '🔴 สด (ผ่าน Hut)'; btn.textContent = '⏹ หยุดดูสด';
         img.onerror = () => { if (camState.live?.[node]) { toast('สตรีมหลุด — กล้องอาจไม่ว่างหรือ WiFi อ่อน', true); img.src = camState.live[node]; camState.live[node] = null; btn.textContent = '▶ ดูสด'; } };
       }
+      else if (btn.dataset.mp4 || btn.dataset.mp4all) {
+        const day = camState.day[node];
+        if (btn.dataset.mp4 && !day) return toast('เลือกวันใน time-lapse ก่อน', true);
+        const qs = btn.dataset.mp4 ? `day=${day}` : 'all=1&hourly=1';
+        const old = btn.textContent; btn.disabled = true; btn.textContent = '⏳ กำลังสร้าง…';
+        try {
+          const r = await api(`/cam/${node}/timelapse?${qs}`);
+          // เล่นในการ์ดแทนภาพนิ่ง (เสิร์ฟผ่าน static พร้อม Range → Safari/iOS เล่นได้) + ลิงก์ดาวน์โหลด
+          if (camState.playing[node]) { clearInterval(camState.playing[node]); camState.playing[node] = null; $('[data-play]', card).textContent = '▶ เล่น'; }
+          closeVideo(card); $('.cam-img', card).style.display = 'none';
+          $('.cam-view', card).insertAdjacentHTML('afterbegin', `<video class="cam-video" src="${esc(r.url)}" controls autoplay muted playsinline loop></video>`);
+          $('.cam-ts', card).textContent = `🎬 ${btn.dataset.mp4 ? day : 'ทั้งช่วง 1 ภาพ/ชม.'} · ${r.frames} ภาพ · ${r.seconds} วิ`;
+          $('.cam-prog', card).innerHTML = `<a href="${esc(r.url)}" download="${esc(node)}-${btn.dataset.mp4 ? day : 'all'}.mp4">⬇ ดาวน์โหลด mp4 (${Math.round(r.bytes / 1024)} kB)</a>`;
+        } finally { btn.disabled = false; btn.textContent = old; }
+      }
       else if (btn.dataset.play) {
         if (camState.playing[node]) { clearInterval(camState.playing[node]); camState.playing[node] = null; btn.textContent = '▶ เล่น'; return; }
-        const frames = camState.frames[node] || []; let i = 0; btn.textContent = '⏸ หยุด';
+        closeVideo(card); const frames = camState.frames[node] || []; let i = 0; btn.textContent = '⏸ หยุด';
         const view = $('.cam-img', card), ts = $('.cam-ts', card), prog = $('.cam-prog', card);
         camState.playing[node] = setInterval(() => { const f = frames[i]; if (!f) { clearInterval(camState.playing[node]); camState.playing[node] = null; btn.textContent = '▶ เล่น'; return; } view.src = f.url; ts.textContent = fmtTs(f.ts); prog.textContent = `${i + 1}/${frames.length}`; i++; }, 200);
       }

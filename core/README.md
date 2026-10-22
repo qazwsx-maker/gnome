@@ -59,6 +59,8 @@ Mosquitto runs as `brew services start mosquitto`; `/opt/homebrew/etc/mosquitto/
 | `GET /readings` | `node, key, since=ISO, until=ISO, res=raw\|5m, limit` | default last 24 h; `5m` auto when span > 2 days (5m rows include `min`/`max`) |
 | `GET /switches` | | every known switch with state + meta |
 | `GET /sage/config` · `GET/POST/DELETE /plots` · `POST /plots/:id/analyze` · `GET /plots/:id/analyses` · `GET/DELETE /analyses/:id` | | Sage growth analysis (Claude vision via `@anthropic-ai/sdk`, structured outputs; or ollama) — env `ANTHROPIC_API_KEY`, `SAGE_MODEL`, `SAGE_MAX_FRAMES` |
+| `GET /cam` · `GET /cam/:node/days` · `GET /cam/:node/snapshots` · `DELETE /cam/:node/snapshots` · `GET /cam/:node/live` · `GET /cam/:node/live-snapshot` · `POST /cam/:node/pan` | `day`, `limit`, `since` / `{angle\|preset, snap, patrol}` | Watcher: รายการกล้อง + ภาพล่าสุด, วัน/ภาพของ time-lapse, ดูสดผ่าน Hut (proxy `:81/stream`), หัน servo · ไฟล์ภาพที่ `/cam/<node>/<YYYY-MM-DD>/<HHMMSS>.jpg` |
+| `GET /cam/:node/timelapse` | `day=YYYY-MM-DD` \| `from`&`to` \| `all=1` · `hourly=1` · `angle` · `fps` (1–30, default 10) | สร้าง mp4 ด้วย ffmpeg (H.264, ≤ 3000 เฟรม สุ่มเว้นระยะถ้าเกิน) → `{url, frames, seconds, bytes}` · ไฟล์ cache ที่ `/cam/<node>/_export/` (ชื่อมี hash ของชุดภาพ, ลบเองถ้าไม่ได้เปิด 7 วัน) · ต้องมี `ffmpeg`/`ffprobe` ใน PATH |
 | `GET /firmware` | | firmware envs served from `FIRMWARE_DIR` (docs/firmware) with version + URL, and per-node `update` flag |
 | `POST /nodes/:node/ota` | `{env?}` | publish `cmd/ota` with the server's firmware URL (env auto-picked from role/board) |
 | `POST /ota` | | OTA every online node whose version differs |

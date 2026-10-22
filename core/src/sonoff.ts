@@ -131,7 +131,7 @@ async function call(d: Device, path: string, data: Record<string, unknown>): Pro
 async function refresh(d: Device): Promise<void> {
   if (!d.diy || !d.ip) return;
   try { const info = await call(d, 'info', {}); applyInfo(d, info); await announce(d); }
-  catch (e) { log.warn(`${d.node} info: ${(e as Error).message}`); }
+  catch (e) { if (d.online) log.warn(`${d.node} info: ${(e as Error).message}`); }   // เตือนเฉพาะตอนที่ยังนับว่า online — หลังหายไปแล้วไม่ต้องย้ำทุก 30 วิ
 }
 
 /** วาล์ว/ปั๊มต้องไม่เปิดเองหลังไฟดับ-ไฟมา → ตั้ง startup=off ครั้งแรกที่เจอ */
@@ -182,6 +182,7 @@ export function startSonoff(): void {
   const query = () => m?.query({ questions: [{ name: SERVICE, type: 'PTR' }] });
   query(); setTimeout(query, 3000).unref();
   setInterval(query, POLL_MS).unref();
-  setInterval(() => { for (const d of devices.values()) { void refresh(d); if (Date.now() - d.lastSeen > EXPIRE_MS) void markOffline(d); } }, POLL_MS).unref();
+  // อุปกรณ์ที่ offline แล้วไม่ยิง HTTP ซ้ำทุก 30 วิ (ถอดปลั๊ก/ย้ายบ้านไปแล้ว) — รอให้ mDNS เจอใหม่ค่อยกลับมา poll
+  setInterval(() => { for (const d of devices.values()) { if (d.online) void refresh(d); if (d.online && Date.now() - d.lastSeen > EXPIRE_MS) void markOffline(d); } }, POLL_MS).unref();
   log.info(`bridge started — looking for ${SERVICE}`);
 }

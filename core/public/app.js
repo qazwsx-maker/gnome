@@ -85,16 +85,23 @@
     ? `<div class="cam-cap">${MOOD_ICON[o.mood] || '👁'} ${esc(o.caption)}${o.ts ? ` <span class="muted">· ${esc(fmtTs(o.ts).slice(-8))}</span>` : ''}</div>`
     : '<div class="cam-cap"></div>');
   // แผงตั้งค่า servo: ความเร็ว (มีผลทันที) + ขอบเขตมุม · ปุ่ม "มุมตอนนี้" = เลื่อน slider ไปจุดที่ชนแล้วกดตั้งเป็นขอบ
+  const stepTxt = (n) => `≈ ${n > 0 ? '+' : ''}${n ?? 0} ก้าว`;
   function servoPanel(c) {
-    const s = c.cam, dis = c.online ? '' : 'disabled';
+    const s = c.cam, dis = c.online ? '' : 'disabled', cont = s.pan_mode === 'continuous';
     const cell = (axis, end, txt, val) => `<div class="sv-lim"><span>${txt}</span><input type="number" class="sv-${axis}-${end}" min="0" max="180" value="${val}" ${dis}><button class="ghost small" data-svnow="${axis}-${end}" ${dis} title="ใช้มุมปัจจุบันของ slider">📍</button></div>`;
     const lim = (axis, label, min, max, has) => has ? `<div class="sv-axis"><span class="sv-lab">${label}</span>${cell(axis, 'min', 'ต่ำสุด', min)}${cell(axis, 'max', 'สูงสุด', max)}</div>` : '';
     return `<details class="servo-cfg"><summary class="muted small">⚙ ตั้งค่า servo · ความเร็ว ${s.speed ?? 10}°/วิ · หัน ${s.pan_min ?? 0}–${s.pan_max ?? 180}°${s.tilt ? ` · ก้มเงย ${s.tilt_min ?? 0}–${s.tilt_max ?? 180}°` : ''}</summary>
-      ${s.servo ? '' : '<!--'}<div class="sv-row pan"><span class="sv-lab">หัน</span><input type="range" class="pan-range" min="${s.pan_min ?? 0}" max="${s.pan_max ?? 180}" value="${s.angle ?? 90}" ${dis}><span class="pan-val muted small">${s.angle ?? 90}°</span></div>${s.servo ? '' : '-->'}
+      ${s.servo && !cont ? '' : '<!--'}<div class="sv-row pan"><span class="sv-lab">หัน</span><input type="range" class="pan-range" min="${s.pan_min ?? 0}" max="${s.pan_max ?? 180}" value="${s.angle ?? 90}" ${dis}><span class="pan-val muted small">${s.angle ?? 90}°</span></div>${s.servo && !cont ? '' : '-->'}
       ${s.tilt ? `<div class="sv-row pan"><span class="sv-lab">ก้มเงย</span><input type="range" class="pan-range tilt-range" min="${s.tilt_min ?? 0}" max="${s.tilt_max ?? 180}" value="${s.tilt_angle ?? 90}" ${dis}><span class="pan-val muted small">${s.tilt_angle ?? 90}°</span></div>` : ''}
       <div class="sv-row"><span class="sv-lab">ทิศ</span><label class="chip"><input type="checkbox" class="sv-inv" data-axis="pan" ${s.pan_invert ? 'checked' : ''} ${dis}>สลับ ◀ ▶</label>${s.tilt ? `<label class="chip"><input type="checkbox" class="sv-inv" data-axis="tilt" ${s.tilt_invert ? 'checked' : ''} ${dis}>สลับ ▼ ▲</label>` : ''}</div>
       <div class="sv-row"><span class="sv-lab">ความเร็ว</span><input type="range" class="sv-speed" min="1" max="30" step="1" value="${s.speed ?? 10}" ${dis}><span class="sv-speed-val muted small">${s.speed ?? 10}°/วิ</span></div>
-      ${lim('pan', 'หัน', s.pan_min ?? 0, s.pan_max ?? 180, !!s.servo)}
+      ${lim('pan', 'หัน', s.pan_min ?? 0, s.pan_max ?? 180, !!s.servo && !cont)}
+      ${s.servo ? `<div class="sv-row"><span class="sv-lab">ตัวล่าง</span><label class="chip"><input type="radio" name="pm-${esc(c.node)}" class="sv-mode" value="position" ${cont ? '' : 'checked'} ${dis}>180° (กำหนดมุม)</label><label class="chip"><input type="radio" name="pm-${esc(c.node)}" class="sv-mode" value="continuous" ${cont ? 'checked' : ''} ${dis}>360° (หมุนรอบตัว)</label></div>` : ''}
+      ${s.servo && cont ? `<div class="sv-row"><span class="sv-lab">แรงหมุน</span><input type="range" class="sv-cont" data-k="cont_us" min="20" max="150" step="5" value="${s.cont_us ?? 70}" ${dis}><span class="muted small sv-cv">${s.cont_us ?? 70} µs</span></div>
+      <div class="sv-row"><span class="sv-lab">ต่อก้าว</span><input type="range" class="sv-cont" data-k="cont_ms" min="20" max="300" step="10" value="${s.cont_ms ?? 80}" ${dis}><span class="muted small sv-cv">${s.cont_ms ?? 80} ms</span></div>
+      <div class="sv-row"><span class="sv-lab">จุดหยุด</span><input type="range" class="sv-cont" data-k="stop_us" min="1400" max="1600" step="5" value="${s.stop_us ?? 1500}" ${dis}><span class="muted small sv-cv">${s.stop_us ?? 1500} µs</span></div>
+      <div class="sv-row"><span class="sv-lab">เพดาน</span><input type="range" class="sv-cont" data-k="cont_limit" min="0" max="100" step="1" value="${s.cont_limit ?? 20}" ${dis}><span class="muted small sv-cv">${s.cont_limit ? '±' + s.cont_limit + ' ก้าว' : 'ไม่จำกัด'}</span></div>
+      <p class="muted small sv-hint">โหมด 360°: servo ไม่รู้มุมตัวเอง ◀ ▶ = หมุนช้าๆ 1 ก้าวแล้วหยุด · ตัวนับก้าวเป็นค่าประมาณ · เพดานกันสายพัน (นับจากหน้าตรง) · ถ้าไม่ได้กดแต่ servo คืบเอง ให้เลื่อนจุดหยุด</p>` : ''}
       ${lim('tilt', 'ก้มเงย', s.tilt_min ?? 0, s.tilt_max ?? 180, !!s.tilt)}
       <div class="row"><button class="small primary" data-svsave="1" ${dis}>บันทึกขอบเขตมุม</button><button class="ghost small" data-svreset="1" ${dis} title="กลับเป็น 0–180 ทั้งสองแกน">รีเซ็ต 0–180</button>
       </div><p class="muted small sv-hint">slider ด้านบน = กระโดดไปมุมนั้น (ใช้ปุ่ม ◀ ▶ บนการ์ดถ้าต้องการละเอียด) · ความเร็วมีผลทันทีที่ปล่อย slider · หาขอบ: เลื่อน slider หัน/ก้มเงยจนเกือบชนขาตั้ง แล้วกด 📍 ช่องนั้น → บันทึก · สั่งเกินช่วงไม่ได้อีก</p>
@@ -128,7 +135,7 @@
       ${c.cam?.servo || c.cam?.tilt ? `<div class="pad">
         ${c.cam.servo ? `<div class="pad-row"><span class="pad-lab">หัน</span>
           <button class="nudge" data-nudge="pan" data-by="-1" ${c.online ? '' : 'disabled'} title="กดค้าง = หมุนต่อเนื่องทีละ 1°">◀</button>
-          <b class="pose pose-pan">${c.cam.angle ?? 90}°</b>
+          <b class="pose pose-pan">${c.cam.pan_mode === 'continuous' ? stepTxt(c.cam.cont_pos) : (c.cam.angle ?? 90) + '°'}</b>
           <button class="nudge" data-nudge="pan" data-by="1" ${c.online ? '' : 'disabled'} title="กดค้าง = หมุนต่อเนื่องทีละ 1°">▶</button></div>` : '<div class="muted small">หัน (pan) ปิดอยู่ — servo ตัวล่างต้องเป็นแบบกำหนดมุม 180° ไม่ใช่แบบหมุนรอบตัว 360°</div>'}
         ${c.cam.tilt ? `<div class="pad-row"><span class="pad-lab">ก้มเงย</span>
           <button class="nudge" data-nudge="tilt" data-by="-1" ${c.online ? '' : 'disabled'} title="กดค้าง = หมุนต่อเนื่องทีละ 1°">▼</button>
@@ -192,9 +199,14 @@
   $('#cam-list').addEventListener('input', (e) => {
     const r = e.target.closest('.pan-range'); if (r) $('.pan-val', r.closest('.pan')).textContent = r.value + '°';
     const sp = e.target.closest('.sv-speed'); if (sp) $('.sv-speed-val', sp.closest('.sv-row')).textContent = sp.value + '°/วิ';
+    const sc = e.target.closest('.sv-cont'); if (sc) $('.sv-cv', sc.closest('.sv-row')).textContent = sc.dataset.k === 'cont_limit' ? (Number(sc.value) ? '±' + sc.value + ' ก้าว' : 'ไม่จำกัด') : sc.value + (sc.dataset.k === 'cont_ms' ? ' ms' : ' µs');
   });
   $('#cam-list').addEventListener('change', async (e) => {
     const sel = e.target.closest('.cam-day'); if (sel) { const node = sel.closest('.cam-card').dataset.node; if (sel.value) loadFrames(node, sel.value); return; }
+    const pm = e.target.closest('.sv-mode');
+    if (pm) { const node = pm.closest('.cam-card').dataset.node; if (pm.value === 'position' && !confirm('ตั้งเป็น servo 180°? ถ้าตัวจริงเป็น 360° สั่งมุมแล้วจะหมุนรอบตัวแรงๆ')) { renderCam(); return; } try { await saveServo(node, { pan_mode: pm.value }, pm.value === 'continuous' ? 'ตัวล่างเป็นโหมด 360° แล้ว' : 'ตัวล่างเป็นโหมด 180° แล้ว'); } catch (err) { toast('ผิดพลาด: ' + err.message, true); } return; }
+    const sc = e.target.closest('.sv-cont');
+    if (sc) { const node = sc.closest('.cam-card').dataset.node; try { await saveServo(node, { [sc.dataset.k]: Number(sc.value) }, 'บันทึกแล้ว'); } catch (err) { toast('ผิดพลาด: ' + err.message, true); } return; }
     const inv = e.target.closest('.sv-inv');
     if (inv) { const node = inv.closest('.cam-card').dataset.node; try { await saveServo(node, { [inv.dataset.axis + '_invert']: inv.checked }, 'สลับทิศแล้ว (กล้องไม่ขยับ)'); } catch (err) { toast('ผิดพลาด: ' + err.message, true); } return; }
     const sp = e.target.closest('.sv-speed');
@@ -974,7 +986,7 @@
   const EV_TH = {
     node_online: '🟢 ออนไลน์', node_offline: '🔴 ออฟไลน์', boot: '⚡ บูต', renamed: '✏️ เปลี่ยนชื่อ',
     ota_sent: '📦 สั่ง OTA', ota_start: '⬇️ เริ่ม OTA', ota_failed: '❌ OTA ล้มเหลว', config_changed: '⚙️ แก้ตั้งค่า', reboot_cmd: '🔁 สั่งรีบูต',
-    snapshot: '📸 ถ่ายภาพ', snapshot_failed: '📸 ถ่ายไม่สำเร็จ', pan: '↔️ หันกล้อง', pan_failed: '↔️ หันไม่ได้', patrol: '🔄 ถ่ายทุกมุม', flip: '🔃 กลับภาพ', glance_error: '👁 โหมดคิดผิดพลาด',
+    snapshot: '📸 ถ่ายภาพ', snapshot_failed: '📸 ถ่ายไม่สำเร็จ', pan: '↔️ หันกล้อง', pan_failed: '↔️ หันไม่ได้', pan_limit: '🛑 ถึงเพดานหัน', patrol: '🔄 ถ่ายทุกมุม', flip: '🔃 กลับภาพ', glance_error: '👁 โหมดคิดผิดพลาด',
     rule_fired: '📜 กฎทำงาน', max_on_reached: '⏱ เปิดครบเวลาสูงสุด', failsafe_off: '🛟 failsafe ตัด', interlock_blocked: '🚫 interlock กัน', sensor_error: '⚠️ เซ็นเซอร์ผิดพลาด',
   };
   const VIA_TH = { lwt: 'หลุดจาก MQTT', timeout: 'ไม่มีข้อมูลเกินเวลา', status: 'รายงานสถานะ', message: 'ส่งข้อมูลเข้ามา', retained: 'ค่าค้างใน broker' };
@@ -1040,7 +1052,7 @@
             const r = $(sel, card); if (!r || v == null || document.activeElement === r) continue;
             r.value = v; $('.pan-val', r.closest('.pan')).textContent = v + '°';
           }
-          const pp = $('.pose-pan', card); if (pp && m.angle != null) pp.textContent = m.angle + '°';
+          const pp = $('.pose-pan', card); if (pp) { if (m.cont) pp.textContent = stepTxt(m.steps); else if (m.angle != null) pp.textContent = m.angle + '°'; }
           const pt = $('.pose-tilt', card); if (pt && m.tilt != null) pt.textContent = m.tilt + '°';
           break;
         }

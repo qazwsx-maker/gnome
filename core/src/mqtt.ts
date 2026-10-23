@@ -204,7 +204,8 @@ async function onEvent(node: string, ev: any): Promise<void> {
     if (cam && typeof cam === 'object') {
       if (Number.isFinite(ev.angle)) cam.angle = ev.angle;
       if (Number.isFinite(ev.tilt)) cam.tilt_angle = ev.tilt;
-      bus.live({ type: 'cam_pose', node, angle: cam.angle, tilt: cam.tilt_angle, ts: new Date().toISOString() } as any);
+      if (Number.isFinite(ev.steps)) cam.cont_pos = ev.steps;
+      bus.live({ type: 'cam_pose', node, angle: cam.angle, tilt: cam.tilt_angle, steps: cam.cont_pos, cont: cam.pan_mode === 'continuous', ts: new Date().toISOString() } as any);
     }
   }
   if (DISCORD_EVENTS.has(type)) {

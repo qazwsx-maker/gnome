@@ -50,6 +50,30 @@ static void servoWrite(ServoAxis& ax, float angle, bool invert) {
   // (hunting) เสี่ยง bracket พัง/สายหลุด · ตอนไม่มีสัญญาณ เฟืองของ SG90 ยังต้านไว้เองพอสมควร
   ax.idleAt = millis() + 800;
 }
+static void servoWriteUs(ServoAxis& ax, int us) {
+  int pin = axisPin(ax); if (pin < 0) return;
+  if (!ax.on) { ledcSetup(ax.ch, 50, 16); ledcAttachPin(pin, ax.ch); ax.on = true; }
+  ledcWrite(ax.ch, (uint32_t)((float)us * 65536.0f / 20000.0f));
+  ax.idleAt = millis() + 800;
+}
+static void servoRelease(ServoAxis& ax);
+static bool panCont() { return cfg.servoPin >= 0 && cfg.panCont; }
+/** โหมด 360°: หมุน |steps| ก้าว ทีละก้าว = พัลส์ (stop ± contUs) นาน contMs แล้วปล่อยสัญญาณให้หยุด · ไม่เกิน contLimit จากหน้าตรง
+ *  คืนจำนวนก้าวที่ทำจริง (ถูกตัดเมื่อชนเพดาน) */
+static int contNudge(int steps) {
+  int dir = steps > 0 ? 1 : -1, done = 0;
+  bool inv = cfg.servoInvert;
+  for (int i = 0; i < abs(steps); i++) {
+    if (cfg.contLimit > 0 && abs(cfg.contPos + dir) > cfg.contLimit) break;
+    int us = cfg.stopUs + (inv ? -dir : dir) * constrain(cfg.contUs, 20, CONT_MAX_US);
+    servoWriteUs(panAx, us);
+    delay(constrain(cfg.contMs, 20, CONT_MAX_MS));
+    servoRelease(panAx);              // ไม่มีพัลส์ = มอเตอร์หยุด (ไม่ต้องรู้จุดหยุดที่แม่นยำ)
+    cfg.contPos += dir; done++;
+    delay(60);
+  }
+  return done;
+}
 static void servoRelease(ServoAxis& ax) {
   if (!ax.on) return;
   int pin = axisPin(ax);
@@ -84,7 +108,7 @@ static void glide(ServoAxis& ax, int from, int to, bool invert) {
 static uint32_t saveDueAt = 0;
 static void moveTo(int pan, int tilt, bool save = true) {
   bool moved = false;
-  if (pan >= 0 && cfg.servoPin >= 0) {
+  if (pan >= 0 && cfg.servoPin >= 0 && !cfg.panCont) {   // โหมด 360° ห้ามส่งพัลส์มุม (= สั่งหมุนเต็มแรง)
     pan = clampPan(pan);
     glide(panAx, cfg.servoAngle, pan, cfg.servoInvert); cfg.servoAngle = pan; moved = true;
   }
@@ -108,7 +132,7 @@ static const PresetCfg* findPreset(const String& name) {
   for (int i = 0; i < cfg.presetCount; i++) if (cfg.preset[i].name == name) return &cfg.preset[i];
   return nullptr;
 }
-static String anglesJson() { String s = "\"angle\":" + String(cfg.servoAngle); if (hasTilt()) s += ",\"tilt\":" + String(cfg.tiltAngle); return s; }
+static String anglesJson() { String s = panCont() ? "\"steps\":" + String(cfg.contPos) : "\"angle\":" + String(cfg.servoAngle); if (hasTilt()) s += ",\"tilt\":" + String(cfg.tiltAngle); return s; }
 
 static bool snapAndUpload(const char* reason);
 static bool camOk = false;
@@ -290,7 +314,7 @@ void roleSetup() {
 static void servoRestoreIfDue() {
   if (servoRestored || !servoRestoreAt || millis() < servoRestoreAt || !netWifiConnected()) return;
   servoRestored = true;
-  if (cfg.servoPin >= 0) { Serial.printf("[servo] pan pin %d, restore %d\n", cfg.servoPin, cfg.servoAngle); servoWrite(panAx, cfg.servoAngle, cfg.servoInvert); delay(400); }
+  if (cfg.servoPin >= 0 && !cfg.panCont) { Serial.printf("[servo] pan pin %d, restore %d\n", cfg.servoPin, cfg.servoAngle); servoWrite(panAx, cfg.servoAngle, cfg.servoInvert); delay(400); }
   if (hasTilt()) { Serial.printf("[servo] tilt pin %d, restore %d\n", cfg.tiltPin, cfg.tiltAngle); servoWrite(tiltAx, cfg.tiltAngle, cfg.tiltInvert); }
 }
 
@@ -334,6 +358,7 @@ void roleMeta(JsonObject meta) {
   cam["stream"] = "http://" + ip + ":81/stream"; cam["snapshot"] = "http://" + ip + ":81/snapshot";
   cam["interval_s"] = cfg.intervalS; cam["size"] = cfg.camSize; cam["ok"] = camOk; cam["flash"] = cfg.camFlash; cam["vflip"] = cfg.camVflip; cam["mirror"] = cfg.camMirror;
   cam["servo"] = cfg.servoPin >= 0; cam["angle"] = cfg.servoAngle; cam["speed"] = cfg.servoSpeed; cam["pan_min"] = cfg.panMin; cam["pan_max"] = cfg.panMax; cam["pan_invert"] = cfg.servoInvert; cam["tilt_invert"] = cfg.tiltInvert;
+  cam["pan_mode"] = cfg.panCont ? "continuous" : "position"; cam["stop_us"] = cfg.stopUs; cam["cont_us"] = cfg.contUs; cam["cont_ms"] = cfg.contMs; cam["cont_limit"] = cfg.contLimit; cam["cont_pos"] = cfg.contPos;
   cam["tilt"] = hasTilt(); if (hasTilt()) { cam["tilt_angle"] = cfg.tiltAngle; cam["tilt_min"] = cfg.tiltMin; cam["tilt_max"] = cfg.tiltMax; }
   JsonArray pre = cam["presets"].to<JsonArray>();
   for (int i = 0; i < cfg.presetCount; i++) { JsonObject p = pre.add<JsonObject>(); p["name"] = cfg.preset[i].name; p["angle"] = cfg.preset[i].angle; if (cfg.preset[i].tilt >= 0) p["tilt"] = cfg.preset[i].tilt; }
@@ -381,6 +406,20 @@ bool roleCommand(const String& sub, const String& payload) {
     if (cfg.servoPin < 0) { mqttEvent("pan_failed", "\"msg\":\"no servo\""); return true; }
     bool snap = false;
     if (p.endsWith("+snap")) { snap = true; p = p.substring(0, p.length() - 5); p.trim(); }
+    if (panCont()) {
+      // โหมด 360°: รับเฉพาะ "+N" / "-N" (ก้าว) และ preset front (= ย้อนก้าวกลับหน้าตรงโดยประมาณ)
+      if (p.length() && (p[0] == '+' || p[0] == '-') && p.length() > 1 && isDigit(p[1])) {
+        int n = constrain(p.substring(1).toInt(), 1, 10) * (p[0] == '+' ? 1 : -1);
+        int done = contNudge(n); saveDueAt = millis() + 3000;
+        if (done != abs(n)) mqttEvent("pan_limit", "\"steps\":" + String(cfg.contPos) + ",\"limit\":" + cfg.contLimit);
+      } else if (p == "front") {
+        if (cfg.contPos) contNudge(-cfg.contPos); saveDueAt = millis() + 3000;
+        const PresetCfg* pr = findPreset(p); if (pr && pr->tilt >= 0) moveTo(-1, pr->tilt);
+      } else { mqttEvent("pan_failed", "\"msg\":\"continuous pan: use +N/-N\""); return true; }
+      mqttEvent("pan", anglesJson());
+      if (snap) { lastShot = millis(); snapAndUpload("pan"); }
+      return true;
+    }
     int a = parseAngle(p, cfg.servoAngle);
     if (a != -999) panTo(a);
     else { const PresetCfg* pr = findPreset(p); if (!pr) { mqttEvent("pan_failed", "\"msg\":\"unknown preset " + p + "\""); return true; } moveTo(pr->angle, pr->tilt); }
@@ -408,6 +447,8 @@ bool roleCommand(const String& sub, const String& payload) {
     if (deserializeJson(d, payload)) { mqttEvent("servo_cfg_error", "\"msg\":\"bad json\""); return true; }
     auto geti = [&](const char* k, int& dst, int lo, int hi) { if (d[k].is<int>()) dst = constrain(d[k].as<int>(), lo, hi); };
     geti("speed", cfg.servoSpeed, 1, SERVO_MAX_SPEED);
+    if (d["pan_mode"].is<const char*>()) cfg.panCont = String(d["pan_mode"].as<const char*>()) == "continuous";
+    geti("stop_us", cfg.stopUs, 1300, 1700); geti("cont_us", cfg.contUs, 20, CONT_MAX_US); geti("cont_ms", cfg.contMs, 20, CONT_MAX_MS); geti("cont_limit", cfg.contLimit, 0, 500);
     geti("pan_min", cfg.panMin, 0, 180); geti("pan_max", cfg.panMax, 0, 180);
     geti("tilt_min", cfg.tiltMin, 0, 180); geti("tilt_max", cfg.tiltMax, 0, 180);
     if (cfg.panMax < cfg.panMin) cfg.panMax = cfg.panMin;
@@ -426,6 +467,7 @@ bool roleCommand(const String& sub, const String& payload) {
       int i = 0; while (i < cfg.presetCount && cfg.preset[i].name != "front") i++;
       if (i == cfg.presetCount) { if (cfg.presetCount < GNOME_MAX_PRESET) cfg.presetCount++; else i = cfg.presetCount - 1; }
       cfg.preset[i].name = "front"; cfg.preset[i].angle = cfg.servoAngle; cfg.preset[i].tilt = hasTilt() ? cfg.tiltAngle : -1;
+      if (cfg.panCont) cfg.contPos = 0;   // โหมด 360°: ตรงนี้คือก้าวที่ 0
     }
     int p = clampPan(cfg.servoAngle), t = hasTilt() ? clampTilt(cfg.tiltAngle) : -1;
     if (p != cfg.servoAngle || (t >= 0 && t != cfg.tiltAngle)) moveTo(p != cfg.servoAngle ? p : -1, (t >= 0 && t != cfg.tiltAngle) ? t : -1, false);

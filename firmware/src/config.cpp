@@ -55,7 +55,7 @@ void configToJson(JsonObject o, bool includeSecrets) {
   o["failsafe_s"] = cfg.failsafeS; o["oled"] = cfg.oled; o["board"] = GNOME_BOARD; o["thirsty_pct"] = cfg.thirstyPct; o["hot_c"] = cfg.hotC;
   o["hut_url"] = cfg.hutUrl; o["cam_size"] = cfg.camSize; o["cam_flash"] = cfg.camFlash; o["cam_vflip"] = cfg.camVflip; o["cam_mirror"] = cfg.camMirror;
   o["servo_pin"] = cfg.servoPin; o["servo_min_us"] = cfg.servoMinUs; o["servo_max_us"] = cfg.servoMaxUs; o["servo_angle"] = cfg.servoAngle; o["servo_invert"] = cfg.servoInvert; o["servo_speed"] = cfg.servoSpeed;
-  o["tilt_pin"] = cfg.tiltPin; o["tilt_angle"] = cfg.tiltAngle; o["tilt_invert"] = cfg.tiltInvert; o["tilt_min"] = cfg.tiltMin; o["tilt_max"] = cfg.tiltMax; o["pan_min"] = cfg.panMin; o["pan_max"] = cfg.panMax;
+  o["tilt_pin"] = cfg.tiltPin; o["tilt_angle"] = cfg.tiltAngle; o["tilt_invert"] = cfg.tiltInvert; o["tilt_min"] = cfg.tiltMin; o["tilt_max"] = cfg.tiltMax; o["pan_min"] = cfg.panMin; o["pan_max"] = cfg.panMax; o["pan_mode"] = cfg.panCont ? "continuous" : "position"; o["stop_us"] = cfg.stopUs; o["cont_us"] = cfg.contUs; o["cont_ms"] = cfg.contMs; o["cont_limit"] = cfg.contLimit; o["cont_pos"] = cfg.contPos;
   JsonArray pre = o["presets"].to<JsonArray>();
   for (int i = 0; i < cfg.presetCount; i++) { JsonObject p = pre.add<JsonObject>(); p["name"] = cfg.preset[i].name; p["angle"] = cfg.preset[i].angle; p["tilt"] = cfg.preset[i].tilt; }
 #if !defined(GNOME_ROLE_KEEPER) && !defined(GNOME_ROLE_CAM)
@@ -99,6 +99,9 @@ bool configApplyJson(JsonObjectConst o) {
   cfg.servoAngle = constrain(cfg.servoAngle, 0, 180); cfg.servoSpeed = constrain(cfg.servoSpeed, 1, SERVO_MAX_SPEED);
   if (cfg.servoMinUs < 400) cfg.servoMinUs = 400; if (cfg.servoMaxUs > 2600) cfg.servoMaxUs = 2600;
   setI("tilt_pin", cfg.tiltPin); setI("tilt_angle", cfg.tiltAngle); setI("tilt_min", cfg.tiltMin); setI("tilt_max", cfg.tiltMax); setI("pan_min", cfg.panMin); setI("pan_max", cfg.panMax);
+  if (o["pan_mode"].is<const char*>()) { cfg.panCont = String(o["pan_mode"].as<const char*>()) == "continuous"; changed = true; }
+  setI("stop_us", cfg.stopUs); setI("cont_us", cfg.contUs); setI("cont_ms", cfg.contMs); setI("cont_limit", cfg.contLimit); setI("cont_pos", cfg.contPos);
+  cfg.stopUs = constrain(cfg.stopUs, 1300, 1700); cfg.contUs = constrain(cfg.contUs, 20, CONT_MAX_US); cfg.contMs = constrain(cfg.contMs, 20, CONT_MAX_MS); cfg.contLimit = constrain(cfg.contLimit, 0, 500);
   if (o["tilt_invert"].is<bool>()) { cfg.tiltInvert = o["tilt_invert"].as<bool>(); changed = true; }
   cfg.tiltMin = constrain(cfg.tiltMin, 0, 180); cfg.tiltMax = constrain(cfg.tiltMax, 0, 180); if (cfg.tiltMax < cfg.tiltMin) cfg.tiltMax = cfg.tiltMin;
   cfg.tiltAngle = constrain(cfg.tiltAngle, cfg.tiltMin, cfg.tiltMax);

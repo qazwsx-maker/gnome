@@ -17,6 +17,8 @@
 #define GNOME_MAX_SOIL 6
 #define GNOME_MAX_SWITCH 4
 #define GNOME_MAX_PRESET 4
+#define CONT_MAX_US 150     // โหมด 360°: แรงหมุนสูงสุด (ห้ามหมุนเร็ว)
+#define CONT_MAX_MS 300
 #define SERVO_MAX_SPEED 30   // องศา/วิ สูงสุดที่ยอมให้ตั้ง (ความเร็ว "ยอดคลื่น" ของการหมุน ไม่ใช่ค่าเฉลี่ย)
 #define GNOME_AP_PASS "gnome1234"   // รหัส WiFi ของ node ตอนอยู่โหมดตั้งค่า
 #if defined(GNOME_ROLE_CAM)
@@ -87,6 +89,13 @@ struct Config {
   // servo ก้มเงย (tilt) — ขาที่สอง (แนะนำ pan 14 / tilt 15) · tiltMin/Max กันกล้องชนขาตั้ง
   int tiltPin = -1; int tiltAngle = 90; bool tiltInvert = false; int tiltMin = 0, tiltMax = 180;
   int panMin = 0, panMax = 180;   // ขอบเขตมุมหัน (ตั้งจาก dashboard ได้ทันทีผ่าน cmd/servo)
+  // pan แบบ servo หมุนรอบตัว (360° continuous): พัลส์ = ความเร็ว ไม่ใช่มุม → ขยับเป็น "ก้าว" = หมุนช้าๆ contMs แล้วปล่อยสัญญาณ (หยุด)
+  bool panCont = false;     // true = โหมดหมุนรอบตัว
+  int stopUs = 1500;        // พัลส์ที่ servo หยุดนิ่ง (จุดกลาง ปรับได้ถ้าคืบเอง)
+  int contUs = 70;          // ห่างจากจุดหยุดกี่ µs ตอนหมุน (มาก = เร็ว) จำกัด 20–CONT_MAX_US
+  int contMs = 80;          // หมุนนานเท่าไรต่อ 1 ก้าว (ms) จำกัด 20–CONT_MAX_MS
+  int contLimit = 20;       // ก้าวสุทธิสูงสุดจากหน้าตรงต่อฝั่ง (กันสายพัน) 0 = ไม่จำกัด
+  int contPos = 0;          // ก้าวสุทธิจากหน้าตรง (ประมาณการ ไม่มี feedback)
   PresetCfg preset[GNOME_MAX_PRESET]; int presetCount = 0;
 };
 

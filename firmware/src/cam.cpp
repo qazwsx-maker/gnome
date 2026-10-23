@@ -44,16 +44,17 @@ static void servoWrite(ServoAxis& ax, float angle, bool invert) {
   float a = invert ? 180.0f - angle : angle;
   float us = cfg.servoMinUs + (cfg.servoMaxUs - cfg.servoMinUs) * a / 180.0f;   // ทศนิยม → ขยับทีละน้อยได้เนียน
   uint32_t duty = (uint32_t)(us * 65536.0f / 20000.0f);   // 50 Hz, 16-bit
-  if (!ax.on) { ledcSetup(ax.ch, 50, 16); ledcAttachPin(pin, ax.ch); ax.on = true; }
-  ledcWrite(ax.ch, duty);
+  if (!ax.on) { ledcSetup(ax.ch, 50, 16); ledcWrite(ax.ch, duty); ledcAttachPin(pin, ax.ch); ax.on = true; }   // ตั้งพัลส์ก่อนต่อขา กันพัลส์แรกเพี้ยน
+  else ledcWrite(ax.ch, duty);
   // ปล่อยสัญญาณ 0.8 วิหลังพัลส์สุดท้าย — ห้ามล็อกค้าง: 2026-10-23 (0.7.8) ล็อกตลอดแล้ว SG90 ส่ายไปมา ±30° กับโหลดหนัก
   // (hunting) เสี่ยง bracket พัง/สายหลุด · ตอนไม่มีสัญญาณ เฟืองของ SG90 ยังต้านไว้เองพอสมควร
   ax.idleAt = millis() + 800;
 }
 static void servoWriteUs(ServoAxis& ax, int us) {
   int pin = axisPin(ax); if (pin < 0) return;
-  if (!ax.on) { ledcSetup(ax.ch, 50, 16); ledcAttachPin(pin, ax.ch); ax.on = true; }
-  ledcWrite(ax.ch, (uint32_t)((float)us * 65536.0f / 20000.0f));
+  uint32_t duty = (uint32_t)((float)us * 65536.0f / 20000.0f);
+  if (!ax.on) { ledcSetup(ax.ch, 50, 16); ledcWrite(ax.ch, duty); ledcAttachPin(pin, ax.ch); ax.on = true; }
+  else ledcWrite(ax.ch, duty);
   ax.idleAt = millis() + 800;
 }
 static void servoRelease(ServoAxis& ax);
@@ -65,7 +66,7 @@ static int contNudge(int steps) {
   bool inv = cfg.servoInvert;
   for (int i = 0; i < abs(steps); i++) {
     if (cfg.contLimit > 0 && abs(cfg.contPos + dir) > cfg.contLimit) break;
-    int us = cfg.stopUs + (inv ? -dir : dir) * constrain(cfg.contUs, 20, CONT_MAX_US);
+    int us = cfg.stopUs + (inv ? -dir : dir) * constrain(cfg.contUs, CONT_MIN_US, CONT_MAX_US);
     servoWriteUs(panAx, us);
     delay(constrain(cfg.contMs, 20, CONT_MAX_MS));
     servoRelease(panAx);              // ไม่มีพัลส์ = มอเตอร์หยุด (ไม่ต้องรู้จุดหยุดที่แม่นยำ)
@@ -77,7 +78,8 @@ static int contNudge(int steps) {
 static void servoRelease(ServoAxis& ax) {
   if (!ax.on) return;
   int pin = axisPin(ax);
-  ledcWrite(ax.ch, 0); ledcDetachPin(pin); pinMode(pin, INPUT);
+  // ดึงขาลงต่ำค้าง ไม่ปล่อยลอย (INPUT) — สายสัญญาณลอยรับสัญญาณรบกวน servo 360° อ่านเป็นพัลส์แล้วหมุนเองได้
+  ledcWrite(ax.ch, 0); ledcDetachPin(pin); pinMode(pin, OUTPUT); digitalWrite(pin, LOW);
   ax.on = false;
 }
 static bool hasTilt() { return cfg.tiltPin >= 0; }
@@ -448,7 +450,7 @@ bool roleCommand(const String& sub, const String& payload) {
     auto geti = [&](const char* k, int& dst, int lo, int hi) { if (d[k].is<int>()) dst = constrain(d[k].as<int>(), lo, hi); };
     geti("speed", cfg.servoSpeed, 1, SERVO_MAX_SPEED);
     if (d["pan_mode"].is<const char*>()) cfg.panCont = String(d["pan_mode"].as<const char*>()) == "continuous";
-    geti("stop_us", cfg.stopUs, 1300, 1700); geti("cont_us", cfg.contUs, 20, CONT_MAX_US); geti("cont_ms", cfg.contMs, 20, CONT_MAX_MS); geti("cont_limit", cfg.contLimit, 0, 500);
+    geti("stop_us", cfg.stopUs, 1300, 1700); geti("cont_us", cfg.contUs, CONT_MIN_US, CONT_MAX_US); geti("cont_ms", cfg.contMs, 20, CONT_MAX_MS); geti("cont_limit", cfg.contLimit, 0, 500);
     geti("pan_min", cfg.panMin, 0, 180); geti("pan_max", cfg.panMax, 0, 180);
     geti("tilt_min", cfg.tiltMin, 0, 180); geti("tilt_max", cfg.tiltMax, 0, 180);
     if (cfg.panMax < cfg.panMin) cfg.panMax = cfg.panMin;

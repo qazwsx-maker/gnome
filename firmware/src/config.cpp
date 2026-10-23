@@ -101,7 +101,7 @@ bool configApplyJson(JsonObjectConst o) {
   setI("tilt_pin", cfg.tiltPin); setI("tilt_angle", cfg.tiltAngle); setI("tilt_min", cfg.tiltMin); setI("tilt_max", cfg.tiltMax); setI("pan_min", cfg.panMin); setI("pan_max", cfg.panMax);
   if (o["pan_mode"].is<const char*>()) { cfg.panCont = String(o["pan_mode"].as<const char*>()) == "continuous"; changed = true; }
   setI("stop_us", cfg.stopUs); setI("cont_us", cfg.contUs); setI("cont_ms", cfg.contMs); setI("cont_limit", cfg.contLimit); setI("cont_pos", cfg.contPos);
-  cfg.stopUs = constrain(cfg.stopUs, 1300, 1700); cfg.contUs = constrain(cfg.contUs, 20, CONT_MAX_US); cfg.contMs = constrain(cfg.contMs, 20, CONT_MAX_MS); cfg.contLimit = constrain(cfg.contLimit, 0, 500);
+  cfg.stopUs = constrain(cfg.stopUs, 1300, 1700); cfg.contUs = constrain(cfg.contUs, CONT_MIN_US, CONT_MAX_US); cfg.contMs = constrain(cfg.contMs, 20, CONT_MAX_MS); cfg.contLimit = constrain(cfg.contLimit, 0, 500);
   if (o["tilt_invert"].is<bool>()) { cfg.tiltInvert = o["tilt_invert"].as<bool>(); changed = true; }
   cfg.tiltMin = constrain(cfg.tiltMin, 0, 180); cfg.tiltMax = constrain(cfg.tiltMax, 0, 180); if (cfg.tiltMax < cfg.tiltMin) cfg.tiltMax = cfg.tiltMin;
   cfg.tiltAngle = constrain(cfg.tiltAngle, cfg.tiltMin, cfg.tiltMax);

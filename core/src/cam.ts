@@ -99,7 +99,7 @@ export async function registerCam(app: FastifyInstance): Promise<void> {
     const out: Record<string, number | boolean | string> = {};
     if (b.pan_mode !== undefined) { if (b.pan_mode !== 'position' && b.pan_mode !== 'continuous') return reply.code(400).send({ error: 'pan_mode ต้องเป็น position หรือ continuous' }); out.pan_mode = b.pan_mode; }
     for (const k of ['pan_invert', 'tilt_invert', 'home'] as const) if (typeof b[k] === 'boolean') out[k] = b[k] as boolean;
-    const lim = { speed: [1, 30], pan_min: [0, 180], pan_max: [0, 180], tilt_min: [0, 180], tilt_max: [0, 180], stop_us: [1300, 1700], cont_us: [20, 150], cont_ms: [20, 300], cont_limit: [0, 500] } as const;
+    const lim = { speed: [1, 30], pan_min: [0, 180], pan_max: [0, 180], tilt_min: [0, 180], tilt_max: [0, 180], stop_us: [1300, 1700], cont_us: [5, 150], cont_ms: [20, 300], cont_limit: [0, 500] } as const;
     for (const [k, [lo, hi]] of Object.entries(lim)) {
       const v = (b as any)[k]; if (v === undefined || v === null || v === '') continue;
       const x = Math.round(Number(v)); if (!Number.isFinite(x) || x < lo || x > hi) return reply.code(400).send({ error: `${k} ต้องอยู่ระหว่าง ${lo}–${hi}` });

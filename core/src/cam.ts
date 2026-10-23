@@ -84,6 +84,26 @@ export async function registerCam(app: FastifyInstance): Promise<void> {
     return { ok: true, target: pan ?? undefined, tilt: tilt ?? undefined };
   });
 
+  // ตั้งค่า servo ของ Watcher ทันที (ไม่รีบูต): ความเร็ว องศา/วิ + ขอบเขตมุมหัน/ก้มเงย → cmd/servo
+  app.post<{ Params: { node: string }; Body: { speed?: number; pan_min?: number; pan_max?: number; tilt_min?: number; tilt_max?: number } }>('/api/cam/:node/servo', async (req, reply) => {
+    const { node } = req.params; const b = req.body || {};
+    const n = nodes.get(node);
+    if (!n) return reply.code(404).send({ error: 'node not found' });
+    if (!n.meta?.cam?.servo) return reply.code(400).send({ error: 'กล้องนี้ยังไม่ได้ตั้ง servo pin' });
+    const out: Record<string, number> = {};
+    const lim = { speed: [0, 600], pan_min: [0, 180], pan_max: [0, 180], tilt_min: [0, 180], tilt_max: [0, 180] } as const;
+    for (const [k, [lo, hi]] of Object.entries(lim)) {
+      const v = (b as any)[k]; if (v === undefined || v === null || v === '') continue;
+      const x = Math.round(Number(v)); if (!Number.isFinite(x) || x < lo || x > hi) return reply.code(400).send({ error: `${k} ต้องอยู่ระหว่าง ${lo}–${hi}` });
+      out[k] = x;
+    }
+    if (out.pan_min !== undefined && out.pan_max !== undefined && out.pan_min > out.pan_max) return reply.code(400).send({ error: 'หัน: ต่ำสุดต้องไม่เกินสูงสุด' });
+    if (out.tilt_min !== undefined && out.tilt_max !== undefined && out.tilt_min > out.tilt_max) return reply.code(400).send({ error: 'ก้มเงย: ต่ำสุดต้องไม่เกินสูงสุด' });
+    if (!Object.keys(out).length) return reply.code(400).send({ error: 'ไม่มีค่าที่จะตั้ง' });
+    await sendCmd(node, 'servo', JSON.stringify(out));
+    return { ok: true, sent: out };
+  });
+
   // list cam nodes with latest snapshot + stream url
   app.get('/api/cam', async () => {
     const latest = await query<{ node: string; ts: Date; path: string; bytes: number; caption: string | null; mood: string | null; cnt: string }>(

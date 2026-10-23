@@ -31,6 +31,7 @@
 | `cmd/flash` | no | 1 | →node (cam) | `ON` / `OFF` ไฟแฟลช GPIO4 |
 | `cmd/pan` | no | 1 | →node (cam) | มุมหัน `0`–`180` หรือชื่อ preset (preset ขยับทั้งหันและก้มเงย) · เติม ` +snap` เพื่อถ่ายหลังหันเสร็จ · ตอบ event `pan` `{angle, tilt?}` |
 | `cmd/tilt` | no | 1 | →node (cam) | มุมก้มเงย `0`–`180` (ถูกจำกัดด้วย `tilt_min`/`tilt_max` ของ node) · ` +snap` ได้เหมือน pan · ต้องตั้ง `tilt_pin` ที่ node ก่อน |
+| `cmd/servo` | no | 1 | →node (cam) | ตั้งค่า servo ทันทีไม่รีบูต JSON `{speed, pan_min, pan_max, tilt_min, tilt_max}` (speed = องศา/วิ, 0 = เร็วสุด) · มุมที่หลุดช่วงใหม่จะหมุนกลับเข้าช่วงเอง · ตอบ event `servo_cfg` + meta ใหม่ (`cam.speed`, `cam.pan_min/max`) |
 | `cmd/patrol` | no | 1 | →node (cam) | หันไปทุก preset แล้วถ่ายทีละมุม กลับมุมเดิมเมื่อจบ |
 | `cmd/flip` | no | 1 | →node (cam) | JSON `{"vflip":bool,"mirror":bool}` ใส่เฉพาะคีย์ที่จะเปลี่ยน · มีผลทันทีและจำลง NVS ไม่รีบูต · config เทียบเท่า `cam_vflip`/`cam_mirror` (`cam_flip` เก่า = ตั้งทั้งคู่) · meta/status มี `cam.vflip`, `cam.mirror` |
 

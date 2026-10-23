@@ -56,6 +56,7 @@ static void servoRelease(ServoAxis& ax) {
 }
 static bool hasTilt() { return cfg.tiltPin >= 0; }
 static int clampTilt(int a) { return constrain(a, cfg.tiltMin, cfg.tiltMax); }
+static int clampPan(int a) { return constrain(a, cfg.panMin, cfg.panMax); }
 
 /** หัน/ก้มเงยไปที่มุม (-1 = แกนนั้นไม่ขยับ) แล้วรอให้นิ่งก่อนถ่าย
  *  ขยับ "ทีละแกน" ไม่พร้อมกัน — SG90 ตอนออกตัวดึงได้ถึง ~0.6 A ต่อตัว สองตัวพร้อมกันบนไฟ 5V ของ ESP32-CAM
@@ -80,7 +81,7 @@ static void glide(ServoAxis& ax, int from, int to, bool invert) {
 static void moveTo(int pan, int tilt, bool save = true) {
   bool moved = false;
   if (pan >= 0 && cfg.servoPin >= 0) {
-    pan = constrain(pan, 0, 180);
+    pan = clampPan(pan);
     glide(panAx, cfg.servoAngle, pan, cfg.servoInvert); cfg.servoAngle = pan; moved = true;
   }
   if (tilt >= 0 && hasTilt()) {
@@ -321,7 +322,7 @@ void roleMeta(JsonObject meta) {
   String ip = WiFi.localIP().toString();
   cam["stream"] = "http://" + ip + ":81/stream"; cam["snapshot"] = "http://" + ip + ":81/snapshot";
   cam["interval_s"] = cfg.intervalS; cam["size"] = cfg.camSize; cam["ok"] = camOk; cam["flash"] = cfg.camFlash; cam["vflip"] = cfg.camVflip; cam["mirror"] = cfg.camMirror;
-  cam["servo"] = cfg.servoPin >= 0; cam["angle"] = cfg.servoAngle;
+  cam["servo"] = cfg.servoPin >= 0; cam["angle"] = cfg.servoAngle; cam["speed"] = cfg.servoSpeed; cam["pan_min"] = cfg.panMin; cam["pan_max"] = cfg.panMax;
   cam["tilt"] = hasTilt(); if (hasTilt()) { cam["tilt_angle"] = cfg.tiltAngle; cam["tilt_min"] = cfg.tiltMin; cam["tilt_max"] = cfg.tiltMax; }
   JsonArray pre = cam["presets"].to<JsonArray>();
   for (int i = 0; i < cfg.presetCount; i++) { JsonObject p = pre.add<JsonObject>(); p["name"] = cfg.preset[i].name; p["angle"] = cfg.preset[i].angle; if (cfg.preset[i].tilt >= 0) p["tilt"] = cfg.preset[i].tilt; }
@@ -387,6 +388,23 @@ bool roleCommand(const String& sub, const String& payload) {
     return true;
   }
   if (sub == "cmd/patrol") { int n = patrol("patrol"); mqttEvent("patrol", "\"shots\":" + String(n)); return true; }
+  if (sub == "cmd/servo") {
+    // ตั้งค่า servo ทันทีไม่ต้องรีบูต: {"speed":30,"pan_min":20,"pan_max":160,"tilt_min":40,"tilt_max":140}
+    // ถ้ามุมปัจจุบันหลุดช่วงใหม่ จะค่อยๆ หมุนกลับเข้าช่วงให้เอง
+    JsonDocument d;
+    if (deserializeJson(d, payload)) { mqttEvent("servo_cfg_error", "\"msg\":\"bad json\""); return true; }
+    auto geti = [&](const char* k, int& dst, int lo, int hi) { if (d[k].is<int>()) dst = constrain(d[k].as<int>(), lo, hi); };
+    geti("speed", cfg.servoSpeed, 0, 600);
+    geti("pan_min", cfg.panMin, 0, 180); geti("pan_max", cfg.panMax, 0, 180);
+    geti("tilt_min", cfg.tiltMin, 0, 180); geti("tilt_max", cfg.tiltMax, 0, 180);
+    if (cfg.panMax < cfg.panMin) cfg.panMax = cfg.panMin;
+    if (cfg.tiltMax < cfg.tiltMin) cfg.tiltMax = cfg.tiltMin;
+    int p = clampPan(cfg.servoAngle), t = hasTilt() ? clampTilt(cfg.tiltAngle) : -1;
+    if (p != cfg.servoAngle || (t >= 0 && t != cfg.tiltAngle)) moveTo(p != cfg.servoAngle ? p : -1, (t >= 0 && t != cfg.tiltAngle) ? t : -1, false);
+    configSave(); mqttPublishMeta();
+    mqttEvent("servo_cfg", "\"speed\":" + String(cfg.servoSpeed) + ",\"pan_min\":" + cfg.panMin + ",\"pan_max\":" + cfg.panMax + ",\"tilt_min\":" + cfg.tiltMin + ",\"tilt_max\":" + cfg.tiltMax + "," + anglesJson());
+    return true;
+  }
   if (sub == "cmd/flip") {
     JsonDocument d;
     if (deserializeJson(d, payload)) { mqttEvent("flip_error"); return true; }

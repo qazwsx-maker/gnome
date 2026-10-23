@@ -84,6 +84,22 @@
   const capLine = (o) => (o && o.caption
     ? `<div class="cam-cap">${MOOD_ICON[o.mood] || '👁'} ${esc(o.caption)}${o.ts ? ` <span class="muted">· ${esc(fmtTs(o.ts).slice(-8))}</span>` : ''}</div>`
     : '<div class="cam-cap"></div>');
+  // แผงตั้งค่า servo: ความเร็ว (มีผลทันที) + ขอบเขตมุม · ปุ่ม "มุมตอนนี้" = เลื่อน slider ไปจุดที่ชนแล้วกดตั้งเป็นขอบ
+  function servoPanel(c) {
+    const s = c.cam, dis = c.online ? '' : 'disabled';
+    const cell = (axis, end, txt, val) => `<div class="sv-lim"><span>${txt}</span><input type="number" class="sv-${axis}-${end}" min="0" max="180" value="${val}" ${dis}><button class="ghost small" data-svnow="${axis}-${end}" ${dis} title="ใช้มุมปัจจุบันของ slider">📍</button></div>`;
+    const lim = (axis, label, min, max, has) => has ? `<div class="sv-axis"><span class="sv-lab">${label}</span>${cell(axis, 'min', 'ต่ำสุด', min)}${cell(axis, 'max', 'สูงสุด', max)}</div>` : '';
+    return `<details class="servo-cfg"><summary class="muted small">⚙ ตั้งค่า servo · ความเร็ว ${s.speed ?? 45}°/วิ · หัน ${s.pan_min ?? 0}–${s.pan_max ?? 180}°${s.tilt ? ` · ก้มเงย ${s.tilt_min ?? 0}–${s.tilt_max ?? 180}°` : ''}</summary>
+      <div class="sv-row"><span class="sv-lab">ความเร็ว</span><input type="range" class="sv-speed" min="5" max="180" step="5" value="${s.speed || 180}" ${dis}><span class="sv-speed-val muted small">${s.speed ? s.speed + '°/วิ' : 'เร็วสุด'}</span></div>
+      ${lim('pan', 'หัน', s.pan_min ?? 0, s.pan_max ?? 180, true)}
+      ${lim('tilt', 'ก้มเงย', s.tilt_min ?? 0, s.tilt_max ?? 180, !!s.tilt)}
+      <div class="row"><button class="small primary" data-svsave="1" ${dis}>บันทึกขอบเขตมุม</button><button class="ghost small" data-svreset="1" ${dis} title="กลับเป็น 0–180 ทั้งสองแกน">รีเซ็ต 0–180</button>
+      </div><p class="muted small sv-hint">ความเร็วมีผลทันทีที่ปล่อย slider · หาขอบ: เลื่อน slider หัน/ก้มเงยจนเกือบชนขาตั้ง แล้วกด 📍 ช่องนั้น → บันทึก · สั่งเกินช่วงไม่ได้อีก</p>
+    </details>`;
+  }
+  async function saveServo(node, body, msg) {
+    await api(`/cam/${node}/servo`, { method: 'POST', body }); toast(msg); setTimeout(renderCam, 2500);
+  }
   async function renderCam() {
     try { camState.list = await api('/cam'); } catch (e) { toast('โหลดกล้องไม่ได้: ' + e.message, true); return; }
     $('#cam-empty').classList.toggle('hidden', camState.list.length > 0);
@@ -107,7 +123,7 @@
         <button class="ghost small danger" data-delall="1" title="ลบภาพทั้งหมดของกล้องนี้">ลบทั้งหมด</button>
       </div>
       ${c.cam?.servo ? `<div class="row pan"><span class="muted small">หัน</span>
-        <input type="range" class="pan-range" min="0" max="180" value="${c.cam.angle ?? 90}" ${c.online ? '' : 'disabled'}>
+        <input type="range" class="pan-range" min="${c.cam.pan_min ?? 0}" max="${c.cam.pan_max ?? 180}" value="${c.cam.angle ?? 90}" ${c.online ? '' : 'disabled'}>
         <span class="pan-val muted small">${c.cam.angle ?? 90}°</span>
         ${(c.cam.presets || []).map((p) => `<button class="small" data-preset="${esc(p.name)}" title="หัน ${p.angle}°${p.tilt != null ? ' · ก้มเงย ' + p.tilt + '°' : ''}" ${c.online ? '' : 'disabled'}>${esc(p.name)}</button>`).join('')}
         ${(c.cam.presets || []).length > 1 ? `<button class="small" data-patrol="1" ${c.online ? '' : 'disabled'} title="หันไปทุก preset แล้วถ่ายทีละมุม">🔄 ถ่ายทุกมุม</button>` : ''}
@@ -115,7 +131,8 @@
       ${c.cam.tilt ? `<div class="row pan"><span class="muted small">ก้มเงย</span>
         <input type="range" class="pan-range tilt-range" min="${c.cam.tilt_min ?? 0}" max="${c.cam.tilt_max ?? 180}" value="${c.cam.tilt_angle ?? 90}" ${c.online ? '' : 'disabled'} title="ลาก = ก้มเงยแล้วถ่าย">
         <span class="pan-val muted small">${c.cam.tilt_angle ?? 90}°</span>
-      </div>` : ''}` : ''}
+      </div>` : ''}
+      ${servoPanel(c)}` : ''}
       ${c.angles?.length ? `<div class="muted small">มุมที่มีภาพ: ${c.angles.map((a) => `${a.angle}° (${a.count})`).join(' · ')}</div>` : ''}
       <div class="film"></div>
     </article>`).join('');
@@ -153,9 +170,14 @@
     const c = camState.list.find((x) => x.node === m.node); if (c) c.last_glance = { ts: new Date().toISOString(), caption: m.caption, mood: m.mood };
     const fr = camState.frames[m.node]?.find((f) => f.id === m.id); if (fr) { fr.caption = m.caption; fr.mood = m.mood; }
   }
-  $('#cam-list').addEventListener('input', (e) => { const r = e.target.closest('.pan-range'); if (r) $('.pan-val', r.closest('.pan')).textContent = r.value + '°'; });
+  $('#cam-list').addEventListener('input', (e) => {
+    const r = e.target.closest('.pan-range'); if (r) $('.pan-val', r.closest('.pan')).textContent = r.value + '°';
+    const sp = e.target.closest('.sv-speed'); if (sp) $('.sv-speed-val', sp.closest('.sv-row')).textContent = sp.value + '°/วิ';
+  });
   $('#cam-list').addEventListener('change', async (e) => {
     const sel = e.target.closest('.cam-day'); if (sel) { const node = sel.closest('.cam-card').dataset.node; if (sel.value) loadFrames(node, sel.value); return; }
+    const sp = e.target.closest('.sv-speed');
+    if (sp) { const node = sp.closest('.cam-card').dataset.node; try { await api(`/cam/${node}/servo`, { method: 'POST', body: { speed: Number(sp.value) } }); toast(`ความเร็ว servo ${sp.value}°/วิ`); } catch (err) { toast('ผิดพลาด: ' + err.message, true); } return; }
     const r = e.target.closest('.pan-range'); if (!r) return;
     const node = r.closest('.cam-card').dataset.node;
     const tilt = r.classList.contains('tilt-range');
@@ -167,6 +189,17 @@
     const btn = e.target.closest('button'); if (!btn) return;
     try {
       if (btn.dataset.snap) { await api(`/nodes/${node}/cmd`, { method: 'POST', body: { cmd: 'snap' } }); toast(`สั่งถ่าย → ${node}`); }
+      else if (btn.dataset.svnow) {   // ใส่มุมปัจจุบันของ slider ลงช่องต่ำสุด/สูงสุด (ยังไม่บันทึก)
+        const [axis, end] = btn.dataset.svnow.split('-');
+        const r = $(axis === 'tilt' ? '.tilt-range' : '.pan-range:not(.tilt-range)', card); if (!r) return;
+        $(`.sv-${axis}-${end}`, card).value = r.value; toast(`${axis === 'tilt' ? 'ก้มเงย' : 'หัน'} ${end === 'min' ? 'ต่ำสุด' : 'สูงสุด'} = ${r.value}° — กดบันทึก`);
+      }
+      else if (btn.dataset.svsave) {
+        const v = (cls) => { const i = $(cls, card); return i ? Number(i.value) : undefined; };
+        const body = { pan_min: v('.sv-pan-min'), pan_max: v('.sv-pan-max'), tilt_min: v('.sv-tilt-min'), tilt_max: v('.sv-tilt-max') };
+        await saveServo(node, body, 'บันทึกขอบเขตมุมแล้ว');
+      }
+      else if (btn.dataset.svreset) { if (!confirm('ล้างขอบเขตมุมเป็น 0–180 ทั้งสองแกน? (กล้องอาจหมุนไปชนขาตั้งได้)')) return; await saveServo(node, { pan_min: 0, pan_max: 180, tilt_min: 0, tilt_max: 180 }, 'รีเซ็ตขอบเขตแล้ว'); }
       else if (btn.dataset.vflip || btn.dataset.mirror) {
         // สลับค่าปัจจุบัน node ใช้ทันทีและจำไว้ แล้วส่ง meta ใหม่มาให้การ์ดวาดสถานะ
         const c = camState.list.find((x) => x.node === node); const key = btn.dataset.vflip ? 'vflip' : 'mirror';

@@ -85,6 +85,7 @@ struct Config {
   int servoSpeed = 45;      // ความเร็วหมุน องศา/วิ ทั้งสองแกน (0 = เร็วสุด กระโดดทันที)
   // servo ก้มเงย (tilt) — ขาที่สอง (แนะนำ pan 14 / tilt 15) · tiltMin/Max กันกล้องชนขาตั้ง
   int tiltPin = -1; int tiltAngle = 90; bool tiltInvert = false; int tiltMin = 0, tiltMax = 180;
+  int panMin = 0, panMax = 180;   // ขอบเขตมุมหัน (ตั้งจาก dashboard ได้ทันทีผ่าน cmd/servo)
   PresetCfg preset[GNOME_MAX_PRESET]; int presetCount = 0;
 };
 

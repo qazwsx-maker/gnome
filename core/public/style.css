@@ -94,6 +94,15 @@ main{padding:14px 16px 60px}
 .status-dot{width:10px;height:10px;border-radius:50%;background:var(--critical);flex:none}
 .status-dot.on{background:var(--good)}
 .node .meta{font-size:12px;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap}
+/* กล้อง: แผงตั้งค่า servo */
+.servo-cfg{margin-top:6px;border-top:1px solid var(--border);padding-top:6px}.servo-cfg>summary{cursor:pointer}
+.sv-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:8px 0}.sv-lab{min-width:56px;font-size:13px;color:var(--ink2)}
+.sv-speed{flex:1 1 140px}
+.sv-axis{display:grid;grid-template-columns:56px 1fr 1fr;gap:6px 10px;align-items:center;margin:8px 0}
+.sv-lim{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink2);white-space:nowrap}
+.sv-lim input{width:56px;font:inherit;padding:3px 6px;border:1px solid var(--border);border-radius:7px;background:transparent;color:var(--ink)}
+.sv-lim button{padding:2px 7px}.sv-hint{margin:6px 0 0}
+@media(max-width:480px){.sv-axis{grid-template-columns:1fr 1fr}.sv-axis .sv-lab{grid-column:1/-1}}
 /* การ์ดพับได้: ปิด = เหลือแค่ปุ่ม (summary) ไม่มีกรอบการ์ด · เปิด = กางเป็นการ์ดเต็ม */
 details.collapse{margin-bottom:14px}details.collapse:not([open]){background:none;border:none;padding:0;box-shadow:none}
 details.collapse>summary{list-style:none;cursor:pointer;display:inline-block;user-select:none;font:inherit;background:var(--leaf);color:#fff;border:1px solid var(--leaf);border-radius:9px;padding:6px 12px}details.collapse>summary::-webkit-details-marker{display:none}

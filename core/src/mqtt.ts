@@ -198,6 +198,15 @@ async function onDebug(node: string, dbg: any): Promise<void> {
 async function onEvent(node: string, ev: any): Promise<void> {
   const type = String(ev.type || 'unknown');
   await recordEvent(node, type, ev);
+  // Watcher ส่งมุมใหม่มาใน event `pan` เท่านั้น (ไม่ส่ง meta ซ้ำ) → อัปเดต meta.cam ใน Hut ให้ slider บน dashboard ตรงกับมุมจริง
+  if (type === 'pan') {
+    const cam = getNode(node).meta?.cam;
+    if (cam && typeof cam === 'object') {
+      if (Number.isFinite(ev.angle)) cam.angle = ev.angle;
+      if (Number.isFinite(ev.tilt)) cam.tilt_angle = ev.tilt;
+      bus.live({ type: 'cam_pose', node, angle: cam.angle, tilt: cam.tilt_angle, ts: new Date().toISOString() } as any);
+    }
+  }
   if (DISCORD_EVENTS.has(type)) {
     const extra = Object.entries(ev)
       .filter(([k]) => k !== 'type')

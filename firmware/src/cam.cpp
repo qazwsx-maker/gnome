@@ -38,12 +38,12 @@ static ServoAxis panAx  = { "pan",  2 };
 static ServoAxis tiltAx = { "tilt", 4 };
 static int axisPin(const ServoAxis& ax) { return &ax == &panAx ? cfg.servoPin : cfg.tiltPin; }
 
-static void servoWrite(ServoAxis& ax, int angle, bool invert) {
+static void servoWrite(ServoAxis& ax, float angle, bool invert) {
   int pin = axisPin(ax); if (pin < 0) return;
-  angle = constrain(angle, 0, 180);
-  int a = invert ? 180 - angle : angle;
-  int us = cfg.servoMinUs + (long)(cfg.servoMaxUs - cfg.servoMinUs) * a / 180;
-  uint32_t duty = (uint32_t)((float)us * 65536.0f / 20000.0f);   // 50 Hz, 16-bit
+  angle = constrain(angle, 0.0f, 180.0f);
+  float a = invert ? 180.0f - angle : angle;
+  float us = cfg.servoMinUs + (cfg.servoMaxUs - cfg.servoMinUs) * a / 180.0f;   // ทศนิยม → ขยับทีละน้อยได้เนียน
+  uint32_t duty = (uint32_t)(us * 65536.0f / 20000.0f);   // 50 Hz, 16-bit
   if (!ax.on) { ledcSetup(ax.ch, 50, 16); ledcAttachPin(pin, ax.ch); ax.on = true; }
   ledcWrite(ax.ch, duty);
   ax.idleAt = millis() + 1200;   // ค้างสัญญาณ 1.2 s ให้หมุนถึงตำแหน่ง แล้วปล่อย
@@ -60,17 +60,32 @@ static int clampTilt(int a) { return constrain(a, cfg.tiltMin, cfg.tiltMax); }
 /** หัน/ก้มเงยไปที่มุม (-1 = แกนนั้นไม่ขยับ) แล้วรอให้นิ่งก่อนถ่าย
  *  ขยับ "ทีละแกน" ไม่พร้อมกัน — SG90 ตอนออกตัวดึงได้ถึง ~0.6 A ต่อตัว สองตัวพร้อมกันบนไฟ 5V ของ ESP32-CAM
  *  (ที่กำลังส่ง WiFi อยู่) เสี่ยง brownout รีบูต · ขยับทีละตัวพีคเหลือครึ่งเดียว */
+// หมุนนุ่ม: ไล่มุมทีละเฟรม servo (20 ms) ด้วยความเร็ว servo_speed องศา/วิ + ease in-out (smoothstep)
+// แทนการกระโดดไปมุมใหม่ทันที (SG90 ไม่มีการคุมความเร็วเอง → เดิมสะบัดแรง กล้องสั่น ภาพเบลอ ดึงไฟพีค)
+static void glide(ServoAxis& ax, int from, int to, bool invert) {
+  int delta = abs(to - from);
+  if (delta == 0) { servoWrite(ax, to, invert); return; }
+  int speed = cfg.servoSpeed > 0 ? cfg.servoSpeed : 9999;
+  uint32_t dur = (uint32_t)delta * 1000 / speed; if (dur < 60) dur = 60;
+  uint32_t t0 = millis();
+  for (;;) {
+    float t = (float)(millis() - t0) / dur; if (t > 1) t = 1;
+    float e = t * t * (3 - 2 * t);                       // smoothstep: ค่อยๆ ออกตัว ค่อยๆ หยุด
+    servoWrite(ax, from + (to - from) * e, invert);
+    if (t >= 1) break;
+    delay(20);
+  }
+  delay(250);   // settle ก่อนถ่าย
+}
 static void moveTo(int pan, int tilt, bool save = true) {
   bool moved = false;
   if (pan >= 0 && cfg.servoPin >= 0) {
-    pan = constrain(pan, 0, 180); int delta = abs(pan - cfg.servoAngle);
-    servoWrite(panAx, pan, cfg.servoInvert); cfg.servoAngle = pan; moved = true;
-    delay(300 + delta * 6);   // ~6 ms/องศา + settle
+    pan = constrain(pan, 0, 180);
+    glide(panAx, cfg.servoAngle, pan, cfg.servoInvert); cfg.servoAngle = pan; moved = true;
   }
   if (tilt >= 0 && hasTilt()) {
-    tilt = clampTilt(tilt); int delta = abs(tilt - cfg.tiltAngle);
-    servoWrite(tiltAx, tilt, cfg.tiltInvert); cfg.tiltAngle = tilt; moved = true;
-    delay(300 + delta * 6);
+    tilt = clampTilt(tilt);
+    glide(tiltAx, cfg.tiltAngle, tilt, cfg.tiltInvert); cfg.tiltAngle = tilt; moved = true;
   }
   if (!moved) return;
   if (save) configSave();

@@ -977,6 +977,15 @@
         case 'debug': if (!n) return loadNodes(); n.debug = { ...m.debug, ts: m.ts }; if (m.debug.ip) n.ip = m.debug.ip; n.last_seen = m.ts; renderStatus(); break;
         case 'node': loadNodes(); break;
         case 'vibe': updateVibe(m); break;
+        case 'cam_pose': {   // มุมจริงของกล้องหลังหัน/ก้มเงย → ขยับ slider + ตัวเลขบนการ์ดกล้องตาม
+          const card = $(`.cam-card[data-node="${m.node}"]`); if (!card) break;
+          const c = camState.list.find((x) => x.node === m.node); if (c?.cam) { c.cam.angle = m.angle; c.cam.tilt_angle = m.tilt; }
+          for (const [sel, v] of [['.pan-range:not(.tilt-range)', m.angle], ['.tilt-range', m.tilt]]) {
+            const r = $(sel, card); if (!r || v == null || document.activeElement === r) continue;
+            r.value = v; $('.pan-val', r.closest('.pan')).textContent = v + '°';
+          }
+          break;
+        }
         case 'snapshot': onSnapshot(m); break;
         case 'glance': onGlance(m); break;
         case 'sage': onSageProgress(m); break;

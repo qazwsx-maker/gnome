@@ -82,6 +82,7 @@ struct Config {
   int servoMinUs = 500, servoMaxUs = 2400;
   int servoAngle = 90;      // มุมล่าสุด (จำไว้ใน NVS)
   bool servoInvert = false;
+  int servoSpeed = 45;      // ความเร็วหมุน องศา/วิ ทั้งสองแกน (0 = เร็วสุด กระโดดทันที)
   // servo ก้มเงย (tilt) — ขาที่สอง (แนะนำ pan 14 / tilt 15) · tiltMin/Max กันกล้องชนขาตั้ง
   int tiltPin = -1; int tiltAngle = 90; bool tiltInvert = false; int tiltMin = 0, tiltMax = 180;
   PresetCfg preset[GNOME_MAX_PRESET]; int presetCount = 0;

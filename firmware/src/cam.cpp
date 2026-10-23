@@ -76,8 +76,9 @@ static void glide(ServoAxis& ax, int from, int to, bool invert) {
     if (t >= 1) break;
     delay(20);
   }
-  delay(250);   // settle ก่อนถ่าย
+  delay(delta <= 3 ? 30 : 250);   // settle ก่อนถ่าย (ขยับทีละองศาไม่ต้องรอนาน)
 }
+static uint32_t saveDueAt = 0;
 static void moveTo(int pan, int tilt, bool save = true) {
   bool moved = false;
   if (pan >= 0 && cfg.servoPin >= 0) {
@@ -89,10 +90,16 @@ static void moveTo(int pan, int tilt, bool save = true) {
     glide(tiltAx, cfg.tiltAngle, tilt, cfg.tiltInvert); cfg.tiltAngle = tilt; moved = true;
   }
   if (!moved) return;
-  if (save) configSave();
+  if (save) saveDueAt = millis() + 3000;   // เลื่อนการเขียน NVS ไป 3 วิหลังขยับครั้งสุดท้าย (กดทีละองศารัวๆ ไม่เขียนแฟลชทุกครั้ง)
   Serial.printf("[servo] pan %d tilt %d\n", cfg.servoAngle, hasTilt() ? cfg.tiltAngle : -1);
 }
 static void panTo(int angle, bool save = true) { moveTo(angle, -1, save); }
+// "90" = มุมตรงๆ · "+1" / "-3" = ขยับจากมุมปัจจุบัน (ปุ่ม ±1° บน dashboard) · คืน -999 ถ้าอ่านไม่ได้
+static int parseAngle(const String& p, int cur) {
+  if (!p.length()) return -999;
+  if (p[0] == '+' || p[0] == '-') { String n = p.substring(1); if (!n.length() || !isDigit(n[0])) return -999; int d = n.toInt(); return cur + (p[0] == '+' ? d : -d); }
+  return isDigit(p[0]) ? p.toInt() : -999;
+}
 static void tiltTo(int angle, bool save = true) { moveTo(-1, angle, save); }
 static const PresetCfg* findPreset(const String& name) {
   for (int i = 0; i < cfg.presetCount; i++) if (cfg.preset[i].name == name) return &cfg.preset[i];
@@ -301,6 +308,7 @@ static int patrol(const char* reason) {
 void roleLoop() {
   uploadReport();
   servoRestoreIfDue();
+  if (saveDueAt && millis() > saveDueAt) { saveDueAt = 0; configSave(); }
   if (panAx.on && millis() > panAx.idleAt) servoRelease(panAx);
   if (tiltAx.on && millis() > tiltAx.idleAt) servoRelease(tiltAx);
   static bool streamStarted = false;
@@ -322,7 +330,7 @@ void roleMeta(JsonObject meta) {
   String ip = WiFi.localIP().toString();
   cam["stream"] = "http://" + ip + ":81/stream"; cam["snapshot"] = "http://" + ip + ":81/snapshot";
   cam["interval_s"] = cfg.intervalS; cam["size"] = cfg.camSize; cam["ok"] = camOk; cam["flash"] = cfg.camFlash; cam["vflip"] = cfg.camVflip; cam["mirror"] = cfg.camMirror;
-  cam["servo"] = cfg.servoPin >= 0; cam["angle"] = cfg.servoAngle; cam["speed"] = cfg.servoSpeed; cam["pan_min"] = cfg.panMin; cam["pan_max"] = cfg.panMax;
+  cam["servo"] = cfg.servoPin >= 0; cam["angle"] = cfg.servoAngle; cam["speed"] = cfg.servoSpeed; cam["pan_min"] = cfg.panMin; cam["pan_max"] = cfg.panMax; cam["pan_invert"] = cfg.servoInvert; cam["tilt_invert"] = cfg.tiltInvert;
   cam["tilt"] = hasTilt(); if (hasTilt()) { cam["tilt_angle"] = cfg.tiltAngle; cam["tilt_min"] = cfg.tiltMin; cam["tilt_max"] = cfg.tiltMax; }
   JsonArray pre = cam["presets"].to<JsonArray>();
   for (int i = 0; i < cfg.presetCount; i++) { JsonObject p = pre.add<JsonObject>(); p["name"] = cfg.preset[i].name; p["angle"] = cfg.preset[i].angle; if (cfg.preset[i].tilt >= 0) p["tilt"] = cfg.preset[i].tilt; }
@@ -370,7 +378,8 @@ bool roleCommand(const String& sub, const String& payload) {
     if (cfg.servoPin < 0) { mqttEvent("pan_failed", "\"msg\":\"no servo\""); return true; }
     bool snap = false;
     if (p.endsWith("+snap")) { snap = true; p = p.substring(0, p.length() - 5); p.trim(); }
-    if (p.length() && (isDigit(p[0]) || p[0] == '-')) panTo(p.toInt());
+    int a = parseAngle(p, cfg.servoAngle);
+    if (a != -999) panTo(a);
     else { const PresetCfg* pr = findPreset(p); if (!pr) { mqttEvent("pan_failed", "\"msg\":\"unknown preset " + p + "\""); return true; } moveTo(pr->angle, pr->tilt); }
     mqttEvent("pan", anglesJson());
     if (snap) { lastShot = millis(); snapAndUpload("pan"); }
@@ -381,8 +390,9 @@ bool roleCommand(const String& sub, const String& payload) {
     if (!hasTilt()) { mqttEvent("pan_failed", "\"msg\":\"no tilt servo\""); return true; }
     bool snap = false;
     if (p.endsWith("+snap")) { snap = true; p = p.substring(0, p.length() - 5); p.trim(); }
-    if (!p.length() || !(isDigit(p[0]) || p[0] == '-')) { mqttEvent("pan_failed", "\"msg\":\"bad tilt " + p + "\""); return true; }
-    tiltTo(p.toInt());
+    int t = parseAngle(p, cfg.tiltAngle);
+    if (t == -999) { mqttEvent("pan_failed", "\"msg\":\"bad tilt " + p + "\""); return true; }
+    tiltTo(t);
     mqttEvent("pan", anglesJson());
     if (snap) { lastShot = millis(); snapAndUpload("tilt"); }
     return true;
@@ -399,6 +409,21 @@ bool roleCommand(const String& sub, const String& payload) {
     geti("tilt_min", cfg.tiltMin, 0, 180); geti("tilt_max", cfg.tiltMax, 0, 180);
     if (cfg.panMax < cfg.panMin) cfg.panMax = cfg.panMin;
     if (cfg.tiltMax < cfg.tiltMin) cfg.tiltMax = cfg.tiltMin;
+    // กลับทิศ: ตำแหน่งจริงต้องไม่ขยับ → มุมที่จำไว้ (และขอบเขต) สะท้อนเป็น 180 - x
+    if (d["pan_invert"].is<bool>() && d["pan_invert"].as<bool>() != cfg.servoInvert) {
+      cfg.servoInvert = !cfg.servoInvert; cfg.servoAngle = 180 - cfg.servoAngle; int lo = 180 - cfg.panMax, hi = 180 - cfg.panMin; cfg.panMin = lo; cfg.panMax = hi;
+      for (int i = 0; i < cfg.presetCount; i++) cfg.preset[i].angle = 180 - cfg.preset[i].angle;
+    }
+    if (d["tilt_invert"].is<bool>() && d["tilt_invert"].as<bool>() != cfg.tiltInvert) {
+      cfg.tiltInvert = !cfg.tiltInvert; cfg.tiltAngle = 180 - cfg.tiltAngle; int lo = 180 - cfg.tiltMax, hi = 180 - cfg.tiltMin; cfg.tiltMin = lo; cfg.tiltMax = hi;
+      for (int i = 0; i < cfg.presetCount; i++) if (cfg.preset[i].tilt >= 0) cfg.preset[i].tilt = 180 - cfg.preset[i].tilt;
+    }
+    // home: จำมุมปัจจุบันเป็น preset "front" (หน้าตรง) — แทนที่ของเดิมถ้ามี
+    if (d["home"] | false) {
+      int i = 0; while (i < cfg.presetCount && cfg.preset[i].name != "front") i++;
+      if (i == cfg.presetCount) { if (cfg.presetCount < GNOME_MAX_PRESET) cfg.presetCount++; else i = cfg.presetCount - 1; }
+      cfg.preset[i].name = "front"; cfg.preset[i].angle = cfg.servoAngle; cfg.preset[i].tilt = hasTilt() ? cfg.tiltAngle : -1;
+    }
     int p = clampPan(cfg.servoAngle), t = hasTilt() ? clampTilt(cfg.tiltAngle) : -1;
     if (p != cfg.servoAngle || (t >= 0 && t != cfg.tiltAngle)) moveTo(p != cfg.servoAngle ? p : -1, (t >= 0 && t != cfg.tiltAngle) ? t : -1, false);
     configSave(); mqttPublishMeta();

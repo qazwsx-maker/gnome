@@ -90,11 +90,14 @@
     const cell = (axis, end, txt, val) => `<div class="sv-lim"><span>${txt}</span><input type="number" class="sv-${axis}-${end}" min="0" max="180" value="${val}" ${dis}><button class="ghost small" data-svnow="${axis}-${end}" ${dis} title="ใช้มุมปัจจุบันของ slider">📍</button></div>`;
     const lim = (axis, label, min, max, has) => has ? `<div class="sv-axis"><span class="sv-lab">${label}</span>${cell(axis, 'min', 'ต่ำสุด', min)}${cell(axis, 'max', 'สูงสุด', max)}</div>` : '';
     return `<details class="servo-cfg"><summary class="muted small">⚙ ตั้งค่า servo · ความเร็ว ${s.speed ?? 45}°/วิ · หัน ${s.pan_min ?? 0}–${s.pan_max ?? 180}°${s.tilt ? ` · ก้มเงย ${s.tilt_min ?? 0}–${s.tilt_max ?? 180}°` : ''}</summary>
+      <div class="sv-row pan"><span class="sv-lab">หัน</span><input type="range" class="pan-range" min="${s.pan_min ?? 0}" max="${s.pan_max ?? 180}" value="${s.angle ?? 90}" ${dis}><span class="pan-val muted small">${s.angle ?? 90}°</span></div>
+      ${s.tilt ? `<div class="sv-row pan"><span class="sv-lab">ก้มเงย</span><input type="range" class="pan-range tilt-range" min="${s.tilt_min ?? 0}" max="${s.tilt_max ?? 180}" value="${s.tilt_angle ?? 90}" ${dis}><span class="pan-val muted small">${s.tilt_angle ?? 90}°</span></div>` : ''}
+      <div class="sv-row"><span class="sv-lab">ทิศ</span><label class="chip"><input type="checkbox" class="sv-inv" data-axis="pan" ${s.pan_invert ? 'checked' : ''} ${dis}>สลับ ◀ ▶</label>${s.tilt ? `<label class="chip"><input type="checkbox" class="sv-inv" data-axis="tilt" ${s.tilt_invert ? 'checked' : ''} ${dis}>สลับ ▼ ▲</label>` : ''}</div>
       <div class="sv-row"><span class="sv-lab">ความเร็ว</span><input type="range" class="sv-speed" min="5" max="180" step="5" value="${s.speed || 180}" ${dis}><span class="sv-speed-val muted small">${s.speed ? s.speed + '°/วิ' : 'เร็วสุด'}</span></div>
       ${lim('pan', 'หัน', s.pan_min ?? 0, s.pan_max ?? 180, true)}
       ${lim('tilt', 'ก้มเงย', s.tilt_min ?? 0, s.tilt_max ?? 180, !!s.tilt)}
       <div class="row"><button class="small primary" data-svsave="1" ${dis}>บันทึกขอบเขตมุม</button><button class="ghost small" data-svreset="1" ${dis} title="กลับเป็น 0–180 ทั้งสองแกน">รีเซ็ต 0–180</button>
-      </div><p class="muted small sv-hint">ความเร็วมีผลทันทีที่ปล่อย slider · หาขอบ: เลื่อน slider หัน/ก้มเงยจนเกือบชนขาตั้ง แล้วกด 📍 ช่องนั้น → บันทึก · สั่งเกินช่วงไม่ได้อีก</p>
+      </div><p class="muted small sv-hint">slider ด้านบน = กระโดดไปมุมนั้น (ใช้ปุ่ม ◀ ▶ บนการ์ดถ้าต้องการละเอียด) · ความเร็วมีผลทันทีที่ปล่อย slider · หาขอบ: เลื่อน slider หัน/ก้มเงยจนเกือบชนขาตั้ง แล้วกด 📍 ช่องนั้น → บันทึก · สั่งเกินช่วงไม่ได้อีก</p>
     </details>`;
   }
   async function saveServo(node, body, msg) {
@@ -122,16 +125,21 @@
         <button class="ghost small danger" data-delday="1" title="ลบภาพของวันที่เลือกใน time-lapse">ลบวันนี้</button>
         <button class="ghost small danger" data-delall="1" title="ลบภาพทั้งหมดของกล้องนี้">ลบทั้งหมด</button>
       </div>
-      ${c.cam?.servo ? `<div class="row pan"><span class="muted small">หัน</span>
-        <input type="range" class="pan-range" min="${c.cam.pan_min ?? 0}" max="${c.cam.pan_max ?? 180}" value="${c.cam.angle ?? 90}" ${c.online ? '' : 'disabled'}>
-        <span class="pan-val muted small">${c.cam.angle ?? 90}°</span>
-        ${(c.cam.presets || []).map((p) => `<button class="small" data-preset="${esc(p.name)}" title="หัน ${p.angle}°${p.tilt != null ? ' · ก้มเงย ' + p.tilt + '°' : ''}" ${c.online ? '' : 'disabled'}>${esc(p.name)}</button>`).join('')}
-        ${(c.cam.presets || []).length > 1 ? `<button class="small" data-patrol="1" ${c.online ? '' : 'disabled'} title="หันไปทุก preset แล้วถ่ายทีละมุม">🔄 ถ่ายทุกมุม</button>` : ''}
+      ${c.cam?.servo ? `<div class="pad">
+        <div class="pad-row"><span class="pad-lab">หัน</span>
+          <button class="nudge" data-nudge="pan" data-by="-1" ${c.online ? '' : 'disabled'} title="กดค้าง = หมุนต่อเนื่องทีละ 1°">◀</button>
+          <b class="pose pose-pan">${c.cam.angle ?? 90}°</b>
+          <button class="nudge" data-nudge="pan" data-by="1" ${c.online ? '' : 'disabled'} title="กดค้าง = หมุนต่อเนื่องทีละ 1°">▶</button></div>
+        ${c.cam.tilt ? `<div class="pad-row"><span class="pad-lab">ก้มเงย</span>
+          <button class="nudge" data-nudge="tilt" data-by="-1" ${c.online ? '' : 'disabled'} title="กดค้าง = หมุนต่อเนื่องทีละ 1°">▼</button>
+          <b class="pose pose-tilt">${c.cam.tilt_angle ?? 90}°</b>
+          <button class="nudge" data-nudge="tilt" data-by="1" ${c.online ? '' : 'disabled'} title="กดค้าง = หมุนต่อเนื่องทีละ 1°">▲</button></div>` : ''}
+        <div class="row">
+          ${(c.cam.presets || []).map((p) => `<button class="small" data-preset="${esc(p.name)}" title="หัน ${p.angle}°${p.tilt != null ? ' · ก้มเงย ' + p.tilt + '°' : ''}" ${c.online ? '' : 'disabled'}>${p.name === 'front' ? '🏠 หน้าตรง' : esc(p.name)}</button>`).join('')}
+          <button class="ghost small" data-svhome="1" ${c.online ? '' : 'disabled'} title="บันทึกมุมตอนนี้เป็นตำแหน่งหน้าตรง">📌 จำเป็นหน้าตรง</button>
+          ${(c.cam.presets || []).length > 1 ? `<button class="small" data-patrol="1" ${c.online ? '' : 'disabled'} title="หันไปทุก preset แล้วถ่ายทีละมุม">🔄 ถ่ายทุกมุม</button>` : ''}
+        </div>
       </div>
-      ${c.cam.tilt ? `<div class="row pan"><span class="muted small">ก้มเงย</span>
-        <input type="range" class="pan-range tilt-range" min="${c.cam.tilt_min ?? 0}" max="${c.cam.tilt_max ?? 180}" value="${c.cam.tilt_angle ?? 90}" ${c.online ? '' : 'disabled'} title="ลาก = ก้มเงยแล้วถ่าย">
-        <span class="pan-val muted small">${c.cam.tilt_angle ?? 90}°</span>
-      </div>` : ''}
       ${servoPanel(c)}` : ''}
       ${c.angles?.length ? `<div class="muted small">มุมที่มีภาพ: ${c.angles.map((a) => `${a.angle}° (${a.count})`).join(' · ')}</div>` : ''}
       <div class="film"></div>
@@ -170,12 +178,25 @@
     const c = camState.list.find((x) => x.node === m.node); if (c) c.last_glance = { ts: new Date().toISOString(), caption: m.caption, mood: m.mood };
     const fr = camState.frames[m.node]?.find((f) => f.id === m.id); if (fr) { fr.caption = m.caption; fr.mood = m.mood; }
   }
+  // ปุ่ม ±1°: แตะ = 1 ครั้ง · กดค้าง = ซ้ำทุก 350 ms (~3°/วิ ช้ามาก) จนกว่าจะปล่อย
+  let nudgeTimer = null;
+  const nudgeOnce = (b) => api(`/cam/${b.closest('.cam-card').dataset.node}/pan`, { method: 'POST', body: { nudge: b.dataset.nudge, by: Number(b.dataset.by) } }).catch((err) => toast('ผิดพลาด: ' + err.message, true));
+  const nudgeStop = () => { if (nudgeTimer) { clearInterval(nudgeTimer); nudgeTimer = null; } };
+  $('#cam-list').addEventListener('pointerdown', (e) => {
+    const b = e.target.closest('.nudge'); if (!b || b.disabled) return;
+    e.preventDefault(); nudgeStop(); nudgeOnce(b);
+    nudgeTimer = setInterval(() => nudgeOnce(b), 350);
+  });
+  for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) $('#cam-list').addEventListener(ev, (e) => { if (e.target.closest?.('.nudge') || ev !== 'pointerleave') nudgeStop(); });
+  window.addEventListener('blur', nudgeStop);
   $('#cam-list').addEventListener('input', (e) => {
     const r = e.target.closest('.pan-range'); if (r) $('.pan-val', r.closest('.pan')).textContent = r.value + '°';
     const sp = e.target.closest('.sv-speed'); if (sp) $('.sv-speed-val', sp.closest('.sv-row')).textContent = sp.value + '°/วิ';
   });
   $('#cam-list').addEventListener('change', async (e) => {
     const sel = e.target.closest('.cam-day'); if (sel) { const node = sel.closest('.cam-card').dataset.node; if (sel.value) loadFrames(node, sel.value); return; }
+    const inv = e.target.closest('.sv-inv');
+    if (inv) { const node = inv.closest('.cam-card').dataset.node; try { await saveServo(node, { [inv.dataset.axis + '_invert']: inv.checked }, 'สลับทิศแล้ว (กล้องไม่ขยับ)'); } catch (err) { toast('ผิดพลาด: ' + err.message, true); } return; }
     const sp = e.target.closest('.sv-speed');
     if (sp) { const node = sp.closest('.cam-card').dataset.node; try { await api(`/cam/${node}/servo`, { method: 'POST', body: { speed: Number(sp.value) } }); toast(`ความเร็ว servo ${sp.value}°/วิ`); } catch (err) { toast('ผิดพลาด: ' + err.message, true); } return; }
     const r = e.target.closest('.pan-range'); if (!r) return;
@@ -189,6 +210,8 @@
     const btn = e.target.closest('button'); if (!btn) return;
     try {
       if (btn.dataset.snap) { await api(`/nodes/${node}/cmd`, { method: 'POST', body: { cmd: 'snap' } }); toast(`สั่งถ่าย → ${node}`); }
+      else if (btn.dataset.svhome) { if (!confirm('จำมุมตอนนี้เป็น "หน้าตรง"?')) return; await saveServo(node, { home: true }, 'จำหน้าตรงแล้ว — ปุ่ม 🏠 หน้าตรง พากลับมาที่นี่'); }
+      else if (btn.dataset.nudge) return;   // จัดการด้วย pointer events (กดค้าง) ด้านล่าง
       else if (btn.dataset.svnow) {   // ใส่มุมปัจจุบันของ slider ลงช่องต่ำสุด/สูงสุด (ยังไม่บันทึก)
         const [axis, end] = btn.dataset.svnow.split('-');
         const r = $(axis === 'tilt' ? '.tilt-range' : '.pan-range:not(.tilt-range)', card); if (!r) return;
@@ -1017,6 +1040,8 @@
             const r = $(sel, card); if (!r || v == null || document.activeElement === r) continue;
             r.value = v; $('.pan-val', r.closest('.pan')).textContent = v + '°';
           }
+          const pp = $('.pose-pan', card); if (pp && m.angle != null) pp.textContent = m.angle + '°';
+          const pt = $('.pose-tilt', card); if (pt && m.tilt != null) pt.textContent = m.tilt + '°';
           break;
         }
         case 'snapshot': onSnapshot(m); break;

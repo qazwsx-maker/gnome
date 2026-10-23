@@ -70,11 +70,17 @@ export async function registerCam(app: FastifyInstance): Promise<void> {
 
   // หัน servo: {angle} หรือ {preset} · {tilt} ก้มเงย (ส่งคู่กับ angle ได้ — หันก่อน แล้วก้มเงย ถ่ายหลังแกนสุดท้าย)
   // snap=true ให้ถ่ายหลังขยับเสร็จ · patrol = ถ่ายทุก preset
-  app.post<{ Params: { node: string }; Body: { angle?: number; tilt?: number; preset?: string; snap?: boolean; patrol?: boolean } }>('/api/cam/:node/pan', async (req, reply) => {
+  app.post<{ Params: { node: string }; Body: { angle?: number; tilt?: number; preset?: string; snap?: boolean; patrol?: boolean; nudge?: 'pan' | 'tilt'; by?: number } }>('/api/cam/:node/pan', async (req, reply) => {
     const { node } = req.params; const b = req.body || {};
     const n = nodes.get(node);
     if (!n) return reply.code(404).send({ error: 'node not found' });
     if (b.patrol) { await sendCmd(node, 'patrol', '1'); return { ok: true, patrol: true }; }
+    // ขยับทีละน้อยจากมุมปัจจุบัน (ปุ่ม ±1° กดค้างได้) — ส่งแบบสัมพัทธ์ "+1"/"-1" ให้ node คำนวณเอง ไม่ต้องรู้มุมล่าสุด
+    if (b.nudge === 'pan' || b.nudge === 'tilt') {
+      const by = Math.round(Number(b.by)); if (!Number.isFinite(by) || by === 0 || Math.abs(by) > 30) return reply.code(400).send({ error: 'by ต้องเป็น ±1…±30' });
+      await sendCmd(node, b.nudge, (by > 0 ? '+' : '-') + Math.abs(by));
+      return { ok: true, nudge: b.nudge, by };
+    }
     const deg = (v: unknown) => (Number.isFinite(v as number) ? String(Math.max(0, Math.min(180, Math.round(v as number)))) : null);
     const pan = b.preset ? String(b.preset) : deg(b.angle);
     const tilt = deg(b.tilt);
@@ -85,20 +91,21 @@ export async function registerCam(app: FastifyInstance): Promise<void> {
   });
 
   // ตั้งค่า servo ของ Watcher ทันที (ไม่รีบูต): ความเร็ว องศา/วิ + ขอบเขตมุมหัน/ก้มเงย → cmd/servo
-  app.post<{ Params: { node: string }; Body: { speed?: number; pan_min?: number; pan_max?: number; tilt_min?: number; tilt_max?: number } }>('/api/cam/:node/servo', async (req, reply) => {
+  app.post<{ Params: { node: string }; Body: { speed?: number; pan_min?: number; pan_max?: number; tilt_min?: number; tilt_max?: number; pan_invert?: boolean; tilt_invert?: boolean; home?: boolean } }>('/api/cam/:node/servo', async (req, reply) => {
     const { node } = req.params; const b = req.body || {};
     const n = nodes.get(node);
     if (!n) return reply.code(404).send({ error: 'node not found' });
     if (!n.meta?.cam?.servo) return reply.code(400).send({ error: 'กล้องนี้ยังไม่ได้ตั้ง servo pin' });
-    const out: Record<string, number> = {};
+    const out: Record<string, number | boolean> = {};
+    for (const k of ['pan_invert', 'tilt_invert', 'home'] as const) if (typeof b[k] === 'boolean') out[k] = b[k] as boolean;
     const lim = { speed: [0, 600], pan_min: [0, 180], pan_max: [0, 180], tilt_min: [0, 180], tilt_max: [0, 180] } as const;
     for (const [k, [lo, hi]] of Object.entries(lim)) {
       const v = (b as any)[k]; if (v === undefined || v === null || v === '') continue;
       const x = Math.round(Number(v)); if (!Number.isFinite(x) || x < lo || x > hi) return reply.code(400).send({ error: `${k} ต้องอยู่ระหว่าง ${lo}–${hi}` });
       out[k] = x;
     }
-    if (out.pan_min !== undefined && out.pan_max !== undefined && out.pan_min > out.pan_max) return reply.code(400).send({ error: 'หัน: ต่ำสุดต้องไม่เกินสูงสุด' });
-    if (out.tilt_min !== undefined && out.tilt_max !== undefined && out.tilt_min > out.tilt_max) return reply.code(400).send({ error: 'ก้มเงย: ต่ำสุดต้องไม่เกินสูงสุด' });
+    if (out.pan_min !== undefined && out.pan_max !== undefined && (out.pan_min as number) > (out.pan_max as number)) return reply.code(400).send({ error: 'หัน: ต่ำสุดต้องไม่เกินสูงสุด' });
+    if (out.tilt_min !== undefined && out.tilt_max !== undefined && (out.tilt_min as number) > (out.tilt_max as number)) return reply.code(400).send({ error: 'ก้มเงย: ต่ำสุดต้องไม่เกินสูงสุด' });
     if (!Object.keys(out).length) return reply.code(400).send({ error: 'ไม่มีค่าที่จะตั้ง' });
     await sendCmd(node, 'servo', JSON.stringify(out));
     return { ok: true, sent: out };

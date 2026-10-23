@@ -94,6 +94,7 @@
       ${s.servo && !cont ? '' : '<!--'}<div class="sv-row pan"><span class="sv-lab">หัน</span><input type="range" class="pan-range" min="${s.pan_min ?? 0}" max="${s.pan_max ?? 180}" value="${s.angle ?? 90}" ${dis}><span class="pan-val muted small">${s.angle ?? 90}°</span></div>${s.servo && !cont ? '' : '-->'}
       ${s.tilt ? `<div class="sv-row pan"><span class="sv-lab">ก้มเงย</span><input type="range" class="pan-range tilt-range" min="${s.tilt_min ?? 0}" max="${s.tilt_max ?? 180}" value="${s.tilt_angle ?? 90}" ${dis}><span class="pan-val muted small">${s.tilt_angle ?? 90}°</span></div>` : ''}
       <div class="sv-row"><span class="sv-lab">ทิศ</span><label class="chip"><input type="checkbox" class="sv-inv" data-axis="pan" ${s.pan_invert ? 'checked' : ''} ${dis}>สลับ ◀ ▶</label>${s.tilt ? `<label class="chip"><input type="checkbox" class="sv-inv" data-axis="tilt" ${s.tilt_invert ? 'checked' : ''} ${dis}>สลับ ▼ ▲</label>` : ''}</div>
+      <div class="sv-row"><span class="sv-lab">ค้างแรง</span><input type="range" class="sv-cont" data-k="hold_ms" min="500" max="30000" step="500" value="${s.hold_ms ?? 5000}" ${dis} title="หลังหมุนถึง servo ออกแรงค้างตำแหน่งนานเท่านี้ก่อนปล่อย · สั้นไป = สั่งครั้งต่อไปกระตุก · ยาวไปอาจส่าย/ร้อน"><span class="muted small sv-cv">${((s.hold_ms ?? 5000) / 1000).toFixed(1)} วิ</span></div>
       <div class="sv-row"><span class="sv-lab">ความเร็ว</span><input type="range" class="sv-speed" min="1" max="30" step="1" value="${s.speed ?? 10}" ${dis}><span class="sv-speed-val muted small">${s.speed ?? 10}°/วิ</span></div>
       ${lim('pan', 'หัน', s.pan_min ?? 0, s.pan_max ?? 180, !!s.servo && !cont)}
       ${s.servo ? `<div class="sv-row"><span class="sv-lab">ตัวล่าง</span><label class="chip"><input type="radio" name="pm-${esc(c.node)}" class="sv-mode" value="position" ${cont ? '' : 'checked'} ${dis}>180° (กำหนดมุม)</label><label class="chip"><input type="radio" name="pm-${esc(c.node)}" class="sv-mode" value="continuous" ${cont ? 'checked' : ''} ${dis}>360° (หมุนรอบตัว)</label></div>` : ''}
@@ -199,7 +200,7 @@
   $('#cam-list').addEventListener('input', (e) => {
     const r = e.target.closest('.pan-range'); if (r) $('.pan-val', r.closest('.pan')).textContent = r.value + '°';
     const sp = e.target.closest('.sv-speed'); if (sp) $('.sv-speed-val', sp.closest('.sv-row')).textContent = sp.value + '°/วิ';
-    const sc = e.target.closest('.sv-cont'); if (sc) $('.sv-cv', sc.closest('.sv-row')).textContent = sc.dataset.k === 'cont_limit' ? (Number(sc.value) ? '±' + sc.value + ' ก้าว' : 'ไม่จำกัด') : sc.value + (sc.dataset.k === 'cont_ms' ? ' ms' : ' µs');
+    const sc = e.target.closest('.sv-cont'); if (sc) $('.sv-cv', sc.closest('.sv-row')).textContent = sc.dataset.k === 'cont_limit' ? (Number(sc.value) ? '±' + sc.value + ' ก้าว' : 'ไม่จำกัด') : sc.dataset.k === 'hold_ms' ? (Number(sc.value) / 1000).toFixed(1) + ' วิ' : sc.value + (sc.dataset.k === 'cont_ms' ? ' ms' : ' µs');
   });
   $('#cam-list').addEventListener('change', async (e) => {
     const sel = e.target.closest('.cam-day'); if (sel) { const node = sel.closest('.cam-card').dataset.node; if (sel.value) loadFrames(node, sel.value); return; }

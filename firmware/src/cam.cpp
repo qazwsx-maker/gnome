@@ -48,14 +48,14 @@ static void servoWrite(ServoAxis& ax, float angle, bool invert) {
   else ledcWrite(ax.ch, duty);
   // ปล่อยสัญญาณ 0.8 วิหลังพัลส์สุดท้าย — ห้ามล็อกค้าง: 2026-10-23 (0.7.8) ล็อกตลอดแล้ว SG90 ส่ายไปมา ±30° กับโหลดหนัก
   // (hunting) เสี่ยง bracket พัง/สายหลุด · ตอนไม่มีสัญญาณ เฟืองของ SG90 ยังต้านไว้เองพอสมควร
-  ax.idleAt = millis() + 800;
+  ax.idleAt = millis() + (uint32_t)cfg.servoHoldMs;
 }
 static void servoWriteUs(ServoAxis& ax, int us) {
   int pin = axisPin(ax); if (pin < 0) return;
   uint32_t duty = (uint32_t)((float)us * 65536.0f / 20000.0f);
   if (!ax.on) { ledcSetup(ax.ch, 50, 16); ledcWrite(ax.ch, duty); ledcAttachPin(pin, ax.ch); ax.on = true; }
   else ledcWrite(ax.ch, duty);
-  ax.idleAt = millis() + 800;
+  ax.idleAt = millis() + (uint32_t)cfg.servoHoldMs;
 }
 static void servoRelease(ServoAxis& ax);
 static bool panCont() { return cfg.servoPin >= 0 && cfg.panCont; }
@@ -361,7 +361,7 @@ void roleMeta(JsonObject meta) {
   String ip = WiFi.localIP().toString();
   cam["stream"] = "http://" + ip + ":81/stream"; cam["snapshot"] = "http://" + ip + ":81/snapshot";
   cam["interval_s"] = cfg.intervalS; cam["size"] = cfg.camSize; cam["ok"] = camOk; cam["flash"] = cfg.camFlash; cam["vflip"] = cfg.camVflip; cam["mirror"] = cfg.camMirror;
-  cam["servo"] = cfg.servoPin >= 0; cam["angle"] = cfg.servoAngle; cam["speed"] = cfg.servoSpeed; cam["pan_min"] = cfg.panMin; cam["pan_max"] = cfg.panMax; cam["pan_invert"] = cfg.servoInvert; cam["tilt_invert"] = cfg.tiltInvert;
+  cam["servo"] = cfg.servoPin >= 0; cam["angle"] = cfg.servoAngle; cam["speed"] = cfg.servoSpeed; cam["hold_ms"] = cfg.servoHoldMs; cam["pan_min"] = cfg.panMin; cam["pan_max"] = cfg.panMax; cam["pan_invert"] = cfg.servoInvert; cam["tilt_invert"] = cfg.tiltInvert;
   cam["pan_mode"] = cfg.panCont ? "continuous" : "position"; cam["stop_us"] = cfg.stopUs; cam["cont_us"] = cfg.contUs; cam["cont_ms"] = cfg.contMs; cam["cont_limit"] = cfg.contLimit; cam["cont_pos"] = cfg.contPos;
   cam["tilt"] = hasTilt(); if (hasTilt()) { cam["tilt_angle"] = cfg.tiltAngle; cam["tilt_min"] = cfg.tiltMin; cam["tilt_max"] = cfg.tiltMax; }
   JsonArray pre = cam["presets"].to<JsonArray>();
@@ -450,7 +450,7 @@ bool roleCommand(const String& sub, const String& payload) {
     JsonDocument d;
     if (deserializeJson(d, payload)) { mqttEvent("servo_cfg_error", "\"msg\":\"bad json\""); return true; }
     auto geti = [&](const char* k, int& dst, int lo, int hi) { if (d[k].is<int>()) dst = constrain(d[k].as<int>(), lo, hi); };
-    geti("speed", cfg.servoSpeed, 1, SERVO_MAX_SPEED);
+    geti("speed", cfg.servoSpeed, 1, SERVO_MAX_SPEED); geti("hold_ms", cfg.servoHoldMs, 500, 30000);
     if (d["pan_mode"].is<const char*>()) cfg.panCont = String(d["pan_mode"].as<const char*>()) == "continuous";
     geti("stop_us", cfg.stopUs, 1300, 1700); geti("cont_us", cfg.contUs, CONT_MIN_US, CONT_MAX_US); geti("cont_ms", cfg.contMs, 20, CONT_MAX_MS); geti("cont_limit", cfg.contLimit, 0, 500);
     geti("pan_min", cfg.panMin, 0, 180); geti("pan_max", cfg.panMax, 0, 180);

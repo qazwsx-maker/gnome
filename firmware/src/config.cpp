@@ -54,7 +54,7 @@ void configToJson(JsonObject o, bool includeSecrets) {
   o["interval_s"] = cfg.intervalS; o["i2c_sda"] = cfg.i2cSda; o["i2c_scl"] = cfg.i2cScl; o["dht_pin"] = cfg.dhtPin; o["soil_power_pin"] = cfg.soilPowerPin;
   o["failsafe_s"] = cfg.failsafeS; o["oled"] = cfg.oled; o["board"] = GNOME_BOARD; o["thirsty_pct"] = cfg.thirstyPct; o["hot_c"] = cfg.hotC;
   o["hut_url"] = cfg.hutUrl; o["cam_size"] = cfg.camSize; o["cam_flash"] = cfg.camFlash; o["cam_vflip"] = cfg.camVflip; o["cam_mirror"] = cfg.camMirror;
-  o["servo_pin"] = cfg.servoPin; o["servo_min_us"] = cfg.servoMinUs; o["servo_max_us"] = cfg.servoMaxUs; o["servo_angle"] = cfg.servoAngle; o["servo_invert"] = cfg.servoInvert; o["servo_speed"] = cfg.servoSpeed;
+  o["servo_pin"] = cfg.servoPin; o["servo_min_us"] = cfg.servoMinUs; o["servo_max_us"] = cfg.servoMaxUs; o["servo_angle"] = cfg.servoAngle; o["servo_invert"] = cfg.servoInvert; o["servo_speed"] = cfg.servoSpeed; o["servo_hold_ms"] = cfg.servoHoldMs;
   o["tilt_pin"] = cfg.tiltPin; o["tilt_angle"] = cfg.tiltAngle; o["tilt_invert"] = cfg.tiltInvert; o["tilt_min"] = cfg.tiltMin; o["tilt_max"] = cfg.tiltMax; o["pan_min"] = cfg.panMin; o["pan_max"] = cfg.panMax; o["pan_mode"] = cfg.panCont ? "continuous" : "position"; o["stop_us"] = cfg.stopUs; o["cont_us"] = cfg.contUs; o["cont_ms"] = cfg.contMs; o["cont_limit"] = cfg.contLimit; o["cont_pos"] = cfg.contPos;
   JsonArray pre = o["presets"].to<JsonArray>();
   for (int i = 0; i < cfg.presetCount; i++) { JsonObject p = pre.add<JsonObject>(); p["name"] = cfg.preset[i].name; p["angle"] = cfg.preset[i].angle; p["tilt"] = cfg.preset[i].tilt; }
@@ -94,9 +94,9 @@ bool configApplyJson(JsonObjectConst o) {
   if (o["cam_flash"].is<bool>()) { cfg.camFlash = o["cam_flash"].as<bool>(); changed = true; } if (o["cam_vflip"].is<bool>()) { cfg.camVflip = o["cam_vflip"].as<bool>(); changed = true; }
   if (o["cam_mirror"].is<bool>()) { cfg.camMirror = o["cam_mirror"].as<bool>(); changed = true; }
   if (o["cam_flip"].is<bool>()) { cfg.camVflip = cfg.camMirror = o["cam_flip"].as<bool>(); changed = true; }   // คีย์เก่า = หมุน 180°
-  setI("servo_pin", cfg.servoPin); setI("servo_speed", cfg.servoSpeed); setI("servo_min_us", cfg.servoMinUs); setI("servo_max_us", cfg.servoMaxUs); setI("servo_angle", cfg.servoAngle);
+  setI("servo_pin", cfg.servoPin); setI("servo_speed", cfg.servoSpeed); setI("servo_hold_ms", cfg.servoHoldMs); setI("servo_min_us", cfg.servoMinUs); setI("servo_max_us", cfg.servoMaxUs); setI("servo_angle", cfg.servoAngle);
   if (o["servo_invert"].is<bool>()) { cfg.servoInvert = o["servo_invert"].as<bool>(); changed = true; }
-  cfg.servoAngle = constrain(cfg.servoAngle, 0, 180); cfg.servoSpeed = constrain(cfg.servoSpeed, 1, SERVO_MAX_SPEED);
+  cfg.servoAngle = constrain(cfg.servoAngle, 0, 180); cfg.servoSpeed = constrain(cfg.servoSpeed, 1, SERVO_MAX_SPEED); cfg.servoHoldMs = constrain(cfg.servoHoldMs, 500, 30000);
   if (cfg.servoMinUs < 400) cfg.servoMinUs = 400; if (cfg.servoMaxUs > 2600) cfg.servoMaxUs = 2600;
   setI("tilt_pin", cfg.tiltPin); setI("tilt_angle", cfg.tiltAngle); setI("tilt_min", cfg.tiltMin); setI("tilt_max", cfg.tiltMax); setI("pan_min", cfg.panMin); setI("pan_max", cfg.panMax);
   if (o["pan_mode"].is<const char*>()) { cfg.panCont = String(o["pan_mode"].as<const char*>()) == "continuous"; changed = true; }

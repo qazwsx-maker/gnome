@@ -86,6 +86,7 @@ struct Config {
   int servoMinUs = 500, servoMaxUs = 2400;
   int servoAngle = 90;      // มุมล่าสุด (จำไว้ใน NVS)
   bool servoInvert = false;
+  int servoHoldMs = 5000;   // ค้างแรงหลังพัลส์สุดท้ายนานเท่าไร (ms) ก่อนปล่อย — สั้นไป = สั่งครั้งต่อไปกระชากกลับเข้าตำแหน่ง, ยาวไป = เสี่ยงส่าย/ร้อน
   int servoSpeed = 10;      // ความเร็วหมุน องศา/วิ ทั้งสองแกน · จำกัด 1–SERVO_MAX_SPEED (ห้ามหมุนเร็ว: สายหลุด / bracket พัง)
   // servo ก้มเงย (tilt) — ขาที่สอง (แนะนำ pan 14 / tilt 15) · tiltMin/Max กันกล้องชนขาตั้ง
   int tiltPin = -1; int tiltAngle = 90; bool tiltInvert = false; int tiltMin = 0, tiltMax = 180;

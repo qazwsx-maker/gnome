@@ -89,11 +89,11 @@
     const s = c.cam, dis = c.online ? '' : 'disabled';
     const cell = (axis, end, txt, val) => `<div class="sv-lim"><span>${txt}</span><input type="number" class="sv-${axis}-${end}" min="0" max="180" value="${val}" ${dis}><button class="ghost small" data-svnow="${axis}-${end}" ${dis} title="ใช้มุมปัจจุบันของ slider">📍</button></div>`;
     const lim = (axis, label, min, max, has) => has ? `<div class="sv-axis"><span class="sv-lab">${label}</span>${cell(axis, 'min', 'ต่ำสุด', min)}${cell(axis, 'max', 'สูงสุด', max)}</div>` : '';
-    return `<details class="servo-cfg"><summary class="muted small">⚙ ตั้งค่า servo · ความเร็ว ${s.speed ?? 45}°/วิ · หัน ${s.pan_min ?? 0}–${s.pan_max ?? 180}°${s.tilt ? ` · ก้มเงย ${s.tilt_min ?? 0}–${s.tilt_max ?? 180}°` : ''}</summary>
+    return `<details class="servo-cfg"><summary class="muted small">⚙ ตั้งค่า servo · ความเร็ว ${s.speed ?? 10}°/วิ · หัน ${s.pan_min ?? 0}–${s.pan_max ?? 180}°${s.tilt ? ` · ก้มเงย ${s.tilt_min ?? 0}–${s.tilt_max ?? 180}°` : ''}</summary>
       <div class="sv-row pan"><span class="sv-lab">หัน</span><input type="range" class="pan-range" min="${s.pan_min ?? 0}" max="${s.pan_max ?? 180}" value="${s.angle ?? 90}" ${dis}><span class="pan-val muted small">${s.angle ?? 90}°</span></div>
       ${s.tilt ? `<div class="sv-row pan"><span class="sv-lab">ก้มเงย</span><input type="range" class="pan-range tilt-range" min="${s.tilt_min ?? 0}" max="${s.tilt_max ?? 180}" value="${s.tilt_angle ?? 90}" ${dis}><span class="pan-val muted small">${s.tilt_angle ?? 90}°</span></div>` : ''}
       <div class="sv-row"><span class="sv-lab">ทิศ</span><label class="chip"><input type="checkbox" class="sv-inv" data-axis="pan" ${s.pan_invert ? 'checked' : ''} ${dis}>สลับ ◀ ▶</label>${s.tilt ? `<label class="chip"><input type="checkbox" class="sv-inv" data-axis="tilt" ${s.tilt_invert ? 'checked' : ''} ${dis}>สลับ ▼ ▲</label>` : ''}</div>
-      <div class="sv-row"><span class="sv-lab">ความเร็ว</span><input type="range" class="sv-speed" min="5" max="180" step="5" value="${s.speed || 180}" ${dis}><span class="sv-speed-val muted small">${s.speed ? s.speed + '°/วิ' : 'เร็วสุด'}</span></div>
+      <div class="sv-row"><span class="sv-lab">ความเร็ว</span><input type="range" class="sv-speed" min="1" max="30" step="1" value="${s.speed ?? 10}" ${dis}><span class="sv-speed-val muted small">${s.speed ?? 10}°/วิ</span></div>
       ${lim('pan', 'หัน', s.pan_min ?? 0, s.pan_max ?? 180, true)}
       ${lim('tilt', 'ก้มเงย', s.tilt_min ?? 0, s.tilt_max ?? 180, !!s.tilt)}
       <div class="row"><button class="small primary" data-svsave="1" ${dis}>บันทึกขอบเขตมุม</button><button class="ghost small" data-svreset="1" ${dis} title="กลับเป็น 0–180 ทั้งสองแกน">รีเซ็ต 0–180</button>

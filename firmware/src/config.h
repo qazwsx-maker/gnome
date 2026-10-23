@@ -17,6 +17,7 @@
 #define GNOME_MAX_SOIL 6
 #define GNOME_MAX_SWITCH 4
 #define GNOME_MAX_PRESET 4
+#define SERVO_MAX_SPEED 30   // องศา/วิ สูงสุดที่ยอมให้ตั้ง (ความเร็ว "ยอดคลื่น" ของการหมุน ไม่ใช่ค่าเฉลี่ย)
 #define GNOME_AP_PASS "gnome1234"   // รหัส WiFi ของ node ตอนอยู่โหมดตั้งค่า
 #if defined(GNOME_ROLE_CAM)
   // ESP32-CAM: LED แดงหลังบอร์ด GPIO33 (active-low), ไม่มี I2C ว่าง (ขา 21/22 เป็นของกล้อง)
@@ -82,7 +83,7 @@ struct Config {
   int servoMinUs = 500, servoMaxUs = 2400;
   int servoAngle = 90;      // มุมล่าสุด (จำไว้ใน NVS)
   bool servoInvert = false;
-  int servoSpeed = 45;      // ความเร็วหมุน องศา/วิ ทั้งสองแกน (0 = เร็วสุด กระโดดทันที)
+  int servoSpeed = 10;      // ความเร็วหมุน องศา/วิ ทั้งสองแกน · จำกัด 1–SERVO_MAX_SPEED (ห้ามหมุนเร็ว: สายหลุด / bracket พัง)
   // servo ก้มเงย (tilt) — ขาที่สอง (แนะนำ pan 14 / tilt 15) · tiltMin/Max กันกล้องชนขาตั้ง
   int tiltPin = -1; int tiltAngle = 90; bool tiltInvert = false; int tiltMin = 0, tiltMax = 180;
   int panMin = 0, panMax = 180;   // ขอบเขตมุมหัน (ตั้งจาก dashboard ได้ทันทีผ่าน cmd/servo)

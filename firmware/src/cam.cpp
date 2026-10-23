@@ -46,7 +46,9 @@ static void servoWrite(ServoAxis& ax, float angle, bool invert) {
   uint32_t duty = (uint32_t)(us * 65536.0f / 20000.0f);   // 50 Hz, 16-bit
   if (!ax.on) { ledcSetup(ax.ch, 50, 16); ledcAttachPin(pin, ax.ch); ax.on = true; }
   ledcWrite(ax.ch, duty);
-  ax.idleAt = millis() + 1200;   // ค้างสัญญาณ 1.2 s ให้หมุนถึงตำแหน่ง แล้วปล่อย
+  // ปล่อยสัญญาณ 0.8 วิหลังพัลส์สุดท้าย — ห้ามล็อกค้าง: 2026-10-23 (0.7.8) ล็อกตลอดแล้ว SG90 ส่ายไปมา ±30° กับโหลดหนัก
+  // (hunting) เสี่ยง bracket พัง/สายหลุด · ตอนไม่มีสัญญาณ เฟืองของ SG90 ยังต้านไว้เองพอสมควร
+  ax.idleAt = millis() + 800;
 }
 static void servoRelease(ServoAxis& ax) {
   if (!ax.on) return;
@@ -66,8 +68,9 @@ static int clampPan(int a) { return constrain(a, cfg.panMin, cfg.panMax); }
 static void glide(ServoAxis& ax, int from, int to, bool invert) {
   int delta = abs(to - from);
   if (delta == 0) { servoWrite(ax, to, invert); return; }
-  int speed = cfg.servoSpeed > 0 ? cfg.servoSpeed : 9999;
-  uint32_t dur = (uint32_t)delta * 1000 / speed; if (dur < 60) dur = 60;
+  int speed = constrain(cfg.servoSpeed, 1, SERVO_MAX_SPEED);
+  // smoothstep มีความเร็วสูงสุดกลางทาง = 1.5 × เฉลี่ย → ยืดเวลาให้ช่วงที่เร็วที่สุดยังไม่เกิน speed
+  uint32_t dur = (uint32_t)delta * 1500 / speed; if (dur < 100) dur = 100;
   uint32_t t0 = millis();
   for (;;) {
     float t = (float)(millis() - t0) / dur; if (t > 1) t = 1;
@@ -404,7 +407,7 @@ bool roleCommand(const String& sub, const String& payload) {
     JsonDocument d;
     if (deserializeJson(d, payload)) { mqttEvent("servo_cfg_error", "\"msg\":\"bad json\""); return true; }
     auto geti = [&](const char* k, int& dst, int lo, int hi) { if (d[k].is<int>()) dst = constrain(d[k].as<int>(), lo, hi); };
-    geti("speed", cfg.servoSpeed, 0, 600);
+    geti("speed", cfg.servoSpeed, 1, SERVO_MAX_SPEED);
     geti("pan_min", cfg.panMin, 0, 180); geti("pan_max", cfg.panMax, 0, 180);
     geti("tilt_min", cfg.tiltMin, 0, 180); geti("tilt_max", cfg.tiltMax, 0, 180);
     if (cfg.panMax < cfg.panMin) cfg.panMax = cfg.panMin;
@@ -458,8 +461,9 @@ bool roleCommand(const String& sub, const String& payload) {
 bool roleWebSwitch(const String& key, bool on, int seconds) {
   if (key == "flash") { setFlash(on); return true; }
   if (key == "snap") { lastShot = millis(); return snapAndUpload("web"); }
-  if (key == "pan") { panTo(seconds); return true; }                      // seconds = มุม 0-180
-  if (key == "tilt") { if (!hasTilt()) return false; tiltTo(seconds); return true; }
+  // หน้าเว็บของ node เองก็ต้องแจ้ง Hut ด้วย ไม่งั้น dashboard ไม่รู้ว่ากล้องหันไปแล้ว (2026-10-23: หันผ่าน :80 แล้ว Hut ยังคิดว่าอยู่ที่เดิม)
+  if (key == "pan") { panTo(seconds); mqttEvent("pan", anglesJson()); return true; }   // seconds = มุม 0-180
+  if (key == "tilt") { if (!hasTilt()) return false; tiltTo(seconds); mqttEvent("pan", anglesJson()); return true; }
   if (key == "patrol") { return patrol("web-patrol") > 0; }
   return false;
 }

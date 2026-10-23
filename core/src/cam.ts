@@ -98,7 +98,7 @@ export async function registerCam(app: FastifyInstance): Promise<void> {
     if (!n.meta?.cam?.servo) return reply.code(400).send({ error: 'กล้องนี้ยังไม่ได้ตั้ง servo pin' });
     const out: Record<string, number | boolean> = {};
     for (const k of ['pan_invert', 'tilt_invert', 'home'] as const) if (typeof b[k] === 'boolean') out[k] = b[k] as boolean;
-    const lim = { speed: [0, 600], pan_min: [0, 180], pan_max: [0, 180], tilt_min: [0, 180], tilt_max: [0, 180] } as const;
+    const lim = { speed: [1, 30], pan_min: [0, 180], pan_max: [0, 180], tilt_min: [0, 180], tilt_max: [0, 180] } as const;
     for (const [k, [lo, hi]] of Object.entries(lim)) {
       const v = (b as any)[k]; if (v === undefined || v === null || v === '') continue;
       const x = Math.round(Number(v)); if (!Number.isFinite(x) || x < lo || x > hi) return reply.code(400).send({ error: `${k} ต้องอยู่ระหว่าง ${lo}–${hi}` });

@@ -96,7 +96,7 @@ bool configApplyJson(JsonObjectConst o) {
   if (o["cam_flip"].is<bool>()) { cfg.camVflip = cfg.camMirror = o["cam_flip"].as<bool>(); changed = true; }   // คีย์เก่า = หมุน 180°
   setI("servo_pin", cfg.servoPin); setI("servo_speed", cfg.servoSpeed); setI("servo_min_us", cfg.servoMinUs); setI("servo_max_us", cfg.servoMaxUs); setI("servo_angle", cfg.servoAngle);
   if (o["servo_invert"].is<bool>()) { cfg.servoInvert = o["servo_invert"].as<bool>(); changed = true; }
-  cfg.servoAngle = constrain(cfg.servoAngle, 0, 180); cfg.servoSpeed = constrain(cfg.servoSpeed, 0, 600);
+  cfg.servoAngle = constrain(cfg.servoAngle, 0, 180); cfg.servoSpeed = constrain(cfg.servoSpeed, 1, SERVO_MAX_SPEED);
   if (cfg.servoMinUs < 400) cfg.servoMinUs = 400; if (cfg.servoMaxUs > 2600) cfg.servoMaxUs = 2600;
   setI("tilt_pin", cfg.tiltPin); setI("tilt_angle", cfg.tiltAngle); setI("tilt_min", cfg.tiltMin); setI("tilt_max", cfg.tiltMax); setI("pan_min", cfg.panMin); setI("pan_max", cfg.panMax);
   if (o["tilt_invert"].is<bool>()) { cfg.tiltInvert = o["tilt_invert"].as<bool>(); changed = true; }

@@ -187,8 +187,9 @@ static esp_err_t snapshotHandler(httpd_req_t* req) {
   if (!fb) { xSemaphoreGive(camLock); httpd_resp_send_500(req); return ESP_FAIL; }
   httpd_resp_set_type(req, "image/jpeg"); httpd_resp_set_hdr(req, "Content-Disposition", "inline; filename=snapshot.jpg");
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  xSemaphoreGive(camLock);   // ล็อกแค่ตอนหยิบเฟรม — ส่งช้าบนลิงก์แย่ก็ไม่บล็อกการถ่ายรอบอื่น (fb_count 2)
   esp_err_t r = httpd_resp_send(req, (const char*)fb->buf, fb->len);
-  esp_camera_fb_return(fb); xSemaphoreGive(camLock);
+  esp_camera_fb_return(fb);
   return r;
 }
 static esp_err_t streamHandler(httpd_req_t* req) {
@@ -199,10 +200,11 @@ static esp_err_t streamHandler(httpd_req_t* req) {
     if (xSemaphoreTake(camLock, pdMS_TO_TICKS(3000)) != pdTRUE) break;
     camera_fb_t* fb = esp_camera_fb_get();
     if (!fb) { xSemaphoreGive(camLock); break; }
+    xSemaphoreGive(camLock);   // เดิมถือล็อกระหว่างส่งเฟรม → ดูสดค้างไว้บนลิงก์ช้า = ถ่าย/อัปโหลดตามรอบ "busy" ตลอด (2026-10-24)
     int n = snprintf(hdr, sizeof hdr, "\r\n--gnomeframe\r\nContent-Type: image/jpeg\r\nContent-Length: %u\r\n\r\n", fb->len);
     esp_err_t r = httpd_resp_send_chunk(req, hdr, n);
     if (r == ESP_OK) r = httpd_resp_send_chunk(req, (const char*)fb->buf, fb->len);
-    esp_camera_fb_return(fb); xSemaphoreGive(camLock);
+    esp_camera_fb_return(fb);
     if (r != ESP_OK) break;
     vTaskDelay(pdMS_TO_TICKS(80));   // ~10 fps สูงสุด
   }

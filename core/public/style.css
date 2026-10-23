@@ -95,7 +95,7 @@ main{padding:14px 16px 60px}
 .status-dot.on{background:var(--good)}
 .node .meta{font-size:12px;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap}
 /* การ์ดพับได้: ปิด = เหลือแค่ปุ่ม (summary) ไม่มีกรอบการ์ด · เปิด = กางเป็นการ์ดเต็ม */
-details.collapse:not([open]){background:none;border:none;padding:0;box-shadow:none}
+details.collapse{margin-bottom:14px}details.collapse:not([open]){background:none;border:none;padding:0;box-shadow:none}
 details.collapse>summary{list-style:none;cursor:pointer;display:inline-block;user-select:none;font:inherit;background:var(--leaf);color:#fff;border:1px solid var(--leaf);border-radius:9px;padding:6px 12px}details.collapse>summary::-webkit-details-marker{display:none}
 details.collapse[open]>summary{margin-bottom:4px}
 .vibe{display:flex;align-items:center;gap:10px;margin:6px 0 8px}.vibe-icon{font-size:30px;line-height:1;flex:none}.vibe b{font-size:15px}.vibe-detail{margin-top:1px}

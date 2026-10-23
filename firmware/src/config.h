@@ -51,7 +51,7 @@
 #endif
 
 struct SoilCfg { int pin = -1; int dry = 3100; int wet = 1300; String key; };  // key ว่าง = soilN
-struct PresetCfg { String name; int angle = 90; };
+struct PresetCfg { String name; int angle = 90; int tilt = -1; };   // tilt -1 = ไม่เปลี่ยนแกนก้มเงย
 
 struct SwitchCfg {
   String key; int pin = -1; bool activeLow = true; int maxOnS = 600; String exclusive; // comma-separated keys
@@ -82,6 +82,8 @@ struct Config {
   int servoMinUs = 500, servoMaxUs = 2400;
   int servoAngle = 90;      // มุมล่าสุด (จำไว้ใน NVS)
   bool servoInvert = false;
+  // servo ก้มเงย (tilt) — ขาที่สอง (แนะนำ pan 14 / tilt 15) · tiltMin/Max กันกล้องชนขาตั้ง
+  int tiltPin = -1; int tiltAngle = 90; bool tiltInvert = false; int tiltMin = 0, tiltMax = 180;
   PresetCfg preset[GNOME_MAX_PRESET]; int presetCount = 0;
 };
 

@@ -109,9 +109,13 @@
       ${c.cam?.servo ? `<div class="row pan"><span class="muted small">หัน</span>
         <input type="range" class="pan-range" min="0" max="180" value="${c.cam.angle ?? 90}" ${c.online ? '' : 'disabled'}>
         <span class="pan-val muted small">${c.cam.angle ?? 90}°</span>
-        ${(c.cam.presets || []).map((p) => `<button class="small" data-preset="${esc(p.name)}" title="${p.angle}°" ${c.online ? '' : 'disabled'}>${esc(p.name)}</button>`).join('')}
+        ${(c.cam.presets || []).map((p) => `<button class="small" data-preset="${esc(p.name)}" title="หัน ${p.angle}°${p.tilt != null ? ' · ก้มเงย ' + p.tilt + '°' : ''}" ${c.online ? '' : 'disabled'}>${esc(p.name)}</button>`).join('')}
         ${(c.cam.presets || []).length > 1 ? `<button class="small" data-patrol="1" ${c.online ? '' : 'disabled'} title="หันไปทุก preset แล้วถ่ายทีละมุม">🔄 ถ่ายทุกมุม</button>` : ''}
-      </div>` : ''}
+      </div>
+      ${c.cam.tilt ? `<div class="row pan"><span class="muted small">ก้มเงย</span>
+        <input type="range" class="pan-range tilt-range" min="${c.cam.tilt_min ?? 0}" max="${c.cam.tilt_max ?? 180}" value="${c.cam.tilt_angle ?? 90}" ${c.online ? '' : 'disabled'} title="ลาก = ก้มเงยแล้วถ่าย">
+        <span class="pan-val muted small">${c.cam.tilt_angle ?? 90}°</span>
+      </div>` : ''}` : ''}
       ${c.angles?.length ? `<div class="muted small">มุมที่มีภาพ: ${c.angles.map((a) => `${a.angle}° (${a.count})`).join(' · ')}</div>` : ''}
       <div class="film"></div>
     </article>`).join('');
@@ -154,7 +158,8 @@
     const sel = e.target.closest('.cam-day'); if (sel) { const node = sel.closest('.cam-card').dataset.node; if (sel.value) loadFrames(node, sel.value); return; }
     const r = e.target.closest('.pan-range'); if (!r) return;
     const node = r.closest('.cam-card').dataset.node;
-    try { await api(`/cam/${node}/pan`, { method: 'POST', body: { angle: Number(r.value), snap: true } }); toast(`หันไป ${r.value}° แล้วถ่าย`); } catch (err) { toast('ผิดพลาด: ' + err.message, true); }
+    const tilt = r.classList.contains('tilt-range');
+    try { await api(`/cam/${node}/pan`, { method: 'POST', body: { [tilt ? 'tilt' : 'angle']: Number(r.value), snap: true } }); toast(`${tilt ? 'ก้มเงย' : 'หันไป'} ${r.value}° แล้วถ่าย`); } catch (err) { toast('ผิดพลาด: ' + err.message, true); }
   });
   $('#cam-list').addEventListener('click', async (e) => {
     const card = e.target.closest('.cam-card'); if (!card) return; const node = card.dataset.node;
@@ -918,7 +923,7 @@
       case 'ota_failed': return p.error || p.msg || '';
       case 'snapshot': return p.bytes ? `${Math.round(p.bytes / 1024)} kB` : '';
       case 'flip': return `บน-ล่าง ${p.vflip ? 'เปิด' : 'ปิด'} · ซ้าย-ขวา ${p.mirror ? 'เปิด' : 'ปิด'}`;
-      case 'pan': return p.angle !== undefined ? `${p.angle}°` : '';
+      case 'pan': return p.angle !== undefined ? `${p.angle}°${p.tilt !== undefined ? ' / ก้มเงย ' + p.tilt + '°' : ''}` : '';
       case 'patrol': return p.shots !== undefined ? `${p.shots} ภาพ` : '';
       case 'rule_fired': return p.rule || p.name || '';
       default: {

@@ -40,11 +40,12 @@ export async function registerCam(app: FastifyInstance): Promise<void> {
     writeFileSync(abs, buf); copyFileSync(abs, join(config.camDir, node, 'latest.jpg'));
     const reason = String(req.headers['x-reason'] || '');
     const angle = req.headers['x-angle'] !== undefined ? Number(req.headers['x-angle']) : null;
-    const r = await query<{ id: number }>('INSERT INTO snapshots(ts, node, path, bytes, reason, angle) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
-      [now, node, rel, buf.length, reason, Number.isFinite(angle as number) ? angle : null]);
+    const tilt = req.headers['x-tilt'] !== undefined ? Number(req.headers['x-tilt']) : null;
+    const r = await query<{ id: number }>('INSERT INTO snapshots(ts, node, path, bytes, reason, angle, tilt) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id',
+      [now, node, rel, buf.length, reason, Number.isFinite(angle as number) ? angle : null, Number.isFinite(tilt as number) ? tilt : null]);
     const n = getNode(node); if (!n.role) n.role = 'cam'; touch(node);
     const url = `/cam/${rel}`;
-    bus.live({ type: 'snapshot', node, ts: now.toISOString(), url, bytes: buf.length, id: r.rows[0].id, angle } as any);
+    bus.live({ type: 'snapshot', node, ts: now.toISOString(), url, bytes: buf.length, id: r.rows[0].id, angle, tilt } as any);
     glanceOnSnapshot(node, r.rows[0].id, rel);     // โหมดคิด — ทำเบื้องหลัง ไม่ให้ node รอ
     log.info(`${node} snapshot ${buf.length} B -> ${rel}${reason ? ' (' + reason + ')' : ''}`);
     return { ok: true, id: r.rows[0].id, url, bytes: buf.length };
@@ -67,16 +68,20 @@ export async function registerCam(app: FastifyInstance): Promise<void> {
     });
   }
 
-  // หัน servo: {angle} หรือ {preset} · snap=true ให้ถ่ายหลังหันเสร็จ · patrol = ถ่ายทุก preset
-  app.post<{ Params: { node: string }; Body: { angle?: number; preset?: string; snap?: boolean; patrol?: boolean } }>('/api/cam/:node/pan', async (req, reply) => {
+  // หัน servo: {angle} หรือ {preset} · {tilt} ก้มเงย (ส่งคู่กับ angle ได้ — หันก่อน แล้วก้มเงย ถ่ายหลังแกนสุดท้าย)
+  // snap=true ให้ถ่ายหลังขยับเสร็จ · patrol = ถ่ายทุก preset
+  app.post<{ Params: { node: string }; Body: { angle?: number; tilt?: number; preset?: string; snap?: boolean; patrol?: boolean } }>('/api/cam/:node/pan', async (req, reply) => {
     const { node } = req.params; const b = req.body || {};
     const n = nodes.get(node);
     if (!n) return reply.code(404).send({ error: 'node not found' });
     if (b.patrol) { await sendCmd(node, 'patrol', '1'); return { ok: true, patrol: true }; }
-    const target = b.preset ? String(b.preset) : Number.isFinite(b.angle as number) ? String(Math.max(0, Math.min(180, Math.round(b.angle as number)))) : null;
-    if (target === null) return reply.code(400).send({ error: 'ต้องมี angle (0-180) หรือ preset' });
-    await sendCmd(node, 'pan', target + (b.snap ? ' +snap' : ''));
-    return { ok: true, target };
+    const deg = (v: unknown) => (Number.isFinite(v as number) ? String(Math.max(0, Math.min(180, Math.round(v as number)))) : null);
+    const pan = b.preset ? String(b.preset) : deg(b.angle);
+    const tilt = deg(b.tilt);
+    if (pan === null && tilt === null) return reply.code(400).send({ error: 'ต้องมี angle (0-180), tilt (0-180) หรือ preset' });
+    if (pan !== null) await sendCmd(node, 'pan', pan + (b.snap && tilt === null ? ' +snap' : ''));
+    if (tilt !== null) await sendCmd(node, 'tilt', tilt + (b.snap ? ' +snap' : ''));
+    return { ok: true, target: pan ?? undefined, tilt: tilt ?? undefined };
   });
 
   // list cam nodes with latest snapshot + stream url
@@ -107,12 +112,12 @@ export async function registerCam(app: FastifyInstance): Promise<void> {
   app.get<{ Params: { node: string }; Querystring: { day?: string; limit?: string; since?: string } }>('/api/cam/:node/snapshots', async (req) => {
     const { node } = req.params; const limit = Math.min(2000, Number(req.query.limit) || 500);
     let r;
-    type Row = { id: number; ts: Date; path: string; bytes: number; angle: number | null; caption: string | null; mood: string | null };
+    type Row = { id: number; ts: Date; path: string; bytes: number; angle: number | null; tilt: number | null; caption: string | null; mood: string | null };
     if (req.query.day) r = await query<Row>(
-      `SELECT id, ts, path, bytes, angle, caption, mood FROM snapshots WHERE node = $1 AND to_char(ts AT TIME ZONE $3, 'YYYY-MM-DD') = $2 ORDER BY ts ASC LIMIT $4`, [node, req.query.day, config.tz, limit]);
+      `SELECT id, ts, path, bytes, angle, tilt, caption, mood FROM snapshots WHERE node = $1 AND to_char(ts AT TIME ZONE $3, 'YYYY-MM-DD') = $2 ORDER BY ts ASC LIMIT $4`, [node, req.query.day, config.tz, limit]);
     else r = await query<Row>(
-      `SELECT id, ts, path, bytes, angle, caption, mood FROM snapshots WHERE node = $1 ${req.query.since ? 'AND ts > $3' : ''} ORDER BY ts DESC LIMIT $2`, req.query.since ? [node, limit, req.query.since] : [node, limit]);
-    return r.rows.map((x) => ({ id: x.id, ts: x.ts.toISOString(), url: `/cam/${x.path}`, bytes: x.bytes, angle: x.angle, caption: x.caption, mood: x.mood }));
+      `SELECT id, ts, path, bytes, angle, tilt, caption, mood FROM snapshots WHERE node = $1 ${req.query.since ? 'AND ts > $3' : ''} ORDER BY ts DESC LIMIT $2`, req.query.since ? [node, limit, req.query.since] : [node, limit]);
+    return r.rows.map((x) => ({ id: x.id, ts: x.ts.toISOString(), url: `/cam/${x.path}`, bytes: x.bytes, angle: x.angle, tilt: x.tilt, caption: x.caption, mood: x.mood }));
   });
 
   // ลบภาพ: ทั้งหมด หรือเฉพาะวัน (?day=YYYY-MM-DD) หรือก่อนเวลา (?before=ISO)

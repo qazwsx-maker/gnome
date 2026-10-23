@@ -3,6 +3,8 @@
 //   - ถ่าย JPEG ทุก interval_s แล้ว POST ไป Hut  {hut_url}/api/cam/<node>/snapshot
 //   - เว็บสตรีมสดที่พอร์ต 81: /stream (MJPEG) และ /snapshot (JPEG) — รันใน task แยก ไม่บล็อก MQTT
 //   - cmd/snap = ถ่ายทันที · cmd/flash ON|OFF = ไฟแฟลช GPIO4
+//   - servo pan (หัน) + tilt (ก้มเงย) บนขาตั้ง pan-tilt SG90 ×2: cmd/pan <มุม|preset> · cmd/tilt <มุม> · cmd/patrol
+//     ขาแนะนำ pan 14 / tilt 15 (ขา SD ที่ว่าง; ห้าม 12 = strapping pin) · ภาพที่ส่งติด header X-Angle / X-Tilt
 #include "gnome.h"
 #include <WiFi.h>
 #include <HTTPClient.h>
@@ -28,42 +30,59 @@
 #define CAM_PIN_PCLK 22
 #define CAM_FLASH_PIN 4
 
-// ---------- servo (pan) ----------
-// LEDC: กล้องใช้ channel 0 / timer 0 อยู่แล้ว → servo ใช้ channel 2 (timer 1) เพื่อไม่ชนกัน
-#define SERVO_LEDC_CH 2
-static bool servoOn = false;
-static uint32_t servoIdleAt = 0;   // ถึงเวลานี้แล้วปล่อยสัญญาณ (ลดเสียงสั่น/ความร้อน)
+// ---------- servo: หัน (pan) + ก้มเงย (tilt) ----------
+// LEDC: กล้องใช้ channel 0 / timer 0 อยู่แล้ว → pan ใช้ channel 2 (timer 1), tilt ใช้ channel 4 (timer 2) เพื่อไม่ชนกัน
+// ทั้งสองแกนใช้ pulse min/max เดียวกัน (SG90 ทั้งคู่) · หลังหมุนถึงแล้วปล่อยสัญญาณเพื่อลดเสียงสั่น/ความร้อน
+struct ServoAxis { const char* name; int ch; bool on; uint32_t idleAt; ServoAxis(const char* n, int c) : name(n), ch(c), on(false), idleAt(0) {} };
+static ServoAxis panAx  = { "pan",  2 };
+static ServoAxis tiltAx = { "tilt", 4 };
+static int axisPin(const ServoAxis& ax) { return &ax == &panAx ? cfg.servoPin : cfg.tiltPin; }
 
-static void servoWrite(int angle) {
-  if (cfg.servoPin < 0) return;
+static void servoWrite(ServoAxis& ax, int angle, bool invert) {
+  int pin = axisPin(ax); if (pin < 0) return;
   angle = constrain(angle, 0, 180);
-  int a = cfg.servoInvert ? 180 - angle : angle;
+  int a = invert ? 180 - angle : angle;
   int us = cfg.servoMinUs + (long)(cfg.servoMaxUs - cfg.servoMinUs) * a / 180;
   uint32_t duty = (uint32_t)((float)us * 65536.0f / 20000.0f);   // 50 Hz, 16-bit
-  if (!servoOn) { ledcSetup(SERVO_LEDC_CH, 50, 16); ledcAttachPin(cfg.servoPin, SERVO_LEDC_CH); servoOn = true; }
-  ledcWrite(SERVO_LEDC_CH, duty);
-  servoIdleAt = millis() + 1200;   // ค้างสัญญาณ 1.2 s ให้หมุนถึงตำแหน่ง แล้วปล่อย
+  if (!ax.on) { ledcSetup(ax.ch, 50, 16); ledcAttachPin(pin, ax.ch); ax.on = true; }
+  ledcWrite(ax.ch, duty);
+  ax.idleAt = millis() + 1200;   // ค้างสัญญาณ 1.2 s ให้หมุนถึงตำแหน่ง แล้วปล่อย
 }
-static void servoRelease() {
-  if (!servoOn) return;
-  ledcWrite(SERVO_LEDC_CH, 0); ledcDetachPin(cfg.servoPin); pinMode(cfg.servoPin, INPUT);
-  servoOn = false;
+static void servoRelease(ServoAxis& ax) {
+  if (!ax.on) return;
+  int pin = axisPin(ax);
+  ledcWrite(ax.ch, 0); ledcDetachPin(pin); pinMode(pin, INPUT);
+  ax.on = false;
 }
-/** หันไปที่มุม แล้วรอให้นิ่งก่อนถ่าย */
-static void panTo(int angle, bool save = true) {
-  if (cfg.servoPin < 0) return;
-  angle = constrain(angle, 0, 180);
-  int delta = abs(angle - cfg.servoAngle);
-  servoWrite(angle);
-  cfg.servoAngle = angle;
+static bool hasTilt() { return cfg.tiltPin >= 0; }
+static int clampTilt(int a) { return constrain(a, cfg.tiltMin, cfg.tiltMax); }
+
+/** หัน/ก้มเงยไปที่มุม (-1 = แกนนั้นไม่ขยับ) แล้วรอให้นิ่งก่อนถ่าย
+ *  ขยับ "ทีละแกน" ไม่พร้อมกัน — SG90 ตอนออกตัวดึงได้ถึง ~0.6 A ต่อตัว สองตัวพร้อมกันบนไฟ 5V ของ ESP32-CAM
+ *  (ที่กำลังส่ง WiFi อยู่) เสี่ยง brownout รีบูต · ขยับทีละตัวพีคเหลือครึ่งเดียว */
+static void moveTo(int pan, int tilt, bool save = true) {
+  bool moved = false;
+  if (pan >= 0 && cfg.servoPin >= 0) {
+    pan = constrain(pan, 0, 180); int delta = abs(pan - cfg.servoAngle);
+    servoWrite(panAx, pan, cfg.servoInvert); cfg.servoAngle = pan; moved = true;
+    delay(300 + delta * 6);   // ~6 ms/องศา + settle
+  }
+  if (tilt >= 0 && hasTilt()) {
+    tilt = clampTilt(tilt); int delta = abs(tilt - cfg.tiltAngle);
+    servoWrite(tiltAx, tilt, cfg.tiltInvert); cfg.tiltAngle = tilt; moved = true;
+    delay(300 + delta * 6);
+  }
+  if (!moved) return;
   if (save) configSave();
-  delay(300 + delta * 6);   // ~6 ms/องศา + settle
-  Serial.printf("[servo] pan -> %d\n", angle);
+  Serial.printf("[servo] pan %d tilt %d\n", cfg.servoAngle, hasTilt() ? cfg.tiltAngle : -1);
 }
-static int presetAngle(const String& name) {
-  for (int i = 0; i < cfg.presetCount; i++) if (cfg.preset[i].name == name) return cfg.preset[i].angle;
-  return -1;
+static void panTo(int angle, bool save = true) { moveTo(angle, -1, save); }
+static void tiltTo(int angle, bool save = true) { moveTo(-1, angle, save); }
+static const PresetCfg* findPreset(const String& name) {
+  for (int i = 0; i < cfg.presetCount; i++) if (cfg.preset[i].name == name) return &cfg.preset[i];
+  return nullptr;
 }
+static String anglesJson() { String s = "\"angle\":" + String(cfg.servoAngle); if (hasTilt()) s += ",\"tilt\":" + String(cfg.tiltAngle); return s; }
 
 static bool snapAndUpload(const char* reason);
 static bool camOk = false;
@@ -162,7 +181,7 @@ static void setFlash(bool on) { flashOn = on; pinMode(CAM_FLASH_PIN, OUTPUT); di
 // ---- อัปโหลดเบื้องหลัง ----
 // เดิม http.POST บล็อกลูปหลักไว้จนกว่าจะส่งเสร็จ (ลิงก์แย่ = นานเกิน 45 วิ) → MQTT keepalive ขาด → หลุด
 // ตอนนี้ก๊อปเฟรมไว้ใน PSRAM แล้วปล่อยกล้องทันที ส่วนการส่งทำใน task แยก ลูปหลักเดินต่อ
-struct UploadJob { uint8_t* buf; size_t len; char reason[16]; int angle; };
+struct UploadJob { uint8_t* buf; size_t len; char reason[16]; int angle; int tilt; };
 static volatile bool upBusy = false;
 static volatile int  upDoneCode = 0;     // 0 = ไม่มีผลค้าง
 static size_t upDoneBytes = 0;
@@ -174,6 +193,7 @@ static void uploadTask(void* arg) {
   WiFiClient c; HTTPClient http; http.setTimeout(10000); http.setConnectTimeout(5000); http.begin(c, url);
   http.addHeader("Content-Type", "image/jpeg"); http.addHeader("X-Node", cfg.node); http.addHeader("X-Reason", j->reason);
   if (j->angle >= 0) http.addHeader("X-Angle", String(j->angle));
+  if (j->tilt >= 0) http.addHeader("X-Tilt", String(j->tilt));
   int code = http.POST(j->buf, j->len);
   http.end();
   lastCode = code; lastBytes = j->len; lastUploadMs = millis();
@@ -199,7 +219,7 @@ static bool snapAndUpload(const char* reason) {
   if (!j->buf) { esp_camera_fb_return(fb); xSemaphoreGive(camLock); delete j; fails++; return false; }
   memcpy(j->buf, fb->buf, fb->len); j->len = fb->len;
   esp_camera_fb_return(fb); xSemaphoreGive(camLock);          // ปล่อยกล้องทันที :81/stream ไม่ต้องรอส่งเสร็จ
-  strlcpy(j->reason, reason, sizeof j->reason); j->angle = cfg.servoPin >= 0 ? cfg.servoAngle : -1;
+  strlcpy(j->reason, reason, sizeof j->reason); j->angle = cfg.servoPin >= 0 ? cfg.servoAngle : -1; j->tilt = hasTilt() ? cfg.tiltAngle : -1;
   lastBytes = j->len;
   upBusy = true;
   if (xTaskCreatePinnedToCore(uploadTask, "camup", 8192, j, 1, nullptr, 0) != pdPASS) { free(j->buf); delete j; upBusy = false; fails++; return false; }
@@ -225,26 +245,29 @@ void roleSetup() {
   camLock = xSemaphoreCreateMutex();
   pinMode(CAM_FLASH_PIN, OUTPUT); digitalWrite(CAM_FLASH_PIN, LOW);
   camOk = camInit();
-  if (cfg.servoPin >= 0) { Serial.printf("[servo] pin %d, restore angle %d\n", cfg.servoPin, cfg.servoAngle); servoWrite(cfg.servoAngle); }
+  // คืนตำแหน่งตอนบูต: ทีละแกน เว้น 400 ms — ตอนบูต WiFi กำลังต่อ + กล้อง init กินไฟสูงอยู่แล้ว
+  if (cfg.servoPin >= 0) { Serial.printf("[servo] pan pin %d, restore %d\n", cfg.servoPin, cfg.servoAngle); servoWrite(panAx, cfg.servoAngle, cfg.servoInvert); delay(400); }
+  if (hasTilt()) { Serial.printf("[servo] tilt pin %d, restore %d\n", cfg.tiltPin, cfg.tiltAngle); servoWrite(tiltAx, cfg.tiltAngle, cfg.tiltInvert); }
 }
 
 /** ถ่ายทุก preset: หัน → ถ่าย → ส่ง แล้วกลับมุมเดิม */
 static int patrol(const char* reason) {
   if (cfg.presetCount == 0 || cfg.servoPin < 0) return 0;
-  int back = cfg.servoAngle, n = 0;
+  int backPan = cfg.servoAngle, backTilt = hasTilt() ? cfg.tiltAngle : -1, n = 0;
   for (int i = 0; i < cfg.presetCount; i++) {
-    panTo(cfg.preset[i].angle, false);
+    moveTo(cfg.preset[i].angle, cfg.preset[i].tilt, false);
     uint32_t t0 = millis(); while (upBusy && millis() - t0 < 20000) { mqttLoop(); delay(20); }
     if (snapAndUpload(reason)) n++;
     mqttLoop();
   }
-  panTo(back);
+  moveTo(backPan, backTilt);
   return n;
 }
 
 void roleLoop() {
   uploadReport();
-  if (servoOn && millis() > servoIdleAt) servoRelease();
+  if (panAx.on && millis() > panAx.idleAt) servoRelease(panAx);
+  if (tiltAx.on && millis() > tiltAx.idleAt) servoRelease(tiltAx);
   static bool streamStarted = false;
   if (!streamStarted && netWifiConnected()) { startStream(); streamStarted = true; }
   uint32_t iv = (uint32_t)cfg.intervalS * 1000;
@@ -265,8 +288,9 @@ void roleMeta(JsonObject meta) {
   cam["stream"] = "http://" + ip + ":81/stream"; cam["snapshot"] = "http://" + ip + ":81/snapshot";
   cam["interval_s"] = cfg.intervalS; cam["size"] = cfg.camSize; cam["ok"] = camOk; cam["flash"] = cfg.camFlash; cam["vflip"] = cfg.camVflip; cam["mirror"] = cfg.camMirror;
   cam["servo"] = cfg.servoPin >= 0; cam["angle"] = cfg.servoAngle;
+  cam["tilt"] = hasTilt(); if (hasTilt()) { cam["tilt_angle"] = cfg.tiltAngle; cam["tilt_min"] = cfg.tiltMin; cam["tilt_max"] = cfg.tiltMax; }
   JsonArray pre = cam["presets"].to<JsonArray>();
-  for (int i = 0; i < cfg.presetCount; i++) { JsonObject p = pre.add<JsonObject>(); p["name"] = cfg.preset[i].name; p["angle"] = cfg.preset[i].angle; }
+  for (int i = 0; i < cfg.presetCount; i++) { JsonObject p = pre.add<JsonObject>(); p["name"] = cfg.preset[i].name; p["angle"] = cfg.preset[i].angle; if (cfg.preset[i].tilt >= 0) p["tilt"] = cfg.preset[i].tilt; }
 }
 
 void roleStatus(JsonObject st) {
@@ -276,12 +300,13 @@ void roleStatus(JsonObject st) {
   cam["uploads"] = uploads; cam["fails"] = fails; cam["last_code"] = lastCode; cam["last_kb"] = lastBytes / 1024;
   cam["last_upload_s_ago"] = lastUploadMs ? (int)((millis() - lastUploadMs) / 1000) : -1; cam["hut"] = hutBase(); cam["flash"] = flashOn; cam["vflip"] = cfg.camVflip; cam["mirror"] = cfg.camMirror;
   cam["servo"] = cfg.servoPin >= 0; cam["angle"] = cfg.servoAngle; cam["servo_pin"] = cfg.servoPin;
+  cam["tilt"] = hasTilt(); cam["tilt_angle"] = cfg.tiltAngle; cam["tilt_pin"] = cfg.tiltPin; cam["tilt_min"] = cfg.tiltMin; cam["tilt_max"] = cfg.tiltMax;
   JsonObject gl = st["glance"].to<JsonObject>();     // โหมดคิด — ไว้ตรวจจากภายนอกว่าข้อความถึงจอจริงไหม
   gl["active"] = glanceValid();
   gl["text"] = glanceText;
   gl["left_s"] = glanceValid() ? (int)((glanceUntil - millis()) / 1000) : 0;
   JsonArray pre = cam["presets"].to<JsonArray>();
-  for (int i = 0; i < cfg.presetCount; i++) { JsonObject p = pre.add<JsonObject>(); p["name"] = cfg.preset[i].name; p["angle"] = cfg.preset[i].angle; }
+  for (int i = 0; i < cfg.presetCount; i++) { JsonObject p = pre.add<JsonObject>(); p["name"] = cfg.preset[i].name; p["angle"] = cfg.preset[i].angle; if (cfg.preset[i].tilt >= 0) p["tilt"] = cfg.preset[i].tilt; }
 }
 
 Mood roleMood() {
@@ -293,12 +318,12 @@ Mood roleMood() {
 }
 
 String roleCaption() { return glanceValid() ? glanceText : String(); }
-int roleDisplayLines(String* lines, int, int) { lines[0] = String("shots ") + uploads + " fail " + fails; lines[1] = String("last ") + (lastBytes / 1024) + "kB " + lastCode + (cfg.servoPin >= 0 ? String("  ") + cfg.servoAngle + "\xB0" : ""); return 2; }
+int roleDisplayLines(String* lines, int, int) { lines[0] = String("shots ") + uploads + " fail " + fails; lines[1] = String("last ") + (lastBytes / 1024) + "kB " + lastCode + (cfg.servoPin >= 0 ? String("  ") + cfg.servoAngle + "\xB0" + (hasTilt() ? String("/") + cfg.tiltAngle + "\xB0" : "") : ""); return 2; }
 
 int roleStats(StatItem* out, int max) {
   int n = 0;
   if (n < max) { StatItem s; s.label = "SHOTS"; s.value = String(uploads); s.unit = fails ? "fail " + String(fails) : ""; s.icon = 7; out[n++] = s; }
-  if (n < max && cfg.servoPin >= 0) { StatItem s; s.label = "ANGLE"; s.value = String(cfg.servoAngle); s.unit = "deg"; s.icon = 7; out[n++] = s; }
+  if (n < max && cfg.servoPin >= 0) { StatItem s; s.label = hasTilt() ? "PAN/TILT" : "ANGLE"; s.value = hasTilt() ? String(cfg.servoAngle) + "/" + cfg.tiltAngle : String(cfg.servoAngle); s.unit = "deg"; s.icon = 7; out[n++] = s; }
   return n;
 }
 
@@ -310,11 +335,21 @@ bool roleCommand(const String& sub, const String& payload) {
     if (cfg.servoPin < 0) { mqttEvent("pan_failed", "\"msg\":\"no servo\""); return true; }
     bool snap = false;
     if (p.endsWith("+snap")) { snap = true; p = p.substring(0, p.length() - 5); p.trim(); }
-    int a = p.length() && (isDigit(p[0]) || p[0] == '-') ? p.toInt() : presetAngle(p);
-    if (a < 0) { mqttEvent("pan_failed", "\"msg\":\"unknown preset " + p + "\""); return true; }
-    panTo(a);
-    mqttEvent("pan", "\"angle\":" + String(cfg.servoAngle));
+    if (p.length() && (isDigit(p[0]) || p[0] == '-')) panTo(p.toInt());
+    else { const PresetCfg* pr = findPreset(p); if (!pr) { mqttEvent("pan_failed", "\"msg\":\"unknown preset " + p + "\""); return true; } moveTo(pr->angle, pr->tilt); }
+    mqttEvent("pan", anglesJson());
     if (snap) { lastShot = millis(); snapAndUpload("pan"); }
+    return true;
+  }
+  if (sub == "cmd/tilt") {   // มุมก้มเงย 0–180 (ถูกจำกัดด้วย tilt_min/max) · เติม +snap เพื่อถ่ายหลังขยับ
+    String p = payload; p.trim();
+    if (!hasTilt()) { mqttEvent("pan_failed", "\"msg\":\"no tilt servo\""); return true; }
+    bool snap = false;
+    if (p.endsWith("+snap")) { snap = true; p = p.substring(0, p.length() - 5); p.trim(); }
+    if (!p.length() || !(isDigit(p[0]) || p[0] == '-')) { mqttEvent("pan_failed", "\"msg\":\"bad tilt " + p + "\""); return true; }
+    tiltTo(p.toInt());
+    mqttEvent("pan", anglesJson());
+    if (snap) { lastShot = millis(); snapAndUpload("tilt"); }
     return true;
   }
   if (sub == "cmd/patrol") { int n = patrol("patrol"); mqttEvent("patrol", "\"shots\":" + String(n)); return true; }
@@ -347,6 +382,7 @@ bool roleWebSwitch(const String& key, bool on, int seconds) {
   if (key == "flash") { setFlash(on); return true; }
   if (key == "snap") { lastShot = millis(); return snapAndUpload("web"); }
   if (key == "pan") { panTo(seconds); return true; }                      // seconds = มุม 0-180
+  if (key == "tilt") { if (!hasTilt()) return false; tiltTo(seconds); return true; }
   if (key == "patrol") { return patrol("web-patrol") > 0; }
   return false;
 }

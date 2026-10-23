@@ -8,7 +8,7 @@
 |---|---|---|
 | `scout` | **GnomeOS Scout** | sensor node: I2C auto-detect (SHT3x, BH1750, BME280), DHT22 (optional), analog soil ×N (ADC1) |
 | `keeper` | **GnomeOS Keeper** | controller node: relay/switch ×1–4 พร้อม max_on_time, interlock, failsafe |
-| `cam` | **GnomeOS Watcher** | camera node (ESP32-CAM): node **POST** JPEG ไป `{hut_url}/api/cam/<node>/snapshot` ทุก `interval_s` (ส่ง header `X-Angle` ถ้ามี servo) · ดูสด `http://<ip>:81/stream`, `http://<ip>:81/snapshot` · `cmd/snap` ถ่ายทันที · `cmd/flash` ON/OFF · meta มี `cam:{stream,snapshot,interval_s,size}` |
+| `cam` | **GnomeOS Watcher** | camera node (ESP32-CAM): node **POST** JPEG ไป `{hut_url}/api/cam/<node>/snapshot` ทุก `interval_s` (ส่ง header `X-Angle` ถ้ามี servo หัน · `X-Tilt` ถ้ามี servo ก้มเงย) · ดูสด `http://<ip>:81/stream`, `http://<ip>:81/snapshot` · `cmd/snap` ถ่ายทันที · `cmd/flash` ON/OFF · meta มี `cam:{stream,snapshot,interval_s,size}` |
 
 ## Topics (prefix `gnome/<node>/`)
 
@@ -29,7 +29,8 @@
 | `cmd/identify` | no | 1 | →node | กระพริบ LED 10 วินาที |
 | `cmd/snap` | no | 1 | →node (cam) | ถ่ายและส่งภาพทันที |
 | `cmd/flash` | no | 1 | →node (cam) | `ON` / `OFF` ไฟแฟลช GPIO4 |
-| `cmd/pan` | no | 1 | →node (cam) | มุม `0`–`180` หรือชื่อ preset · เติม ` +snap` เพื่อถ่ายหลังหันเสร็จ |
+| `cmd/pan` | no | 1 | →node (cam) | มุมหัน `0`–`180` หรือชื่อ preset (preset ขยับทั้งหันและก้มเงย) · เติม ` +snap` เพื่อถ่ายหลังหันเสร็จ · ตอบ event `pan` `{angle, tilt?}` |
+| `cmd/tilt` | no | 1 | →node (cam) | มุมก้มเงย `0`–`180` (ถูกจำกัดด้วย `tilt_min`/`tilt_max` ของ node) · ` +snap` ได้เหมือน pan · ต้องตั้ง `tilt_pin` ที่ node ก่อน |
 | `cmd/patrol` | no | 1 | →node (cam) | หันไปทุก preset แล้วถ่ายทีละมุม กลับมุมเดิมเมื่อจบ |
 | `cmd/flip` | no | 1 | →node (cam) | JSON `{"vflip":bool,"mirror":bool}` ใส่เฉพาะคีย์ที่จะเปลี่ยน · มีผลทันทีและจำลง NVS ไม่รีบูต · config เทียบเท่า `cam_vflip`/`cam_mirror` (`cam_flip` เก่า = ตั้งทั้งคู่) · meta/status มี `cam.vflip`, `cam.mirror` |
 

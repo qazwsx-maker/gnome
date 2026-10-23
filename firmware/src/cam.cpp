@@ -227,7 +227,11 @@ static bool snapAndUpload(const char* reason) {
 }
 
 /** เรียกจากลูปหลัก: ประกาศผลการส่งที่ task ทำเสร็จ (PubSubClient ไม่ thread-safe เลยส่งจากตรงนี้) */
-static int connFailStreak = 0;   // -1/-3/-11 ติดกันกี่ครั้ง (2026-10-15 ค้างแบบนี้ 215 ครั้งข้ามคืน จนต้องสั่งรีบูต)
+// อาการ "TCP ค้าง": MQTT (socket เดิม) ยังอยู่ แต่เปิด socket ใหม่ไม่ได้ — อัปโหลดได้ -1 และ :81/:80 รับไม่ได้ (ดูสด/ถ่ายจาก Hut ไม่ได้)
+// 2026-10-15 ค้าง 215 ครั้งข้ามคืน · 2026-10-23 เกณฑ์เดิม (3 → reconnect, 6 → restart ตามรอบถ่าย 6 นาที) ใช้เวลา 35 นาทีกว่าจะกู้
+// ตอนนี้: พลาดแล้วลองใหม่ใน 30 วิ (ไม่รอรอบถ่าย) · 2 ครั้ง → WiFi reconnect · 4 ครั้ง → restart ⇒ กู้คืนภายใน ~2–3 นาที
+static int connFailStreak = 0;   // -1/-3/-11 ติดกันกี่ครั้ง
+#define RETRY_AFTER_FAIL_MS 30000
 static void uploadReport() {
   if (!upDoneCode) return;
   int code = upDoneCode; upDoneCode = 0;
@@ -235,8 +239,10 @@ static void uploadReport() {
   if (ok) connFailStreak = 0;
   else if (code < 0 && netWifiConnected()) {
     connFailStreak++;
-    if (connFailStreak == 3) { Serial.println("[cam] 3 connect failures — WiFi reconnect"); mqttEvent("selfheal", "\"action\":\"wifi_reconnect\""); WiFi.disconnect(); delay(200); WiFi.reconnect(); }
-    else if (connFailStreak >= 6) { Serial.println("[cam] 6 connect failures — restart"); mqttEvent("selfheal", "\"action\":\"restart\""); netRequestReboot(1500); connFailStreak = 0; }
+    uint32_t iv = (uint32_t)cfg.intervalS * 1000;
+    if (iv > RETRY_AFTER_FAIL_MS) lastShot = millis() > iv - RETRY_AFTER_FAIL_MS ? millis() - (iv - RETRY_AFTER_FAIL_MS) : 0;   // รอบถัดไปใน 30 วิ
+    if (connFailStreak == 2) { Serial.println("[cam] 2 connect failures — WiFi reconnect"); mqttEvent("selfheal", "\"action\":\"wifi_reconnect\",\"streak\":2"); WiFi.disconnect(); delay(200); WiFi.reconnect(); }
+    else if (connFailStreak >= 4) { Serial.println("[cam] 4 connect failures — restart"); mqttEvent("selfheal", "\"action\":\"restart\",\"streak\":4"); netRequestReboot(1500); connFailStreak = 0; }
   }
   mqttEvent(ok ? "snapshot" : "snapshot_failed", String("\"bytes\":") + upDoneBytes + ",\"code\":" + code + ",\"reason\":\"" + upDoneReason + "\"");
 }

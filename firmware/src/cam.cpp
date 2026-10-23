@@ -248,11 +248,22 @@ static void uploadReport() {
   mqttEvent(ok ? "snapshot" : "snapshot_failed", String("\"bytes\":") + upDoneBytes + ",\"code\":" + code + ",\"reason\":\"" + upDoneReason + "\"");
 }
 
+static uint32_t servoRestoreAt = 0;   // 0 = ไม่ต้องคืนตำแหน่ง
+static bool servoRestored = false;
 void roleSetup() {
   camLock = xSemaphoreCreateMutex();
   pinMode(CAM_FLASH_PIN, OUTPUT); digitalWrite(CAM_FLASH_PIN, LOW);
   camOk = camInit();
-  // คืนตำแหน่งตอนบูต: ทีละแกน เว้น 400 ms — ตอนบูต WiFi กำลังต่อ + กล้อง init กินไฟสูงอยู่แล้ว
+  // ไม่คืนตำแหน่ง servo ตรงนี้ — ตอนบูต WiFi กำลังต่อ + กล้อง init กินไฟสูงอยู่แล้ว ถ้า servo ออกตัวซ้ำเข้าไปจะ brownout
+  // แล้วบูตวนไม่รู้จบ (2026-10-23) → รอ WiFi ติดก่อนค่อยคืน (ใน roleLoop) · ถ้ารอบนี้บูตเพราะ brownout ไม่คืนเลย
+  if (cfg.servoPin >= 0 || hasTilt()) {
+    if (netResetReason() == "brownout") { servoRestoreAt = 0; Serial.println("[servo] boot after brownout — skip restore"); }
+    else servoRestoreAt = millis() + 3000;
+  }
+}
+static void servoRestoreIfDue() {
+  if (servoRestored || !servoRestoreAt || millis() < servoRestoreAt || !netWifiConnected()) return;
+  servoRestored = true;
   if (cfg.servoPin >= 0) { Serial.printf("[servo] pan pin %d, restore %d\n", cfg.servoPin, cfg.servoAngle); servoWrite(panAx, cfg.servoAngle, cfg.servoInvert); delay(400); }
   if (hasTilt()) { Serial.printf("[servo] tilt pin %d, restore %d\n", cfg.tiltPin, cfg.tiltAngle); servoWrite(tiltAx, cfg.tiltAngle, cfg.tiltInvert); }
 }
@@ -273,6 +284,7 @@ static int patrol(const char* reason) {
 
 void roleLoop() {
   uploadReport();
+  servoRestoreIfDue();
   if (panAx.on && millis() > panAx.idleAt) servoRelease(panAx);
   if (tiltAx.on && millis() > tiltAx.idleAt) servoRelease(tiltAx);
   static bool streamStarted = false;

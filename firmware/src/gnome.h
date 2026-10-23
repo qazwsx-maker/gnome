@@ -13,6 +13,7 @@ void netSetup();
 void netLoop();
 bool netPortalActive();
 String netIp();
+String netResetReason();   // power_on · sw · panic · wdt · brownout · … (esp_reset_reason)
 int netRssi();
 // แปลงชื่อโฮสต์เป็น IP — รองรับ *.local ผ่าน mDNS (Hut ย้าย IP แล้วบอร์ดยังตามเจอ) · คืน "" ถ้าหาไม่เจอ
 String netResolveHost(const String& host);

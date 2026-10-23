@@ -82,7 +82,8 @@ static void tryConnect() {
   client.subscribe((base + "cmd/#").c_str(), 1);
   client.subscribe("gnome/server/status", 1);
   mqttPublishMeta();
-  static bool booted = false; if (!booted) { booted = true; mqttEvent("boot", "\"fw\":\"" + String(GNOME_FW_NAME) + " " + GNOME_VERSION + "\",\"ip\":\"" + WiFi.localIP().toString() + "\""); }
+  // reset reason ช่วยวินิจฉัยจากไกล: brownout = ไฟตก (servo/กล้องดึงไฟเกิน) · panic/wdt = โค้ดพัง · sw = สั่ง reboot/OTA · power_on = เสียบไฟ
+  static bool booted = false; if (!booted) { booted = true; mqttEvent("boot", "\"fw\":\"" + String(GNOME_FW_NAME) + " " + GNOME_VERSION + "\",\"ip\":\"" + WiFi.localIP().toString() + "\",\"reset\":\"" + netResetReason() + "\""); }
   roleOnMqttConnect();
   if (pendingFail.length()) { pendingFail.replace('"', '\''); mqttEvent("ota_failed", "\"msg\":\"" + pendingFail + "\""); pendingFail = ""; }
   ledSetMode(LED_OK);

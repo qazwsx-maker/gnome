@@ -3,6 +3,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import Anthropic from '@anthropic-ai/sdk';
+import { anthropicClient } from './anthropic.ts';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { z } from 'zod';
 import { config } from './config.ts';
@@ -49,7 +50,7 @@ function shouldGlance(node: string): boolean {
 }
 
 async function ask(imageB64: string): Promise<{ g: GlanceT; usage: [number, number] }> {
-  const client = new Anthropic();
+  const client = anthropicClient();
   const model = config.sageModel;
   const effortOk = !/haiku/i.test(model);    // Haiku 4.5 ไม่รองรับ output_config.effort
   const r = await client.messages.parse({

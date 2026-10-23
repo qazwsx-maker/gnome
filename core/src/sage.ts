@@ -3,6 +3,7 @@
 //   analysis = job: เลือกภาพ (≤ SAGE_MAX_FRAMES กระจายตามวัน) → ให้โมเดลดูทีละภาพพร้อมบริบทวัน/สภาพแวดล้อม → สังเคราะห์รายงาน
 import type { FastifyInstance } from 'fastify';
 import Anthropic from '@anthropic-ai/sdk';
+import { anthropicClient } from './anthropic.ts';
 import { z } from 'zod';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { readFileSync, existsSync } from 'node:fs';
@@ -52,7 +53,7 @@ type Provider = {
 };
 
 function anthropicProvider(): Provider {
-  const client = new Anthropic();   // ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN จาก env (infra/.env)
+  const client = anthropicClient();   // credential + workspace header จาก env (infra/.env) — ดู anthropic.ts
   const model = config.sageModel;
   const effortOk = !/haiku/i.test(model);   // Haiku 4.5 ไม่รองรับ output_config.effort
   const system = 'คุณคือ Sage ภูตนักปราชญ์ของสวน GNOME ผู้เชี่ยวชาญด้านพืชสวน ตอบเป็นภาษาไทยที่กระชับ ตรงหลักฐานในภาพ ถ้าไม่แน่ใจให้บอกว่าไม่แน่ใจและลด confidence';

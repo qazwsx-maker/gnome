@@ -229,8 +229,8 @@
       buildEnvPicker();
       sage.plots = await api('/plots');
       $('#plots').innerHTML = sage.plots.map((p) => { const la = p.last_analysis; const st = la?.status; const pr = la?.progress || {};
-        return `<div class="card plot" data-id="${p.id}"><div class="row-between"><div><b>${esc(p.name)}</b> <span class="muted small">กล้อง ${esc(p.cam_node)}${p.cam_angle != null ? ' @' + p.cam_angle + '°' : ''}${envSummary(p)} · ${p.snapshots} ภาพ${p.from_ts ? ' · ตั้งแต่ ' + p.from_ts.slice(0, 10) : ''}${p.to_ts ? ' ถึง ' + p.to_ts.slice(0, 10) : ''}</span></div>
-          <div class="row"><span class="muted small sage-st">${st === 'running' ? `⏳ กำลังวิเคราะห์ ${pr.step === 'observe' ? `ภาพ ${pr.done}/${pr.total}` : pr.step === 'synthesize' ? 'สรุปรายงาน…' : ''}` : st === 'done' ? `✅ วิเคราะห์ล่าสุด ${esc(ago(la.created_at))}` : st === 'failed' ? '❌ ล้มเหลว' : st === 'queued' ? '⏳ รอคิว' : 'ยังไม่เคยวิเคราะห์'}</span>
+        return `<div class="card plot" data-id="${p.id}"><div class="plot-head"><div class="plot-info"><b>${esc(p.name)}</b> <span class="muted small">กล้อง ${esc(p.cam_node)}${p.cam_angle != null ? ' @' + p.cam_angle + '°' : ''}${envSummary(p)} · ${p.snapshots} ภาพ${p.from_ts ? ' · ตั้งแต่ ' + p.from_ts.slice(0, 10) : ''}${p.to_ts ? ' ถึง ' + p.to_ts.slice(0, 10) : ''}</span></div>
+          <div class="plot-actions"><span class="muted small sage-st">${st === 'running' ? `⏳ กำลังวิเคราะห์ ${pr.step === 'observe' ? `ภาพ ${pr.done}/${pr.total}` : pr.step === 'synthesize' ? 'สรุปรายงาน…' : ''}` : st === 'done' ? `✅ วิเคราะห์ล่าสุด ${esc(ago(la.created_at))}` : st === 'failed' ? '❌ ล้มเหลว' : st === 'queued' ? '⏳ รอคิว' : 'ยังไม่เคยวิเคราะห์'}</span>
           <button class="primary small" data-analyze="1" ${st === 'running' || st === 'queued' ? 'disabled' : ''}>🔍 วิเคราะห์</button>${st === 'done' ? `<button class="small" data-report="${la.id}">📄 ดูรายงาน</button>` : ''}<button class="small" data-env="1">🌡 แวดล้อม</button><button class="ghost small danger" data-del="1">ลบ</button></div></div><div class="plot-env hidden"></div></div>`; }).join('') || '<p class="muted">ยังไม่มีแปลง — สร้างด้านบน (ต้องมีภาพจาก Watcher ก่อน)</p>';
     } catch (e) { toast('Sage: ' + e.message, true); }
   }
@@ -314,13 +314,14 @@
     const x = (when) => 4 + 92 * Math.min(1, Math.max(0, (new Date(when) - t0) / spanMs));   // % across (ตามเวลาจริง)
     const ms = r.milestones.filter((m) => m.date >= dates[0] && m.date <= dates[dates.length - 1]);
     box.innerHTML = `<div class="card">
-      <div class="row-between"><h3>📄 ${esc(a.name)} — รายงานการเจริญเติบโต</h3><span class="muted small">${esc(a.model)} · ${F.length} ภาพ · tokens ${a.tokens_in + a.tokens_out} · ${esc(fmtTs(a.created_at))} <button class="ghost small" id="rep-close">ปิด</button></span></div>
+      <div class="rep-head"><h3>📄 ${esc(a.name)} — รายงานการเจริญเติบโต</h3><div class="muted small rep-meta"><span>${esc(a.model)} · ${F.length} ภาพ · ${(a.tokens_in + a.tokens_out).toLocaleString('en-US')} tokens · ${esc(fmtTs(a.created_at))}</span><button class="ghost small" id="rep-close">ปิด</button></div></div>
       <p>${esc(r.summary)}</p>
       <h4>Timeline</h4>
       <div class="tl"><div class="tl-track">
         ${F.map((f, i) => `<i class="tl-dot" style="left:${x(f.ts)}%" data-i="${i}" title="${esc(f.date)} ${esc(f.time)} ${STAGE_TH[f.stage] || ''}"></i>`).join('')}
-        ${ms.map((m) => `<span class="tl-ms" style="left:${x(m.date + 'T12:00:00')}%" data-date="${esc(m.date)}" title="${esc(m.date)} ${esc(m.label)}">${MS_ICON[m.type] || '📌'}<b>${esc(m.label)}</b></span>`).join('')}
-      </div><div class="tl-axis"><span>${esc(F[0].date)} ${esc(F[0].time)}</span><span>${esc(F[F.length - 1].date)} ${esc(F[F.length - 1].time)}</span></div></div>
+        ${ms.map((m, i) => `<span class="tl-ms lvl${i % 2}" style="left:${x(m.date + 'T12:00:00')}%" data-date="${esc(m.date)}" title="${esc(m.date)} ${esc(m.label)}">${MS_ICON[m.type] || '📌'}</span>`).join('')}
+      </div><div class="tl-axis"><span>${esc(F[0].date)} ${esc(F[0].time)}</span><span>${esc(F[F.length - 1].date)} ${esc(F[F.length - 1].time)}</span></div>
+      ${ms.length ? `<div class="tl-legend">${ms.map((m) => `<button class="chip tl-ms" data-date="${esc(m.date)}" title="กดเพื่อดูภาพวันนั้น">${MS_ICON[m.type] || '📌'} ${esc(m.label)} <span class="muted">${esc(m.date.slice(5))}</span></button>`).join('')}</div>` : ''}</div>
       <input type="range" id="tl-range" min="0" max="${F.length - 1}" value="${F.length - 1}" style="width:100%">
       <div class="grid2">
         <div><img id="tl-img" src="" alt="" style="width:100%;border-radius:10px;background:#000;aspect-ratio:4/3;object-fit:contain"><div id="tl-cap" class="muted small"></div></div>

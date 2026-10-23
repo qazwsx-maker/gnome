@@ -6,7 +6,10 @@ import { config } from './config.ts';
 import { logger } from './log.ts';
 import { pool, query } from './db.ts';
 import { bus, type LiveMessage } from './bus.ts';
-import { nodes, nodeToJson, forgetNode } from './state.ts';
+import { nodes, nodeToJson, forgetNode, type NodeState } from './state.ts';
+import { getVibe, allVibes } from './vibe.ts';
+
+const nodeJson = (n: NodeState) => ({ ...nodeToJson(n), vibe: getVibe(n.node) });
 import { mqttConnected, sendSwitch, sendCmd, clearRetained } from './mqtt.ts';
 import { listRules, reloadRules, validateRule, activeRunsJson } from './rules.ts';
 import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs';
@@ -70,7 +73,7 @@ export async function startHttp() {
   const sockets = new Set<any>();
   app.get('/ws', { websocket: true }, (socket) => {
     sockets.add(socket);
-    socket.send(JSON.stringify({ type: 'hello', ts: new Date().toISOString(), nodes: [...nodes.values()].map(nodeToJson) }));
+    socket.send(JSON.stringify({ type: 'hello', ts: new Date().toISOString(), nodes: [...nodes.values()].map(nodeJson) }));
     socket.on('close', () => sockets.delete(socket));
     socket.on('error', () => sockets.delete(socket));
   });
@@ -108,13 +111,16 @@ export async function startHttp() {
   });
 
   // ---- nodes -------------------------------------------------------------
-  app.get('/api/nodes', async () => [...nodes.values()].map(nodeToJson).sort((a, b) => a.node.localeCompare(b.node)));
+  app.get('/api/nodes', async () => [...nodes.values()].map(nodeJson).sort((a, b) => a.node.localeCompare(b.node)));
 
   app.get<{ Params: { node: string } }>('/api/nodes/:node', async (req, reply) => {
     const n = nodes.get(req.params.node);
     if (!n) return bad(reply, 'node not found', 404);
-    return nodeToJson(n);
+    return nodeJson(n);
   });
+
+  // สรุปสภาพแวดล้อม/อารมณ์ของทุก node (ไอคอน + คำสั้นๆ + รายละเอียด) — ตัวเดียวกับที่การ์ดบน dashboard โชว์
+  app.get('/api/vibes', async () => allVibes());
 
   app.post<{ Params: { node: string }; Body: { cmd?: string; payload?: unknown } }>('/api/nodes/:node/cmd', async (req, reply) => {
     const { node } = req.params;

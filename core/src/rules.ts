@@ -16,7 +16,7 @@ import { logger } from './log.ts';
 import { query } from './db.ts';
 import { bus } from './bus.ts';
 import { latestValue, nodes, recordEvent } from './state.ts';
-import { sendSwitch } from './mqtt.ts';
+import { sendSwitch, sendCmd } from './mqtt.ts';
 import { discord } from './discord.ts';
 
 const log = logger('rules');
@@ -30,6 +30,7 @@ export type Trigger =
   | { type: 'event'; event?: string; node?: string };
 export type Action =
   | { switch: string; state: 'ON' | 'OFF'; max_minutes?: number; seconds?: number; until?: Cond }
+  | { cmd: string; payload?: string }   // "node.cmd" → publish gnome/<node>/cmd/<cmd> เช่น {cmd:"esp32cam.pan", payload:"sky +snap"} ให้กล้องเงยดูฟ้า
   | { discord: string }
   | { notify: string };
 export type RuleJson = {
@@ -86,7 +87,10 @@ export function validateRule(j: any): string | null {
       if (typeof a.switch !== 'string' || !a.switch.includes('.')) return 'action.switch must be "node.key"';
       if (a.state !== 'ON' && a.state !== 'OFF') return 'action.state must be ON or OFF';
       if (a.until && (typeof a.until.sensor !== 'string' || !(a.until.op in OPS) || typeof a.until.value !== 'number')) return 'bad until';
-    } else if (!('discord' in a) && !('notify' in a)) return 'action must have switch, discord or notify';
+    } else if ('cmd' in a) {
+      if (typeof a.cmd !== 'string' || !/^[a-z0-9-]+\.[a-z_]+$/.test(a.cmd)) return 'action.cmd must be "node.cmd" (e.g. esp32cam.pan)';
+      if (a.payload !== undefined && typeof a.payload !== 'string') return 'action.payload must be a string';
+    } else if (!('discord' in a) && !('notify' in a)) return 'action must have switch, cmd, discord or notify';
   }
   return null;
 }
@@ -265,6 +269,10 @@ async function fire(rule: Rule, via: string, ctx: Record<string, string>): Promi
       } else {
         ctx.duration = a.max_minutes ? String(a.max_minutes) : seconds ? fmt(seconds / 60) : '';
       }
+    } else if ('cmd' in a) {
+      const [node, cmd] = a.cmd.split('.');
+      try { await sendCmd(node, cmd, render(a.payload ?? '1', ctx)); log.info(`rule ${rule.id} cmd ${a.cmd} <- ${a.payload ?? '1'}`); }
+      catch (e) { log.error(`rule ${rule.id} cmd ${a.cmd}`, (e as Error).message); }
     } else {
       const text = 'discord' in a ? a.discord : a.notify;
       if (run) run.after.push(a);

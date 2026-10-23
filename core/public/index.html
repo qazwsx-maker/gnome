@@ -137,9 +137,9 @@
   </section>
   <section id="tab-sage" class="tab">
     <div class="row-between"><h2>Sage — ภูตนักปราชญ์ วิเคราะห์การเจริญเติบโต</h2><span class="muted small" id="sage-cfg"></span></div>
-    <div class="card" id="sage-new">
-      <h3>สร้างแปลง (plot)</h3>
-      <div class="grid form">
+    <details class="card collapse" id="sage-new">
+      <summary class="btn primary">➕ สร้างแปลงใหม่</summary>
+      <div class="grid form" style="margin-top:10px">
         <label>ชื่อแปลง <input id="pl-name" placeholder="gerbera plot"></label>
         <label>กล้อง (Watcher) <select id="pl-cam"></select></label>
         <label>ตั้งแต่ <input id="pl-from" type="date"></label>
@@ -151,8 +151,8 @@
         <span class="flab">ข้อมูลแวดล้อมให้ Sage ใช้ร่วมวิเคราะห์ — ติ๊กได้หลายค่า จากหลาย node</span>
         <div id="pl-env" class="picker"></div>
       </div>
-      <div class="row" style="margin-top:8px"><button id="pl-create" class="primary">สร้างแปลง</button></div>
-    </div>
+      <div class="row" style="margin-top:8px"><button id="pl-create" class="primary">สร้างแปลง</button><button class="ghost" type="button" onclick="document.getElementById('sage-new').open=false">ยกเลิก</button></div>
+    </details>
     <div id="plots"></div>
     <div id="sage-report" class="hidden"></div>
   </section>

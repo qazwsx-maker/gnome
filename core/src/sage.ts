@@ -304,6 +304,7 @@ export async function registerSage(app: FastifyInstance): Promise<void> {
     const srcs = cleanSources(b.env_sources);
     const r = await query<any>('INSERT INTO plots(name, cam_node, sensor_node, from_ts, to_ts, notes, cam_angle, env_sources) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
       [b.name.trim(), b.cam_node, b.sensor_node || null, b.from || null, b.to || null, b.notes || null, Number.isFinite(ang as number) ? ang : null, JSON.stringify(srcs)]);
+    bus.live({ type: 'plots', ts: new Date().toISOString() });   // ให้สรุปของกล้อง ("กำลังเฝ้ามอง <แปลง>") อัปเดต
     return r.rows[0];
   });
 
@@ -318,7 +319,7 @@ export async function registerSage(app: FastifyInstance): Promise<void> {
     return r.rows[0];
   });
 
-  app.delete<{ Params: { id: string } }>('/api/plots/:id', async (req) => { await query('DELETE FROM plots WHERE id = $1', [Number(req.params.id)]); return { ok: true }; });
+  app.delete<{ Params: { id: string } }>('/api/plots/:id', async (req) => { await query('DELETE FROM plots WHERE id = $1', [Number(req.params.id)]); bus.live({ type: 'plots', ts: new Date().toISOString() }); return { ok: true }; });
 
   app.post<{ Params: { id: string } }>('/api/plots/:id/analyze', async (req, reply) => {
     const cfg = sageConfig();

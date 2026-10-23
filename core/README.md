@@ -52,7 +52,8 @@ Mosquitto runs as `brew services start mosquitto`; `/opt/homebrew/etc/mosquitto/
 |---|---|---|
 | `GET /health` | | `{ok, db, mqtt, uptime_s, nodes:{total,online}, active_runs}` |
 | `GET /nodes` | | all nodes with `latest`, `switches`, `debug`, `online`, `last_seen` |
-| `GET /nodes/:node` | | one node |
+| `GET /nodes/:node` | | one node (ทุก node มี `vibe` = สรุปสภาพแวดล้อม/อารมณ์ที่ Hut คำนวณ `{icon,label,detail,mood}` — เกณฑ์ใน `src/vibe.ts`) |
+| `GET /vibes` | | สรุปของทุก node · WS ส่ง `{type:"vibe", node, icon, label, detail, mood}` เมื่อเปลี่ยน |
 | `DELETE /nodes/:node` | | forget a node (its readings stay) |
 | `POST /nodes/:node/cmd` | `{cmd:"reboot"\|"identify"\|"config"\|"ota", payload?}` | publishes `gnome/<node>/cmd/<cmd>` |
 | `GET /latest` | | `{node:{key:{value,ts}}}` |
@@ -106,6 +107,15 @@ Example — overheating fan:
   "conditions": [ { "sensor": "air.rh_pct", "op": "<", "value": 85 } ],
   "actions": [ { "switch": "airflow.fan", "state": "ON", "max_minutes": 20 },
                { "notify": "อากาศร้อน {air.temp_c}°C เปิดพัดลม {duration} นาที" } ] }
+```
+
+Action `cmd` ส่งคำสั่งใดก็ได้ให้ node (`gnome/<node>/cmd/<cmd>`) — เช่น sky เจอฝน → ให้ Watcher เงยไปดูฟ้า (preset `sky` ที่ตั้ง pan+tilt ไว้) แล้วถ่าย:
+
+```jsonc
+{ "name": "ฝนตก → กล้องเงยดูฟ้า", "cooldown_s": 1800,
+  "trigger": { "type": "threshold", "sensor": "sky.rain_pct", "op": ">", "value": 50 },
+  "actions": [ { "cmd": "esp32cam.pan", "payload": "sky +snap" },
+               { "discord": "sky บอกว่าฝนตก ({sky.rain_pct}%) — ให้ Watcher เงยดูฟ้าแล้ว" } ] }
 ```
 
 ## Manual test with mosquitto

@@ -266,7 +266,7 @@
     const env_sources = [...envPick].map((s) => { const [node, key] = unsid(s); return { node, key }; });
     try {
       await api('/plots', { method: 'POST', body: { name: $('#pl-name').value, cam_node: $('#pl-cam').value, env_sources, from: $('#pl-from').value || undefined, to: $('#pl-to').value ? $('#pl-to').value + 'T23:59:59' : undefined, notes: $('#pl-notes').value || undefined, cam_angle: $('#pl-angle').value || undefined } });
-      $('#pl-name').value = ''; envPick.clear(); buildEnvPicker(); toast('สร้างแปลงแล้ว'); renderSage();
+      $('#pl-name').value = ''; envPick.clear(); buildEnvPicker(); $('#sage-new').open = false; toast('สร้างแปลงแล้ว'); renderSage();
     } catch (e) { toast('ผิดพลาด: ' + e.message, true); }
   });
   $('#plots').addEventListener('click', async (e) => {
@@ -410,6 +410,15 @@
   async function loadFirmware() { if (Date.now() - fwAt < 30000) return fwInfo; try { fwInfo = await api('/firmware'); fwAt = Date.now(); } catch {} return fwInfo; }
   const fwFor = (node) => fwInfo.nodes.find((x) => x.node === node);
 
+  // สรุปสภาพแวดล้อม/อารมณ์ที่ Hut คำนวณ (WS `vibe`): ไอคอนใหญ่ + คำสั้นๆ + รายละเอียด
+  const vibeHtml = (v) => (v ? `<div class="vibe" title="${esc(v.mood)}"><span class="vibe-icon">${v.icon}</span><div><b>${esc(v.label)}</b><div class="muted small vibe-detail">${esc(v.detail || '')}</div></div></div>` : '');
+  function updateVibe(m) {
+    const n = nodes.get(m.node); if (!n) return;
+    n.vibe = { icon: m.icon, label: m.label, detail: m.detail, mood: m.mood, ts: m.ts };
+    const card = $(`#nodes .node[data-node="${m.node}"]`); if (!card) return;
+    const old = $('.vibe', card);
+    if (old) old.outerHTML = vibeHtml(n.vibe); else $('.head', card).insertAdjacentHTML('afterend', vibeHtml(n.vibe));
+  }
   function nodeCard(n) {
     const keys = Object.keys(n.latest).sort();
     const metaSw = Array.isArray(n.meta?.switches) ? n.meta.switches : [];
@@ -423,6 +432,7 @@
         <span class="badge ${esc(role)}">${esc(role)}</span>
         <span class="muted small" style="margin-left:auto">${n.online ? 'ออนไลน์' : 'ออฟไลน์'} · ${esc(ago(n.last_seen))}</span>
       </div>
+      ${vibeHtml(n.vibe)}
       <div class="meta">${n.meta?.bridge === 'sonoff' ? `<span class="badge" title="Hut สั่งผ่าน LAN แทน">🔌 Sonoff ${n.meta?.diy === false ? '· <b style="color:var(--critical)">ต้องเปิด DIY mode ในแอป eWeLink</b>' : 'DIY'}</span>` : ''}
         ${dbg.rssi !== undefined ? `<span>RSSI ${esc(dbg.rssi)} dBm</span>` : ''}
         ${n.ip ? `<span>IP ${esc(n.ip)}</span>` : ''}
@@ -965,6 +975,7 @@
         case 'status': if (!n) return loadNodes(); n.online = m.online; if (m.online) n.last_seen = m.ts; renderStatus(); break;
         case 'debug': if (!n) return loadNodes(); n.debug = { ...m.debug, ts: m.ts }; if (m.debug.ip) n.ip = m.debug.ip; n.last_seen = m.ts; renderStatus(); break;
         case 'node': loadNodes(); break;
+        case 'vibe': updateVibe(m); break;
         case 'snapshot': onSnapshot(m); break;
         case 'glance': onGlance(m); break;
         case 'sage': onSageProgress(m); break;

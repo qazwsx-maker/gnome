@@ -164,7 +164,8 @@ static bool glanceValid() { return glanceUntil && (int32_t)(glanceUntil - millis
 
 static void startStream() {
   httpd_config_t c = HTTPD_DEFAULT_CONFIG(); c.server_port = 81; c.ctrl_port = 32781; c.max_uri_handlers = 4;
-  c.lru_purge_enable = true; c.send_wait_timeout = 5; c.recv_wait_timeout = 5;   // client ที่ตายคาอยู่ต้องถูกเตะออก ไม่งั้นซ็อกเก็ตหมดทั้งบอร์ด
+  // client ที่ตายคาอยู่ต้องถูกเตะออก ไม่งั้นซ็อกเก็ตหมดทั้งบอร์ด · แต่ send 5 วิ สั้นไปเมื่อลิงก์ช้า (2026-10-23: ภาพ 39 kB ถูกตัดที่ 5.6 kB) → 20 วิ
+  c.lru_purge_enable = true; c.send_wait_timeout = 20; c.recv_wait_timeout = 8;
   if (httpd_start(&streamd, &c) != ESP_OK) { Serial.println("[cam] stream server failed"); return; }
   httpd_uri_t u1 = { .uri = "/stream", .method = HTTP_GET, .handler = streamHandler, .user_ctx = nullptr };
   httpd_uri_t u2 = { .uri = "/snapshot", .method = HTTP_GET, .handler = snapshotHandler, .user_ctx = nullptr };

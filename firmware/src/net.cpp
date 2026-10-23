@@ -77,6 +77,11 @@ static bool connectSta(const String& ssid, const String& pass, uint32_t timeoutM
   if (ssid.length() == 0) return false;
   Serial.printf("[net] connecting to %s ...\n", ssid.c_str());
   WiFi.begin(ssid.c_str(), pass.c_str());
+#if defined(GNOME_ROLE_CAM)
+  // Watcher ใช้ไฟบ้าน + ต้องรับการเชื่อมต่อขาเข้า (:81 stream/snapshot) → ปิด modem-sleep
+  // 2026-10-23: เปิดไว้ทำให้ ping แกว่ง 10–155 ms, อัปโหลด 39 kB ใช้ 4–7 วิ, :81 ส่งได้แค่ window แรก (5.6 kB) แล้ว timeout ตัดทิ้ง
+  WiFi.setSleep(false);
+#endif
   uint32_t t0 = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - t0 < timeoutMs) { delay(100); ledLoop(); improv::loop(); }
   bool ok = WiFi.status() == WL_CONNECTED;

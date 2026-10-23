@@ -95,7 +95,7 @@ export async function registerCam(app: FastifyInstance): Promise<void> {
     const { node } = req.params; const b = req.body || {};
     const n = nodes.get(node);
     if (!n) return reply.code(404).send({ error: 'node not found' });
-    if (!n.meta?.cam?.servo) return reply.code(400).send({ error: 'กล้องนี้ยังไม่ได้ตั้ง servo pin' });
+    if (!n.meta?.cam?.servo && !n.meta?.cam?.tilt) return reply.code(400).send({ error: 'กล้องนี้ยังไม่ได้ตั้ง servo pin' });
     const out: Record<string, number | boolean> = {};
     for (const k of ['pan_invert', 'tilt_invert', 'home'] as const) if (typeof b[k] === 'boolean') out[k] = b[k] as boolean;
     const lim = { speed: [1, 30], pan_min: [0, 180], pan_max: [0, 180], tilt_min: [0, 180], tilt_max: [0, 180] } as const;

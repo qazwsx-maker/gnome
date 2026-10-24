@@ -141,9 +141,9 @@
           <b class="pose pose-pan">${c.cam.pan_mode === 'continuous' ? stepTxt(c.cam.cont_pos) : (c.cam.angle ?? 90) + '°'}</b>
           <button class="nudge" data-nudge="pan" data-by="-1" ${padOff(c)} title="หันขวา 1°">▶</button></div>` : '<div class="muted small">หัน (pan) ปิดอยู่ — servo ตัวล่างต้องเป็นแบบกำหนดมุม 180° ไม่ใช่แบบหมุนรอบตัว 360°</div>'}
         ${c.cam.tilt ? `<div class="pad-row"><span class="pad-lab">ก้มเงย</span>
-          <button class="nudge" data-nudge="tilt" data-by="1" ${padOff(c)} title="ก้มลง 1°">▼</button>
+          <button class="nudge" data-nudge="tilt" data-by="${c.cam.tilt_invert ? -1 : 1}" ${padOff(c)} title="ก้มลง 1°">▼</button>
           <b class="pose pose-tilt">${c.cam.tilt_angle ?? 90}°</b>
-          <button class="nudge" data-nudge="tilt" data-by="-1" ${padOff(c)} title="เงยขึ้น 1°">▲</button></div>` : ''}
+          <button class="nudge" data-nudge="tilt" data-by="${c.cam.tilt_invert ? 1 : -1}" ${padOff(c)} title="เงยขึ้น 1°">▲</button></div>` : ''}
         <div class="pad-status muted small">${camState.busy[c.node] ? '⏳ ' + esc(camState.busy[c.node].label) : ''}</div>
         <div class="row">
           ${(c.cam.presets || []).map((p) => `<button class="small" data-preset="${esc(p.name)}" title="หัน ${p.angle}°${p.tilt != null ? ' · ก้มเงย ' + p.tilt + '°' : ''}" ${padOff(c)}>${p.name === 'front' ? '🏠 หน้าตรง' : esc(p.name)}</button>`).join('')}

@@ -80,6 +80,8 @@
 
   // ---- (e) กล้อง / Watcher ---------------------------------------------------
   const camState = { list: [], day: {}, frames: {}, playing: {} };
+  camState.busy = {};   // node -> {label, t} ระหว่างรอกล้องยืนยันมุม
+  const padOff = (c) => (c.online && !camState.busy[c.node] ? '' : 'disabled');
   const MOOD_ICON = { happy: '🙂', hot: '🥵', sleepy: '😴', thirsty: '🥀', rain: '🌧', sick: '🤒' };
   const capLine = (o) => (o && o.caption
     ? `<div class="cam-cap">${MOOD_ICON[o.mood] || '👁'} ${esc(o.caption_th || o.caption)}${o.ts ? ` <span class="muted">· ${esc(fmtTs(o.ts).slice(-8))}</span>` : ''}</div>`
@@ -135,17 +137,18 @@
       </div>
       ${c.cam?.servo || c.cam?.tilt ? `<div class="pad">
         ${c.cam.servo ? `<div class="pad-row"><span class="pad-lab">หัน</span>
-          <button class="nudge" data-nudge="pan" data-by="1" ${c.online ? '' : 'disabled'} title="หันซ้าย · กดค้าง = ทีละ 1°">◀</button>
+          <button class="nudge" data-nudge="pan" data-by="1" ${padOff(c)} title="หันซ้าย 1°">◀</button>
           <b class="pose pose-pan">${c.cam.pan_mode === 'continuous' ? stepTxt(c.cam.cont_pos) : (c.cam.angle ?? 90) + '°'}</b>
-          <button class="nudge" data-nudge="pan" data-by="-1" ${c.online ? '' : 'disabled'} title="หันขวา · กดค้าง = ทีละ 1°">▶</button></div>` : '<div class="muted small">หัน (pan) ปิดอยู่ — servo ตัวล่างต้องเป็นแบบกำหนดมุม 180° ไม่ใช่แบบหมุนรอบตัว 360°</div>'}
+          <button class="nudge" data-nudge="pan" data-by="-1" ${padOff(c)} title="หันขวา 1°">▶</button></div>` : '<div class="muted small">หัน (pan) ปิดอยู่ — servo ตัวล่างต้องเป็นแบบกำหนดมุม 180° ไม่ใช่แบบหมุนรอบตัว 360°</div>'}
         ${c.cam.tilt ? `<div class="pad-row"><span class="pad-lab">ก้มเงย</span>
-          <button class="nudge" data-nudge="tilt" data-by="1" ${c.online ? '' : 'disabled'} title="ก้มลง · กดค้าง = ทีละ 1°">▼</button>
+          <button class="nudge" data-nudge="tilt" data-by="1" ${padOff(c)} title="ก้มลง 1°">▼</button>
           <b class="pose pose-tilt">${c.cam.tilt_angle ?? 90}°</b>
-          <button class="nudge" data-nudge="tilt" data-by="-1" ${c.online ? '' : 'disabled'} title="เงยขึ้น · กดค้าง = ทีละ 1°">▲</button></div>` : ''}
+          <button class="nudge" data-nudge="tilt" data-by="-1" ${padOff(c)} title="เงยขึ้น 1°">▲</button></div>` : ''}
+        <div class="pad-status muted small">${camState.busy[c.node] ? '⏳ ' + esc(camState.busy[c.node].label) : ''}</div>
         <div class="row">
-          ${(c.cam.presets || []).map((p) => `<button class="small" data-preset="${esc(p.name)}" title="หัน ${p.angle}°${p.tilt != null ? ' · ก้มเงย ' + p.tilt + '°' : ''}" ${c.online ? '' : 'disabled'}>${p.name === 'front' ? '🏠 หน้าตรง' : esc(p.name)}</button>`).join('')}
+          ${(c.cam.presets || []).map((p) => `<button class="small" data-preset="${esc(p.name)}" title="หัน ${p.angle}°${p.tilt != null ? ' · ก้มเงย ' + p.tilt + '°' : ''}" ${padOff(c)}>${p.name === 'front' ? '🏠 หน้าตรง' : esc(p.name)}</button>`).join('')}
           <button class="ghost small" data-svhome="1" ${c.online ? '' : 'disabled'} title="บันทึกมุมตอนนี้เป็นตำแหน่งหน้าตรง">📌 จำเป็นหน้าตรง</button>
-          ${(c.cam.presets || []).length > 1 ? `<button class="small" data-patrol="1" ${c.online ? '' : 'disabled'} title="หันไปทุก preset แล้วถ่ายทีละมุม">🔄 ถ่ายทุกมุม</button>` : ''}
+          ${(c.cam.presets || []).length > 1 ? `<button class="small" data-patrol="1" ${padOff(c)} title="หันไปทุก preset แล้วถ่ายทีละมุม">🔄 ถ่ายทุกมุม</button>` : ''}
         </div>
       </div>
       ${servoPanel(c)}` : ''}
@@ -186,17 +189,28 @@
     const c = camState.list.find((x) => x.node === m.node); if (c) c.last_glance = { ts: new Date().toISOString(), caption: m.caption, caption_th: m.caption_th, mood: m.mood };
     const fr = camState.frames[m.node]?.find((f) => f.id === m.id); if (fr) { fr.caption = m.caption; fr.mood = m.mood; }
   }
-  // ปุ่ม ±1°: แตะ = 1 ครั้ง · กดค้าง = ซ้ำทุก 350 ms (~3°/วิ ช้ามาก) จนกว่าจะปล่อย
-  let nudgeTimer = null;
-  const nudgeOnce = (b) => api(`/cam/${b.closest('.cam-card').dataset.node}/pan`, { method: 'POST', body: { nudge: b.dataset.nudge, by: Number(b.dataset.by) } }).catch((err) => toast('ผิดพลาด: ' + err.message, true));
-  const nudgeStop = () => { if (nudgeTimer) { clearInterval(nudgeTimer); nudgeTimer = null; } };
-  $('#cam-list').addEventListener('pointerdown', (e) => {
+  // ปุ่มหัน/ก้มเงย/preset: กด 1 ครั้ง = สั่ง 1 ครั้ง แล้ว "กำลังทำงาน" ล็อกปุ่มไว้ จนกล้องรายงานมุมใหม่กลับมา (WS cam_pose) ค่อยกดต่อได้
+  // (เดิมกดค้างยิงซ้ำทุก 350 ms — บนลิงก์ช้าที่สวนคำสั่งไปกองรอ กล้องหมุนต่อเองหลังปล่อยนิ้ว 2026-10-24) · ไม่มีคำตอบใน 30 วิ → ปลดล็อก + เตือน
+  const padApply = (node) => {
+    const card = $(`.cam-card[data-node="${node}"]`); if (!card) return;
+    const b = camState.busy[node]; const c = camState.list.find((x) => x.node === node);
+    for (const el of card.querySelectorAll('.nudge,[data-preset],[data-patrol]')) el.disabled = !!b || !c?.online;
+    $('.pad', card)?.classList.toggle('busy', !!b);
+    const st = $('.pad-status', card); if (st) st.textContent = b ? '⏳ ' + b.label : '';
+  };
+  const padBusy = (node, label) => {
+    clearTimeout(camState.busy[node]?.t);
+    camState.busy[node] = { label, t: setTimeout(() => { if (camState.busy[node]) { padFree(node); toast('กล้องยังไม่ยืนยันมุมใน 30 วิ (สัญญาณอ่อน) — กดใหม่ได้', true); } }, 30_000) };
+    padApply(node);
+  };
+  const padFree = (node) => { const b = camState.busy[node]; if (!b) return; clearTimeout(b.t); delete camState.busy[node]; padApply(node); };
+  $('#cam-list').addEventListener('click', async (e) => {
     const b = e.target.closest('.nudge'); if (!b || b.disabled) return;
-    e.preventDefault(); nudgeStop(); nudgeOnce(b);
-    nudgeTimer = setInterval(() => nudgeOnce(b), 350);
+    const node = b.closest('.cam-card').dataset.node; if (camState.busy[node]) return;
+    padBusy(node, (b.dataset.nudge === 'pan' ? 'กำลังหัน ' : 'กำลังก้มเงย ') + b.textContent + ' 1°…');
+    try { await api(`/cam/${node}/pan`, { method: 'POST', body: { nudge: b.dataset.nudge, by: Number(b.dataset.by) } }); }
+    catch (err) { padFree(node); toast('ผิดพลาด: ' + err.message, true); }
   });
-  for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) $('#cam-list').addEventListener(ev, (e) => { if (e.target.closest?.('.nudge') || ev !== 'pointerleave') nudgeStop(); });
-  window.addEventListener('blur', nudgeStop);
   $('#cam-list').addEventListener('input', (e) => {
     const r = e.target.closest('.pan-range'); if (r) $('.pan-val', r.closest('.pan')).textContent = r.value + '°';
     const sp = e.target.closest('.sv-speed'); if (sp) $('.sv-speed-val', sp.closest('.sv-row')).textContent = sp.value + '°/วิ';
@@ -242,7 +256,10 @@
         await api(`/nodes/${node}/cmd`, { method: 'POST', body: { cmd: 'flip', payload: { [key]: !c?.cam?.[key] } } });
         toast(key === 'vflip' ? 'กลับบน-ล่างแล้ว' : 'กลับซ้าย-ขวาแล้ว'); setTimeout(renderCam, 1200);
       }
-      else if (btn.dataset.preset) { await api(`/cam/${node}/pan`, { method: 'POST', body: { preset: btn.dataset.preset, snap: true } }); toast(`หันไป ${btn.dataset.preset} แล้วถ่าย`); }
+      else if (btn.dataset.preset) {
+        if (camState.busy[node]) return; padBusy(node, `กำลังหันไป ${btn.dataset.preset}…`);
+        try { await api(`/cam/${node}/pan`, { method: 'POST', body: { preset: btn.dataset.preset, snap: true } }); } catch (err) { padFree(node); throw err; }
+      }
       else if (btn.dataset.patrol) { await api(`/cam/${node}/pan`, { method: 'POST', body: { patrol: true } }); toast('กำลังถ่ายทุกมุม…'); }
       else if (btn.dataset.delday) { const day = camState.day[node]; if (!day) return toast('เลือกวันใน time-lapse ก่อน', true); if (!confirm(`ลบภาพของ ${node} วันที่ ${day} ทั้งหมด?`)) return; const r = await api(`/cam/${node}/snapshots?day=${day}`, { method: 'DELETE' }); toast(`ลบ ${r.deleted} ภาพ`); renderCam(); }
       else if (btn.dataset.delall) { if (!confirm(`ลบภาพทั้งหมดของ ${node}? (กู้คืนไม่ได้)`)) return; const r = await api(`/cam/${node}/snapshots`, { method: 'DELETE' }); toast(`ลบ ${r.deleted} ภาพ`); renderCam(); }
@@ -1055,6 +1072,7 @@
           }
           const pp = $('.pose-pan', card); if (pp) { if (m.cont) pp.textContent = stepTxt(m.steps); else if (m.angle != null) pp.textContent = m.angle + '°'; }
           const pt = $('.pose-tilt', card); if (pt && m.tilt != null) pt.textContent = m.tilt + '°';
+          padFree(m.node);   // กล้องรายงานมุมใหม่แล้ว = ขยับเสร็จ → ปลดล็อกปุ่ม
           break;
         }
         case 'snapshot': onSnapshot(m); break;

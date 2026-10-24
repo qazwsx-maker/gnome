@@ -97,7 +97,9 @@ main{padding:14px 16px 60px}
 /* กล้อง: ปุ่มหัน/ก้มเงยทีละ 1° (กดค้างได้) */
 .pad{margin:8px 0}.pad-row{display:flex;align-items:center;gap:10px;margin:6px 0}.pad-lab{min-width:56px;font-size:13px;color:var(--ink2)}
 .nudge{width:52px;height:40px;font-size:18px;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
-.nudge:active{background:var(--leaf);color:#fff;border-color:var(--leaf)}.pose{min-width:48px;text-align:center;font-variant-numeric:tabular-nums}
+.nudge:active{background:var(--leaf);color:#fff;border-color:var(--leaf)}
+.pad-status{min-height:18px;margin:0 0 4px 66px}.pad.busy .nudge,.pad.busy [data-preset],.pad.busy [data-patrol]{opacity:.45}
+@keyframes padpulse{50%{opacity:.35}}.pad.busy .pad-status{color:var(--leaf);animation:padpulse 1.2s ease-in-out infinite}.pose{min-width:48px;text-align:center;font-variant-numeric:tabular-nums}
 /* กล้อง: แผงตั้งค่า servo */
 .servo-cfg{margin-top:6px;border-top:1px solid var(--border);padding-top:6px}.servo-cfg>summary{cursor:pointer}
 .sv-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:8px 0}.sv-lab{min-width:56px;font-size:13px;color:var(--ink2)}

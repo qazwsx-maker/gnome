@@ -159,7 +159,7 @@ static void applyFlip() {
   s->set_hmirror(s, cfg.camMirror ? 1 : 0);
 }
 
-static bool camInit() {
+static bool camInit(int xclkHz = 10000000) {
   camera_config_t c = {};
   c.ledc_channel = LEDC_CHANNEL_0; c.ledc_timer = LEDC_TIMER_0;
   c.pin_d0 = CAM_PIN_D0; c.pin_d1 = CAM_PIN_D1; c.pin_d2 = CAM_PIN_D2; c.pin_d3 = CAM_PIN_D3;
@@ -167,7 +167,7 @@ static bool camInit() {
   c.pin_xclk = CAM_PIN_XCLK; c.pin_pclk = CAM_PIN_PCLK; c.pin_vsync = CAM_PIN_VSYNC; c.pin_href = CAM_PIN_HREF;
   c.pin_sccb_sda = CAM_PIN_SIOD; c.pin_sccb_scl = CAM_PIN_SIOC; c.pin_pwdn = CAM_PIN_PWDN; c.pin_reset = CAM_PIN_RESET;
   // 10 MHz แทน 20 MHz: นาฬิกากล้องรบกวน WiFi ของ ESP32-CAM เอง (2026-10-24 ที่สวน อัปโหลด 43 kB ใช้ 7–25 วิ) · fps ไม่สำคัญกับงานนี้
-  c.xclk_freq_hz = 10000000; c.pixel_format = PIXFORMAT_JPEG;
+  c.xclk_freq_hz = xclkHz; c.pixel_format = PIXFORMAT_JPEG;
   c.frame_size = psramFound() ? sizeFromCfg() : FRAMESIZE_VGA;
   c.jpeg_quality = psramFound() ? 15 : 17;   // เลขมาก = ไฟล์เล็ก · 12 → 15 ลดราว 30% ให้อัปโหลดทันบนลิงก์อ่อน
   c.fb_count = psramFound() ? 2 : 1;
@@ -180,6 +180,18 @@ static bool camInit() {
   Serial.printf("[cam] ok psram=%d size=%s\n", psramFound(), cfg.camSize.c_str());
   return true;
 }
+
+/** เริ่มกล้องแบบลองซ้ำ — ESP32-CAM บางครั้งรีสตาร์ทแบบซอฟต์แวร์ (OTA / selfheal) แล้วเซนเซอร์ไม่ตอบ
+ *  (2026-10-24: หลังลง 0.8.5 ผ่านหน้าเว็บ cam.ok = false ถ่ายไม่ได้เลย) → ปิด-เปิด PWDN แล้วลองใหม่ · ครั้งสุดท้ายใช้ 20 MHz */
+static bool camInitRetry() {
+  for (int i = 0; i < 3; i++) {
+    if (camInit(i < 2 ? 10000000 : 20000000)) return true;
+    esp_camera_deinit();
+    pinMode(CAM_PIN_PWDN, OUTPUT); digitalWrite(CAM_PIN_PWDN, HIGH); delay(200); digitalWrite(CAM_PIN_PWDN, LOW); delay(300);
+  }
+  return false;
+}
+static uint32_t camRetryAt = 0; static int camRetries = 0;
 
 // ---- stream server (port 81) ----
 static esp_err_t snapshotHandler(httpd_req_t* req) {
@@ -308,7 +320,8 @@ static bool servoRestored = false;
 void roleSetup() {
   camLock = xSemaphoreCreateMutex();
   pinMode(CAM_FLASH_PIN, OUTPUT); digitalWrite(CAM_FLASH_PIN, LOW);
-  camOk = camInit();
+  camOk = camInitRetry();
+  if (!camOk) camRetryAt = millis() + 30000;
   // ไม่คืนตำแหน่ง servo ตรงนี้ — ตอนบูต WiFi กำลังต่อ + กล้อง init กินไฟสูงอยู่แล้ว ถ้า servo ออกตัวซ้ำเข้าไปจะ brownout
   // แล้วบูตวนไม่รู้จบ (2026-10-23) → รอ WiFi ติดก่อนค่อยคืน (ใน roleLoop) · ถ้ารอบนี้บูตเพราะ brownout ไม่คืนเลย
   if (cfg.servoPin >= 0 || hasTilt()) {
@@ -339,6 +352,15 @@ static int patrol(const char* reason) {
 
 void roleLoop() {
   uploadReport();
+  // กล้องเริ่มไม่ขึ้น: ลองใหม่ทุก 30 วิ · 4 รอบแล้วยังไม่ได้ → รีสตาร์ท (แจ้ง Hut ก่อน)
+  if (!camOk && camRetryAt && millis() > camRetryAt) {
+    camRetries++;
+    if (camRetries == 1) mqttEvent("sensor_error", "\"msg\":\"camera init failed, retrying\"");
+    camOk = camInitRetry();
+    if (camOk) { mqttEvent("cam_recovered", "\"retries\":" + String(camRetries)); camRetryAt = 0; camRetries = 0; mqttPublishMeta(); }
+    else if (camRetries >= 4) { mqttEvent("selfheal", "\"action\":\"restart\",\"why\":\"camera init\""); netRequestReboot(1500); camRetryAt = 0; }
+    else camRetryAt = millis() + 30000;
+  }
   servoRestoreIfDue();
   if (saveDueAt && millis() > saveDueAt) { saveDueAt = 0; configSave(); }
   if (panAx.on && millis() > panAx.idleAt) servoRelease(panAx);

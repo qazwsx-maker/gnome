@@ -166,9 +166,10 @@ static bool camInit() {
   c.pin_d4 = CAM_PIN_D4; c.pin_d5 = CAM_PIN_D5; c.pin_d6 = CAM_PIN_D6; c.pin_d7 = CAM_PIN_D7;
   c.pin_xclk = CAM_PIN_XCLK; c.pin_pclk = CAM_PIN_PCLK; c.pin_vsync = CAM_PIN_VSYNC; c.pin_href = CAM_PIN_HREF;
   c.pin_sccb_sda = CAM_PIN_SIOD; c.pin_sccb_scl = CAM_PIN_SIOC; c.pin_pwdn = CAM_PIN_PWDN; c.pin_reset = CAM_PIN_RESET;
-  c.xclk_freq_hz = 20000000; c.pixel_format = PIXFORMAT_JPEG;
+  // 10 MHz แทน 20 MHz: นาฬิกากล้องรบกวน WiFi ของ ESP32-CAM เอง (2026-10-24 ที่สวน อัปโหลด 43 kB ใช้ 7–25 วิ) · fps ไม่สำคัญกับงานนี้
+  c.xclk_freq_hz = 10000000; c.pixel_format = PIXFORMAT_JPEG;
   c.frame_size = psramFound() ? sizeFromCfg() : FRAMESIZE_VGA;
-  c.jpeg_quality = psramFound() ? 12 : 15;
+  c.jpeg_quality = psramFound() ? 15 : 17;   // เลขมาก = ไฟล์เล็ก · 12 → 15 ลดราว 30% ให้อัปโหลดทันบนลิงก์อ่อน
   c.fb_count = psramFound() ? 2 : 1;
   c.fb_location = psramFound() ? CAMERA_FB_IN_PSRAM : CAMERA_FB_IN_DRAM;
   c.grab_mode = CAMERA_GRAB_LATEST;

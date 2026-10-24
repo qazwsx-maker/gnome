@@ -74,6 +74,8 @@ export async function registerCam(app: FastifyInstance): Promise<void> {
     const { node } = req.params; const b = req.body || {};
     const n = nodes.get(node);
     if (!n) return reply.code(404).send({ error: 'node not found' });
+    // กล้องหลุดอยู่: คำสั่งจะหายระหว่างต่อใหม่ (session ไม่ค้างคิว — จงใจ ไม่งั้นกล้องหมุนเองทีหลัง) → บอกผู้ใช้ตรงๆ
+    if (!n.online) return reply.code(409).send({ error: 'กล้องหลุดการเชื่อมต่ออยู่ รอสักครู่แล้วกดใหม่' });
     if (b.patrol) { await sendCmd(node, 'patrol', '1'); return { ok: true, patrol: true }; }
     // ขยับทีละน้อยจากมุมปัจจุบัน (ปุ่ม ±1° กดค้างได้) — ส่งแบบสัมพัทธ์ "+1"/"-1" ให้ node คำนวณเอง ไม่ต้องรู้มุมล่าสุด
     if (b.nudge === 'pan' || b.nudge === 'tilt') {

@@ -62,7 +62,11 @@ static void onMessage(char* topic, byte* payload, unsigned int len) {
 
 void mqttSetup() {
   base = "gnome/" + cfg.node + "/";
-  client.setBufferSize(1024); client.setKeepAlive(60);   // อัปโหลดภาพบนลิงก์ช้ากินแบนด์วิดท์จน ping ของ MQTT ไม่ออก → 30 วิหลุดบ่อย client.setCallback(onMessage);
+  // keepalive 60: อัปโหลดภาพบนลิงก์ช้ากินแบนด์วิดท์จน ping ของ MQTT ไม่ออก → 30 วิหลุดบ่อย
+  // (0.8.4 คอมเมนต์นี้กลืน setCallback ไปทั้งบรรทัด → node ไม่รับคำสั่งเลย แม้แต่ OTA — ห้ามรวมบรรทัดอีก)
+  client.setBufferSize(1024);
+  client.setKeepAlive(60);
+  client.setCallback(onMessage);
 }
 
 static void tryConnect() {

@@ -11,7 +11,6 @@ import { query } from './db.ts';
 import { bus } from './bus.ts';
 import { nodes, touch, getNode } from './state.ts';
 import { sendCmd } from './mqtt.ts';
-import { Readable } from 'node:stream';
 import { glanceOnSnapshot } from './glance.ts';
 
 const log = logger('cam');
@@ -51,22 +50,59 @@ export async function registerCam(app: FastifyInstance): Promise<void> {
     return { ok: true, id: r.rows[0].id, url, bytes: buf.length };
   });
 
-  // proxy live MJPEG stream / fresh snapshot from the node (:81) so it works from outside the LAN too
-  const camBase = (node: string): string | null => { const n = nodes.get(node); const s = n?.meta?.cam?.stream as string | undefined; if (s) return s.replace(/\/stream$/, ''); return n?.ip ? `http://${n.ip}:81` : null; };
-  for (const kind of ['stream', 'snapshot'] as const) {
-    app.get<{ Params: { node: string } }>(`/api/cam/:node/${kind === 'stream' ? 'live' : 'live-snapshot'}`, async (req, reply) => {
-      const base = camBase(req.params.node);
-      if (!base) return reply.code(404).send({ error: 'ไม่รู้ที่อยู่กล้อง (node ยังไม่ส่ง meta)' });
-      const ac = new AbortController();
-      req.raw.on('close', () => ac.abort());
-      let up: Response;
-      try { up = await fetch(`${base}/${kind}`, { signal: ac.signal }); } catch (e) { return reply.code(502).send({ error: 'ต่อกล้องไม่ได้: ' + (e as Error).message }); }
-      if (!up.ok || !up.body) return reply.code(502).send({ error: `กล้องตอบ ${up.status}` });
-      reply.header('Content-Type', up.headers.get('content-type') || (kind === 'stream' ? 'multipart/x-mixed-replace;boundary=gnomeframe' : 'image/jpeg'));
-      reply.header('Cache-Control', 'no-store'); reply.header('X-Accel-Buffering', 'no');
-      return reply.send(Readable.fromWeb(up.body as any));
-    });
-  }
+  // ---- ดูสด: กล้องส่งเฟรมขึ้น Hut เอง (POST /live-frame) แล้ว Hut กระจายเป็น MJPEG ----
+  // เดิม proxy :81/stream ของกล้อง แต่ที่สวนการเชื่อมต่อขาเข้ากล้องช้ามาก (1 เฟรม/8 วิ) ขณะที่ขาออกจากกล้องเร็ว (<1 วิ/ภาพ)
+  // ระหว่างมีคนดู Hut ส่ง cmd/live ซ้ำทุก 40 วิ (กล้องหยุดเองใน 60 วิถ้าไม่มีคำสั่งใหม่) · คนสุดท้ายปิด → cmd/live 0
+  const liveFrame = new Map<string, { buf: Buffer; ts: number }>();
+  const liveWatchers = new Map<string, Set<(b: Buffer) => void>>();
+  const liveKeep = new Map<string, ReturnType<typeof setInterval>>();
+  const startLive = (node: string) => {
+    if (liveKeep.has(node)) return;
+    const kick = () => void sendCmd(node, 'live', { seconds: 60, interval_ms: 700 }).catch(() => {});
+    kick(); liveKeep.set(node, setInterval(kick, 40_000));
+  };
+  const stopLiveIfIdle = (node: string) => {
+    if (liveWatchers.get(node)?.size) return;
+    const t = liveKeep.get(node); if (t) { clearInterval(t); liveKeep.delete(node); void sendCmd(node, 'live', '0').catch(() => {}); }
+  };
+  const watch = (node: string, fn: (b: Buffer) => void) => {
+    if (!liveWatchers.has(node)) liveWatchers.set(node, new Set());
+    liveWatchers.get(node)!.add(fn); startLive(node);
+    return () => { liveWatchers.get(node)?.delete(fn); setTimeout(() => stopLiveIfIdle(node), 3000); };
+  };
+
+  app.post<{ Params: { node: string } }>('/api/cam/:node/live-frame', async (req, reply) => {
+    const { node } = req.params; const buf = req.body as Buffer;
+    if (!NODE_RE.test(node) || !Buffer.isBuffer(buf) || buf.length < 500 || buf[0] !== 0xff || buf[1] !== 0xd8) return reply.code(400).send({ error: 'not a jpeg' });
+    liveFrame.set(node, { buf, ts: Date.now() }); touch(node);
+    for (const fn of liveWatchers.get(node) || []) fn(buf);
+    if (!liveWatchers.get(node)?.size) stopLiveIfIdle(node);     // ไม่มีใครดูแล้ว (เช่น Hut รีสตาร์ท) → บอกกล้องให้หยุด
+    return { ok: true };
+  });
+
+  app.get<{ Params: { node: string } }>('/api/cam/:node/live', async (req, reply) => {
+    const { node } = req.params; const n = nodes.get(node);
+    if (!n) return reply.code(404).send({ error: 'node not found' });
+    if (!n.online) return reply.code(503).send({ error: 'กล้องหลุดการเชื่อมต่ออยู่' });
+    reply.hijack();
+    const res = reply.raw;
+    res.writeHead(200, { 'Content-Type': 'multipart/x-mixed-replace;boundary=gnomeframe', 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no', Connection: 'close' });
+    const send = (b: Buffer) => { res.write(`\r\n--gnomeframe\r\nContent-Type: image/jpeg\r\nContent-Length: ${b.length}\r\n\r\n`); res.write(b); };
+    const last = liveFrame.get(node); if (last && Date.now() - last.ts < 5000) send(last.buf);
+    const off = watch(node, send);
+    req.raw.on('close', off);
+  });
+
+  app.get<{ Params: { node: string } }>('/api/cam/:node/live-snapshot', async (req, reply) => {
+    const { node } = req.params; const n = nodes.get(node);
+    if (!n) return reply.code(404).send({ error: 'node not found' });
+    const last = liveFrame.get(node);
+    let buf: Buffer | null = last && Date.now() - last.ts < 3000 ? last.buf : null;
+    if (!buf) buf = await new Promise<Buffer | null>((resolve) => { let off = () => {}; const t = setTimeout(() => { off(); resolve(null); }, 10_000); off = watch(node, (b) => { clearTimeout(t); off(); resolve(b); }); });
+    if (!buf) return reply.code(504).send({ error: 'กล้องไม่ส่งภาพมาใน 10 วิ' });
+    reply.header('Content-Type', 'image/jpeg'); reply.header('Cache-Control', 'no-store');
+    return reply.send(buf);
+  });
 
   // หัน servo: {angle} หรือ {preset} · {tilt} ก้มเงย (ส่งคู่กับ angle ได้ — หันก่อน แล้วก้มเงย ถ่ายหลังแกนสุดท้าย)
   // snap=true ให้ถ่ายหลังขยับเสร็จ · patrol = ถ่ายทุก preset

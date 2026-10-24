@@ -140,9 +140,25 @@ static bool snapAndUpload(const char* reason);
 static bool camOk = false;
 static httpd_handle_t streamd = nullptr;
 static uint32_t lastShot = 0;
-static int lastCode = 0, lastBytes = 0; static uint32_t lastUploadMs = 0; static int uploads = 0, fails = 0;
+// ดูสดแบบกล้องส่งเฟรมขึ้น Hut เอง (2026-10-24 ที่สวน: การเชื่อมต่อขาเข้า :81 ช้ามาก แต่ขาออกจากกล้องเร็ว)
+static uint32_t liveUntil = 0, liveLast = 0; static uint32_t liveIntervalMs = 700;
+static bool liveSmall = false;
+static int lastCode = 0, lastBytes = 0; static uint32_t lastUploadMs = 0, lastUploadDur = 0; static int uploads = 0, fails = 0;
 static bool flashOn = false;
 static SemaphoreHandle_t camLock;
+static framesize_t sizeFromCfg();
+/** ระหว่างดูสดใช้ QVGA 320×240 (~10 kB แทน ~33 kB) — ลิงก์ที่สวนบางช่วงเหลือ ~2 kB/s ภาพเล็กคือทางเดียวที่ยังเห็นภาพเคลื่อน
+ *  เลิกดูคืนขนาดตามตั้งค่า · ทิ้ง 2 เฟรมที่ค้างในบัฟเฟอร์ (GRAB_LATEST, fb_count 2) ไม่งั้นเฟรมแรกยังเป็นขนาด/คุณภาพเดิม
+ *  (0.8.9 ลองบีบ quality แทน — เฟรมแรกออกมาค่าเดิม และลิงก์ช้าเหมือนกัน: ต้นเหตุคือ WiFi ไม่ใช่ขนาดภาพ — 2026-10-24) */
+static void liveSize(bool small) {
+  if (small == liveSmall) return;
+  sensor_t* s = esp_camera_sensor_get(); if (!s) return;
+  if (xSemaphoreTake(camLock, pdMS_TO_TICKS(2000)) != pdTRUE) return;
+  s->set_framesize(s, small ? FRAMESIZE_QVGA : sizeFromCfg());
+  for (int i = 0; i < 2; i++) { camera_fb_t* fb = esp_camera_fb_get(); if (fb) esp_camera_fb_return(fb); }
+  xSemaphoreGive(camLock);
+  liveSmall = small;
+}
 
 static framesize_t sizeFromCfg() {
   if (cfg.camSize == "uxga") return FRAMESIZE_UXGA;   // 1600x1200
@@ -257,14 +273,16 @@ static char upDoneReason[16] = "";
 
 static void uploadTask(void* arg) {
   UploadJob* j = (UploadJob*)arg;
-  String url = hutBaseResolved() + "/api/cam/" + cfg.node + "/snapshot";
+  bool live = strcmp(j->reason, "live") == 0;   // เฟรมดูสด → endpoint แยก ไม่เก็บลงคลังภาพ
+  String url = hutBaseResolved() + "/api/cam/" + cfg.node + (live ? "/live-frame" : "/snapshot");
   WiFiClient c; HTTPClient http; http.setTimeout(10000); http.setConnectTimeout(5000); http.begin(c, url);
   http.addHeader("Content-Type", "image/jpeg"); http.addHeader("X-Node", cfg.node); http.addHeader("X-Reason", j->reason);
   if (j->angle >= 0) http.addHeader("X-Angle", String(j->angle));
   if (j->tilt >= 0) http.addHeader("X-Tilt", String(j->tilt));
+  uint32_t t0 = millis();
   int code = http.POST(j->buf, j->len);
   http.end();
-  lastCode = code; lastBytes = j->len; lastUploadMs = millis();
+  lastCode = code; lastBytes = j->len; lastUploadMs = millis(); lastUploadDur = lastUploadMs - t0;
   if (code >= 200 && code < 300) { uploads++; Serial.printf("[cam] uploaded %u bytes (%s) -> %d\n", (unsigned)j->len, j->reason, code); }
   else { fails++; Serial.printf("[cam] upload failed %d (%s)\n", code, j->reason); }
   upDoneBytes = j->len; strlcpy(upDoneReason, j->reason, sizeof upDoneReason); upDoneCode = code ? code : -99;
@@ -277,10 +295,11 @@ static void uploadTask(void* arg) {
 static bool snapAndUpload(const char* reason) {
   if (!camOk || !netWifiConnected()) return false;
   if (upBusy) { Serial.println("[cam] upload still running, skip"); return false; }
-  if (cfg.camFlash) { setFlash(true); delay(120); }
-  if (xSemaphoreTake(camLock, pdMS_TO_TICKS(3000)) != pdTRUE) { if (cfg.camFlash) setFlash(false); return false; }
+  bool flash = cfg.camFlash && strcmp(reason, "live") != 0;
+  if (flash) { setFlash(true); delay(120); }
+  if (xSemaphoreTake(camLock, pdMS_TO_TICKS(3000)) != pdTRUE) { if (flash) setFlash(false); return false; }
   camera_fb_t* fb = esp_camera_fb_get();
-  if (cfg.camFlash) setFlash(false);
+  if (flash) setFlash(false);
   if (!fb) { xSemaphoreGive(camLock); fails++; Serial.println("[cam] capture failed"); mqttEvent("sensor_error", "\"msg\":\"capture failed\""); return false; }
   UploadJob* j = new UploadJob();
   j->buf = (uint8_t*)(psramFound() ? ps_malloc(fb->len) : malloc(fb->len));
@@ -303,6 +322,7 @@ static int connFailStreak = 0;   // -1/-3/-11 ติดกันกี่คร�
 static void uploadReport() {
   if (!upDoneCode) return;
   int code = upDoneCode; upDoneCode = 0;
+  if (strcmp(upDoneReason, "live") == 0) return;   // เฟรมดูสด: ไม่นับเป็นอัปโหลดล้มเหลว ไม่ส่ง event รัวๆ
   bool ok = code >= 200 && code < 300;
   if (ok) connFailStreak = 0;
   else if (code < 0 && netWifiConnected()) {
@@ -362,13 +382,19 @@ void roleLoop() {
     else camRetryAt = millis() + 30000;
   }
   servoRestoreIfDue();
+  bool liveOn = liveUntil && (int32_t)(liveUntil - millis()) > 0;
+  // เว้นช่วงหลังส่งเสร็จอย่างน้อยเท่าเวลาที่ส่งเฟรมก่อน (duty ≤ 50%) — ลิงก์ที่สวนอ่อน ถ้าส่งติดกันรวด WiFi อิ่มจน
+  // ping 2 วิ MQTT หลุด คำสั่งหัน/ถ่ายไม่ถึง (2026-10-24) · ลิงก์ดีก็ยังได้ราว 1 เฟรม/วิ
+  uint32_t liveGap = max(liveIntervalMs, min(lastUploadDur, (uint32_t)8000));
+  if (liveOn && !upBusy && millis() - liveLast >= liveIntervalMs && millis() - lastUploadMs >= liveGap) { liveLast = millis(); snapAndUpload("live"); }
+  if (!liveOn && liveSmall) { liveUntil = 0; liveSize(false); }   // หมดเวลาดูสด → คืนขนาดภาพเดิม
   if (saveDueAt && millis() > saveDueAt) { saveDueAt = 0; configSave(); }
   if (panAx.on && millis() > panAx.idleAt) servoRelease(panAx);
   if (tiltAx.on && millis() > tiltAx.idleAt) servoRelease(tiltAx);
   static bool streamStarted = false;
   if (!streamStarted && netWifiConnected()) { startStream(); streamStarted = true; }
   uint32_t iv = (uint32_t)cfg.intervalS * 1000;
-  if (netWifiConnected() && (lastShot == 0 || millis() - lastShot >= iv)) { lastShot = millis(); snapAndUpload("interval"); }
+  if (netWifiConnected() && !liveSmall && (lastShot == 0 || millis() - lastShot >= iv)) { lastShot = millis(); snapAndUpload("interval"); }   // ระหว่างดูสดเว้นภาพตามรอบ (ไม่เก็บภาพเล็ก)
 }
 
 void roleOnMqttConnect() {
@@ -427,6 +453,15 @@ int roleStats(StatItem* out, int max) {
 
 bool roleCommand(const String& sub, const String& payload) {
   if (sub == "cmd/snap") { lastShot = millis(); if (!snapAndUpload("cmd")) mqttEvent("snapshot_failed", "\"msg\":\"busy or capture failed\""); return true; }
+  if (sub == "cmd/live") {   // {"seconds":60,"interval_ms":700} หรือ "0" = หยุด · Hut ส่งซ้ำเรื่อยๆ ตราบที่ยังมีคนดู
+    JsonDocument d; int secs = 60;
+    if (!deserializeJson(d, payload) && d.is<JsonObject>()) { secs = d["seconds"] | 60; liveIntervalMs = constrain((int)(d["interval_ms"] | 700), 200, 5000); }
+    else secs = payload.toInt();
+    secs = constrain(secs, 0, 300);
+    liveUntil = secs ? millis() + (uint32_t)secs * 1000 : 0;
+    liveSize(secs > 0);
+    return true;
+  }
   if (sub == "cmd/flash") { String p = payload; p.trim(); p.toUpperCase(); setFlash(p == "ON" || p == "1"); return true; }
   if (sub == "cmd/pan") {
     String p = payload; p.trim();

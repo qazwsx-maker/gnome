@@ -8,7 +8,7 @@
 |---|---|---|
 | `scout` | **GnomeOS Scout** | sensor node: I2C auto-detect (SHT3x, BH1750, BME280), DHT22 (optional), analog soil ×N (ADC1) |
 | `keeper` | **GnomeOS Keeper** | controller node: relay/switch ×1–4 พร้อม max_on_time, interlock, failsafe |
-| `cam` | **GnomeOS Watcher** | camera node (ESP32-CAM): node **POST** JPEG ไป `{hut_url}/api/cam/<node>/snapshot` ทุก `interval_s` (ส่ง header `X-Angle` ถ้ามี servo หัน · `X-Tilt` ถ้ามี servo ก้มเงย) · ดูสด `http://<ip>:81/stream`, `http://<ip>:81/snapshot` · `cmd/snap` ถ่ายทันที · `cmd/flash` ON/OFF · meta มี `cam:{stream,snapshot,interval_s,size}` |
+| `cam` | **GnomeOS Watcher** | camera node (ESP32-CAM): node **POST** JPEG ไป `{hut_url}/api/cam/<node>/snapshot` ทุก `interval_s` (ส่ง header `X-Angle` ถ้ามี servo หัน · `X-Tilt` ถ้ามี servo ก้มเงย) · ดูสดผ่าน Hut `cmd/live` (ตรงที่ `http://<ip>:81/stream` ใน LAN ได้แต่ช้ามากบนลิงก์อ่อน) · `cmd/snap` ถ่ายทันที · `cmd/flash` ON/OFF · meta มี `cam:{stream,snapshot,interval_s,size}` |
 
 ## Topics (prefix `gnome/<node>/`)
 
@@ -28,6 +28,7 @@
 | `cmd/ota` | no | 1 | →node | URL ของไฟล์ .bin (HTTP) — server ส่ง `http://<core>/firmware/<env>/firmware.bin` (`POST /api/nodes/<node>/ota`, `POST /api/ota`) node ตอบ event `ota_start` / `ota_failed` แล้วรีบูตพร้อม `meta.fw` ใหม่ |
 | `cmd/identify` | no | 1 | →node | กระพริบ LED 10 วินาที |
 | `cmd/snap` | no | 1 | →node (cam) | ถ่ายและส่งภาพทันที |
+| `cmd/live` | no | 1 | →node (cam) | ดูสดแบบกล้องส่งเฟรมขึ้น Hut: `{"seconds":60,"interval_ms":700}` หรือ `0` = หยุด · ระหว่างดูสด node POST JPEG 320×240 ไป `{hut_url}/api/cam/<node>/live-frame` (ไม่เก็บลงคลัง) เว้นช่วงหลังส่งอย่างน้อยเท่าเวลาส่งเฟรมก่อน · Hut ส่งซ้ำทุก 40 วิตราบที่มีคนดู `GET /api/cam/<node>/live` (MJPEG) |
 | `cmd/flash` | no | 1 | →node (cam) | `ON` / `OFF` ไฟแฟลช GPIO4 |
 | `cmd/pan` | no | 1 | →node (cam) | มุมหัน `0`–`180` หรือชื่อ preset (preset ขยับทั้งหันและก้มเงย) · เติม ` +snap` เพื่อถ่ายหลังหันเสร็จ · ตอบ event `pan` `{angle, tilt?}` |
 | `cmd/tilt` | no | 1 | →node (cam) | มุมก้มเงย `0`–`180` (ถูกจำกัดด้วย `tilt_min`/`tilt_max` ของ node) · ` +snap` ได้เหมือน pan · ต้องตั้ง `tilt_pin` ที่ node ก่อน |

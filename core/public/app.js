@@ -82,7 +82,7 @@
   const camState = { list: [], day: {}, frames: {}, playing: {} };
   const MOOD_ICON = { happy: '🙂', hot: '🥵', sleepy: '😴', thirsty: '🥀', rain: '🌧', sick: '🤒' };
   const capLine = (o) => (o && o.caption
-    ? `<div class="cam-cap">${MOOD_ICON[o.mood] || '👁'} ${esc(o.caption)}${o.ts ? ` <span class="muted">· ${esc(fmtTs(o.ts).slice(-8))}</span>` : ''}</div>`
+    ? `<div class="cam-cap">${MOOD_ICON[o.mood] || '👁'} ${esc(o.caption_th || o.caption)}${o.ts ? ` <span class="muted">· ${esc(fmtTs(o.ts).slice(-8))}</span>` : ''}</div>`
     : '<div class="cam-cap"></div>');
   // แผงตั้งค่า servo: ความเร็ว (มีผลทันที) + ขอบเขตมุม · ปุ่ม "มุมตอนนี้" = เลื่อน slider ไปจุดที่ชนแล้วกดตั้งเป็นขอบ
   const stepTxt = (n) => `≈ ${n > 0 ? '+' : ''}${n ?? 0} ก้าว`;
@@ -182,8 +182,8 @@
   }
   function onGlance(m) {
     const card = $(`.cam-card[data-node="${m.node}"]`); if (!card) return;
-    const cap = $('.cam-cap', card); if (cap) cap.innerHTML = `${MOOD_ICON[m.mood] || '👁'} ${esc(m.caption)} <span class="muted">· ${esc(fmtTs(new Date().toISOString()).slice(-8))}</span>`;
-    const c = camState.list.find((x) => x.node === m.node); if (c) c.last_glance = { ts: new Date().toISOString(), caption: m.caption, mood: m.mood };
+    const cap = $('.cam-cap', card); if (cap) cap.innerHTML = `${MOOD_ICON[m.mood] || '👁'} ${esc(m.caption_th || m.caption)} <span class="muted">· ${esc(fmtTs(new Date().toISOString()).slice(-8))}</span>`;
+    const c = camState.list.find((x) => x.node === m.node); if (c) c.last_glance = { ts: new Date().toISOString(), caption: m.caption, caption_th: m.caption_th, mood: m.mood };
     const fr = camState.frames[m.node]?.find((f) => f.id === m.id); if (fr) { fr.caption = m.caption; fr.mood = m.mood; }
   }
   // ปุ่ม ±1°: แตะ = 1 ครั้ง · กดค้าง = ซ้ำทุก 350 ms (~3°/วิ ช้ามาก) จนกว่าจะปล่อย

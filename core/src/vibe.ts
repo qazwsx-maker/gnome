@@ -25,7 +25,7 @@ export type Vibe = { icon: string; label: string; detail: string; mood: string; 
 const MOOD_ICON: Record<string, string> = { happy: '🙂', hot: '🥵', sleepy: '😴', thirsty: '🥀', rain: '🌧', sick: '🤒' };
 const vibes = new Map<string, Vibe>();
 const plotOf = new Map<string, string>();                                            // cam node -> ชื่อแปลงล่าสุดที่ยังเปิดอยู่
-const glanceOf = new Map<string, { caption: string; mood: string; ts: string }>();   // cam node -> ประโยคล่าสุดจากโหมดคิด
+const glanceOf = new Map<string, { caption: string; caption_th: string | null; mood: string; ts: string }>();   // cam node -> สิ่งที่โหมดคิดเห็นล่าสุด
 
 export function getVibe(node: string): Vibe | null { return vibes.get(node) ?? null; }
 export function allVibes(): Record<string, Vibe> { return Object.fromEntries(vibes); }
@@ -38,9 +38,12 @@ export function computeVibe(n: NodeState): Vibe {
   if (!n.online) return { icon: '😵', label: 'ขาดการติดต่อ', detail: n.last_seen ? `เห็นล่าสุด ${new Date(n.last_seen).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}` : 'ยังไม่เคยเห็น', mood: 'sick', ts };
 
   if (n.role === 'cam') {
-    const plot = plotOf.get(n.node); const g = glanceOf.get(n.node);
-    const iv = Number(n.meta?.cam?.interval_s);
-    return { icon: g ? MOOD_ICON[g.mood] || '👁' : '👁', label: plot ? `กำลังเฝ้ามอง ${plot}` : 'กำลังเฝ้ามอง', detail: g?.caption || (Number.isFinite(iv) ? `ถ่ายทุก ${Math.round(iv / 60)} นาที` : ''), mood: g?.mood || 'happy', ts };
+    // ชื่อบนการ์ด = สิ่งที่กล้องเห็นจริงล่าสุด (โหมดคิด, ภาษาไทย) · รายละเอียด = เห็นเมื่อไร + มุมกล้องตอนนี้
+    const g = glanceOf.get(n.node); const cam = n.meta?.cam || {};
+    const pose = cam.servo || cam.tilt ? [cam.servo ? `หัน ${cam.angle}°` : '', cam.tilt ? `ก้มเงย ${cam.tilt_angle}°` : ''].filter(Boolean).join(' ') : '';
+    const at = g ? new Date(g.ts).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' }) : '';
+    if (!g) return { icon: '👁', label: 'ยังไม่ได้มอง', detail: [pose, plotOf.get(n.node) ? `แปลง ${plotOf.get(n.node)}` : ''].filter(Boolean).join(' · '), mood: 'happy', ts };
+    return { icon: MOOD_ICON[g.mood] || '👁', label: g.caption_th || g.caption, detail: [`เห็นเมื่อ ${at}`, pose].filter(Boolean).join(' · '), mood: g.mood, ts };
   }
 
   // keeper / สวิตช์: ดูว่ามีอะไรเปิดอยู่
@@ -99,14 +102,15 @@ async function loadPlots(): Promise<void> {
 export async function startVibe(): Promise<void> {
   await loadPlots();
   try {
-    const g = await query<{ node: string; caption: string; mood: string; ts: Date }>(`SELECT DISTINCT ON (node) node, caption, mood, ts FROM snapshots WHERE caption IS NOT NULL ORDER BY node, ts DESC`);
-    for (const x of g.rows) glanceOf.set(x.node, { caption: x.caption, mood: x.mood, ts: x.ts.toISOString() });
+    const g = await query<{ node: string; caption: string; caption_th: string | null; mood: string; ts: Date }>(`SELECT DISTINCT ON (node) node, caption, caption_th, mood, ts FROM snapshots WHERE caption IS NOT NULL ORDER BY node, ts DESC`);
+    for (const x of g.rows) glanceOf.set(x.node, { caption: x.caption, caption_th: x.caption_th, mood: x.mood, ts: x.ts.toISOString() });
   } catch (e) { log.warn('load glance', (e as Error).message); }
   for (const n of nodes.keys()) refreshVibe(n);
   bus.on('live', (m: any) => {
     switch (m.type) {
       case 'reading': case 'switch': case 'status': case 'debug': case 'node': refreshVibe(m.node); break;
-      case 'glance': glanceOf.set(m.node, { caption: m.caption, mood: m.mood, ts: new Date().toISOString() }); refreshVibe(m.node); break;
+      case 'glance': glanceOf.set(m.node, { caption: m.caption, caption_th: m.caption_th ?? null, mood: m.mood, ts: new Date().toISOString() }); refreshVibe(m.node); break;
+      case 'cam_pose': refreshVibe(m.node); break;
       case 'plots': void loadPlots().then(() => { for (const n of nodes.values()) if (n.role === 'cam') refreshVibe(n.node); }); break;
     }
   });

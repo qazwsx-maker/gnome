@@ -4,6 +4,7 @@ import { config } from './config.ts';
 import { logger } from './log.ts';
 import { query } from './db.ts';
 import { bus } from './bus.ts';
+import { glanceOnMove } from './glance.ts';
 import { getNode, setOnline, touch, recordEvent, nodes, forgetNode } from './state.ts';
 import { discord } from './discord.ts';
 import { isSonoffNode, sonoffCommand } from './sonoff.ts';
@@ -205,6 +206,7 @@ async function onEvent(node: string, ev: any): Promise<void> {
       if (Number.isFinite(ev.angle)) cam.angle = ev.angle;
       if (Number.isFinite(ev.tilt)) cam.tilt_angle = ev.tilt;
       if (Number.isFinite(ev.steps)) cam.cont_pos = ev.steps;
+      glanceOnMove(node);
       bus.live({ type: 'cam_pose', node, angle: cam.angle, tilt: cam.tilt_angle, steps: cam.cont_pos, cont: cam.pan_mode === 'continuous', ts: new Date().toISOString() } as any);
     }
   }

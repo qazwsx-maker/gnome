@@ -117,9 +117,9 @@ export async function registerCam(app: FastifyInstance): Promise<void> {
     const latest = await query<{ node: string; ts: Date; path: string; bytes: number; caption: string | null; mood: string | null; cnt: string }>(
       `SELECT DISTINCT ON (node) node, ts, path, bytes, caption, mood, (SELECT count(*) FROM snapshots s2 WHERE s2.node = s.node) AS cnt FROM snapshots s ORDER BY node, ts DESC`);
     // ข้อความล่าสุดที่โหมดคิดสรุปไว้ (ไม่จำเป็นต้องเป็นภาพล่าสุด เพราะเว้นระยะการคิด)
-    const glances = await query<{ node: string; ts: Date; caption: string; mood: string }>(
-      `SELECT DISTINCT ON (node) node, ts, caption, mood FROM snapshots WHERE caption IS NOT NULL ORDER BY node, ts DESC`);
-    const lastGlance = new Map(glances.rows.map((g) => [g.node, { ts: g.ts.toISOString(), caption: g.caption, mood: g.mood }]));
+    const glances = await query<{ node: string; ts: Date; caption: string; caption_th: string | null; mood: string }>(
+      `SELECT DISTINCT ON (node) node, ts, caption, caption_th, mood FROM snapshots WHERE caption IS NOT NULL ORDER BY node, ts DESC`);
+    const lastGlance = new Map(glances.rows.map((g) => [g.node, { ts: g.ts.toISOString(), caption: g.caption, caption_th: g.caption_th, mood: g.mood }]));
     const angles = await query<{ node: string; angle: number; cnt: string }>(
       `SELECT node, angle, count(*) AS cnt FROM snapshots WHERE angle IS NOT NULL GROUP BY node, angle ORDER BY node, angle`);
     const byNode = new Map<string, { angle: number; count: number }[]>();

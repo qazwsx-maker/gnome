@@ -135,13 +135,13 @@
       </div>
       ${c.cam?.servo || c.cam?.tilt ? `<div class="pad">
         ${c.cam.servo ? `<div class="pad-row"><span class="pad-lab">หัน</span>
-          <button class="nudge" data-nudge="pan" data-by="-1" ${c.online ? '' : 'disabled'} title="กดค้าง = หมุนต่อเนื่องทีละ 1°">◀</button>
+          <button class="nudge" data-nudge="pan" data-by="1" ${c.online ? '' : 'disabled'} title="หันซ้าย · กดค้าง = ทีละ 1°">◀</button>
           <b class="pose pose-pan">${c.cam.pan_mode === 'continuous' ? stepTxt(c.cam.cont_pos) : (c.cam.angle ?? 90) + '°'}</b>
-          <button class="nudge" data-nudge="pan" data-by="1" ${c.online ? '' : 'disabled'} title="กดค้าง = หมุนต่อเนื่องทีละ 1°">▶</button></div>` : '<div class="muted small">หัน (pan) ปิดอยู่ — servo ตัวล่างต้องเป็นแบบกำหนดมุม 180° ไม่ใช่แบบหมุนรอบตัว 360°</div>'}
+          <button class="nudge" data-nudge="pan" data-by="-1" ${c.online ? '' : 'disabled'} title="หันขวา · กดค้าง = ทีละ 1°">▶</button></div>` : '<div class="muted small">หัน (pan) ปิดอยู่ — servo ตัวล่างต้องเป็นแบบกำหนดมุม 180° ไม่ใช่แบบหมุนรอบตัว 360°</div>'}
         ${c.cam.tilt ? `<div class="pad-row"><span class="pad-lab">ก้มเงย</span>
-          <button class="nudge" data-nudge="tilt" data-by="-1" ${c.online ? '' : 'disabled'} title="กดค้าง = หมุนต่อเนื่องทีละ 1°">▼</button>
+          <button class="nudge" data-nudge="tilt" data-by="1" ${c.online ? '' : 'disabled'} title="ก้มลง · กดค้าง = ทีละ 1°">▼</button>
           <b class="pose pose-tilt">${c.cam.tilt_angle ?? 90}°</b>
-          <button class="nudge" data-nudge="tilt" data-by="1" ${c.online ? '' : 'disabled'} title="กดค้าง = หมุนต่อเนื่องทีละ 1°">▲</button></div>` : ''}
+          <button class="nudge" data-nudge="tilt" data-by="-1" ${c.online ? '' : 'disabled'} title="เงยขึ้น · กดค้าง = ทีละ 1°">▲</button></div>` : ''}
         <div class="row">
           ${(c.cam.presets || []).map((p) => `<button class="small" data-preset="${esc(p.name)}" title="หัน ${p.angle}°${p.tilt != null ? ' · ก้มเงย ' + p.tilt + '°' : ''}" ${c.online ? '' : 'disabled'}>${p.name === 'front' ? '🏠 หน้าตรง' : esc(p.name)}</button>`).join('')}
           <button class="ghost small" data-svhome="1" ${c.online ? '' : 'disabled'} title="บันทึกมุมตอนนี้เป็นตำแหน่งหน้าตรง">📌 จำเป็นหน้าตรง</button>

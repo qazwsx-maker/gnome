@@ -267,6 +267,7 @@ static void setFlash(bool on) { flashOn = on; pinMode(CAM_FLASH_PIN, OUTPUT); di
 // ตอนนี้ก๊อปเฟรมไว้ใน PSRAM แล้วปล่อยกล้องทันที ส่วนการส่งทำใน task แยก ลูปหลักเดินต่อ
 struct UploadJob { uint8_t* buf; size_t len; char reason[16]; int angle; int tilt; };
 static volatile bool upBusy = false;
+static uint32_t upStartMs = 0; static char upReason[16] = ""; static int upStuckStage = 0;   // เฝ้า task อัปโหลดค้าง
 static volatile int  upDoneCode = 0;     // 0 = ไม่มีผลค้าง
 static size_t upDoneBytes = 0;
 static char upDoneReason[16] = "";
@@ -308,7 +309,7 @@ static bool snapAndUpload(const char* reason) {
   esp_camera_fb_return(fb); xSemaphoreGive(camLock);          // ปล่อยกล้องทันที :81/stream ไม่ต้องรอส่งเสร็จ
   strlcpy(j->reason, reason, sizeof j->reason); j->angle = cfg.servoPin >= 0 ? cfg.servoAngle : -1; j->tilt = hasTilt() ? cfg.tiltAngle : -1;
   lastBytes = j->len;
-  upBusy = true;
+  upBusy = true; upStartMs = millis(); strlcpy(upReason, reason, sizeof upReason);
   if (xTaskCreatePinnedToCore(uploadTask, "camup", 8192, j, 1, nullptr, 0) != pdPASS) { free(j->buf); delete j; upBusy = false; fails++; return false; }
   return true;
 }
@@ -333,6 +334,24 @@ static void uploadReport() {
     else if (connFailStreak >= 4) { Serial.println("[cam] 4 connect failures — restart"); mqttEvent("selfheal", "\"action\":\"restart\",\"streak\":4"); netRequestReboot(1500); connFailStreak = 0; }
   }
   mqttEvent(ok ? "snapshot" : "snapshot_failed", String("\"bytes\":") + upDoneBytes + ",\"code\":" + code + ",\"reason\":\"" + upDoneReason + "\"");
+}
+
+// อัปโหลดค้าง: 2026-10-24 23:35 task ส่งภาพค้างอยู่ใน HTTP ข้ามคืน 10 ชม. (MQTT/ping ปกติ แต่ :80 ไม่ตอบ) → ทุกรอบถ่ายถูกข้าม "busy"
+// เงียบๆ ไม่มี event ไม่นับเป็น fail selfheal เดิมจึงไม่ทำงาน · ตอนนี้: ค้างเกิน 90 วิ → แจ้ง + ตัด WiFi ให้ socket พัง task จะจบเอง
+// ยังค้างต่ออีก 60 วิ → restart (สั่งผ่านลูปหลัก ไม่ฆ่า task ตรงๆ เพราะ heap ที่ task ถืออยู่จะรั่ว)
+#define UPLOAD_STUCK_MS 90000
+static void uploadWatchdog() {
+  if (!upBusy) { upStuckStage = 0; return; }
+  uint32_t age = millis() - upStartMs;
+  if (upStuckStage == 0 && age > UPLOAD_STUCK_MS) {
+    upStuckStage = 1; Serial.printf("[cam] upload stuck %lus (%s) — WiFi reconnect\n", (unsigned long)(age / 1000), upReason);
+    mqttEvent("upload_stuck", String("\"since_s\":") + (age / 1000) + ",\"reason\":\"" + upReason + "\",\"action\":\"wifi_reconnect\"");
+    mqttLoop(); delay(100); WiFi.disconnect(); delay(200); WiFi.reconnect();
+  } else if (upStuckStage == 1 && age > UPLOAD_STUCK_MS + 60000) {
+    upStuckStage = 2; Serial.println("[cam] upload still stuck — restart");
+    mqttEvent("selfheal", String("\"action\":\"restart\",\"why\":\"upload stuck ") + (age / 1000) + "s\"");
+    netRequestReboot(1500);
+  }
 }
 
 static uint32_t servoRestoreAt = 0;   // 0 = ไม่ต้องคืนตำแหน่ง
@@ -371,7 +390,7 @@ static int patrol(const char* reason) {
 }
 
 void roleLoop() {
-  uploadReport();
+  uploadReport(); uploadWatchdog();
   // กล้องเริ่มไม่ขึ้น: ลองใหม่ทุก 30 วิ · 4 รอบแล้วยังไม่ได้ → รีสตาร์ท (แจ้ง Hut ก่อน)
   if (!camOk && camRetryAt && millis() > camRetryAt) {
     camRetries++;

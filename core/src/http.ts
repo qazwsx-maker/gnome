@@ -126,7 +126,8 @@ export async function startHttp() {
     const { node } = req.params;
     const cmd = req.body?.cmd;
     if (!NODE_RE.test(node)) return bad(reply, 'bad node');
-    if (!cmd || !['reboot', 'identify', 'config', 'ota', 'snap', 'flash', 'rescan', 'flip'].includes(cmd)) return bad(reply, 'cmd must be reboot|identify|config|ota|snap|flash|rescan|flip');
+    if (!cmd || !['reboot', 'identify', 'config', 'ota', 'snap', 'flash', 'rescan', 'flip', 'img'].includes(cmd)) return bad(reply, 'cmd must be reboot|identify|config|ota|snap|flash|rescan|flip|img');
+    if (cmd === 'img' && (typeof req.body.payload !== 'object' || req.body.payload === null)) return bad(reply, 'img payload ต้องเป็น object เช่น {ae_level:-1, gain_ceiling:2, xclk_mhz:20}');
     if (cmd === 'flip') {
       const pl = req.body.payload as any;
       if (typeof pl !== 'object' || pl === null || (pl.vflip !== undefined && typeof pl.vflip !== 'boolean') || (pl.mirror !== undefined && typeof pl.mirror !== 'boolean'))

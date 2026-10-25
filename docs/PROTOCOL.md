@@ -29,6 +29,7 @@
 | `cmd/identify` | no | 1 | →node | กระพริบ LED 10 วินาที |
 | `cmd/snap` | no | 1 | →node (cam) | ถ่ายและส่งภาพทันที |
 | `cmd/live` | no | 1 | →node (cam) | ดูสดแบบกล้องส่งเฟรมขึ้น Hut: `{"seconds":60,"interval_ms":700}` หรือ `0` = หยุด · ระหว่างดูสด node POST JPEG 320×240 ไป `{hut_url}/api/cam/<node>/live-frame` (ไม่เก็บลงคลัง) เว้นช่วงหลังส่งอย่างน้อยเท่าเวลาส่งเฟรมก่อน · Hut ส่งซ้ำทุก 40 วิตราบที่มีคนดู `GET /api/cam/<node>/live` (MJPEG) |
+| `cmd/img` | no | 1 | →node (cam) | ค่าแสง/สีเซนเซอร์ ใช้ทันที+จำไว้: `{"ae_level":-2..2,"gain_ceiling":0..6,"aec2":bool,"brightness":-2..2,"contrast":-2..2,"saturation":-2..2,"wb_mode":0..4,"xclk_mhz":8..24}` · ส่งเฉพาะคีย์ที่จะเปลี่ยน · `xclk_mhz` มีผลหลังรีบูต · node ตอบ event `img` · meta.cam มี `ae_level,gain_ceiling,wb_mode,aec2,xclk_mhz` |
 | `cmd/flash` | no | 1 | →node (cam) | `ON` / `OFF` ไฟแฟลช GPIO4 |
 | `cmd/pan` | no | 1 | →node (cam) | มุมหัน `0`–`180` หรือชื่อ preset (preset ขยับทั้งหันและก้มเงย) · เติม ` +snap` เพื่อถ่ายหลังหันเสร็จ · ตอบ event `pan` `{angle, tilt?}` |
 | `cmd/tilt` | no | 1 | →node (cam) | มุมก้มเงย `0`–`180` (ถูกจำกัดด้วย `tilt_min`/`tilt_max` ของ node) · ` +snap` ได้เหมือน pan · ต้องตั้ง `tilt_pin` ที่ node ก่อน |

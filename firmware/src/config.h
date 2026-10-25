@@ -81,6 +81,13 @@ struct Config {
   bool camFlash = false;    // เปิดไฟแฟลช GPIO4 ตอนถ่าย
   bool camVflip = false;    // กลับบน-ล่าง
   bool camMirror = false;   // กลับซ้าย-ขวา (กระจก)
+  // ภาพ (OV2640) — ปรับสดด้วย cmd/img ไม่ต้องรีบูต (ยกเว้น xclk) · ค่าเริ่มคือค่าเดิมของไดรเวอร์
+  int camAeLevel = 0;       // -2..2 ชดเชยแสง: ลบ = มืดลง กันขาวโพลนกลางแดด
+  int camGainCeil = 6;      // 0..6 = 2x..128x เพดาน gain ตอนมืด (ต่ำ = noise น้อย)
+  bool camAec2 = false;     // AEC แบบ DSP (เหมาะกลางคืน)
+  int camBrightness = 0, camContrast = 0, camSaturation = 0;   // -2..2
+  int camWbMode = 0;        // 0 auto · 1 แดด · 2 เมฆ · 3 ออฟฟิศ · 4 บ้าน
+  int camXclkMhz = 20;      // 20 = สีตรง · 10 ทำให้ส่วนสว่างกลางแดดเป็นสีชมพูทึบ (2026-10-25) แต่ WiFi นิ่งกว่า · ต้องรีบูต
   // servo หัน (pan) ของ Watcher — ESP32-CAM ใช้ขาว่าง 13/14/15 ได้ (เมื่อไม่ใช้ SD card)
   int servoPin = -1;        // -1 = ไม่มี servo
   int servoMinUs = 500, servoMaxUs = 2400;

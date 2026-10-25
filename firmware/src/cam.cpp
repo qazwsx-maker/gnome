@@ -174,6 +174,22 @@ static void applyFlip() {
   s->set_vflip(s, cfg.camVflip ? 1 : 0);
   s->set_hmirror(s, cfg.camMirror ? 1 : 0);
 }
+// ค่าแสง/สีของเซนเซอร์ — ใช้ได้ทันที (2026-10-25 กลางแดดภาพขาวโพลน+ออกชมพู → ลด ae_level / เพดาน gain)
+static void applyImage() {
+  sensor_t* s = esp_camera_sensor_get();
+  if (!s) return;
+  s->set_ae_level(s, constrain(cfg.camAeLevel, -2, 2));
+  s->set_gainceiling(s, (gainceiling_t)constrain(cfg.camGainCeil, 0, 6));
+  s->set_aec2(s, cfg.camAec2 ? 1 : 0);
+  s->set_brightness(s, constrain(cfg.camBrightness, -2, 2));
+  s->set_contrast(s, constrain(cfg.camContrast, -2, 2));
+  s->set_saturation(s, constrain(cfg.camSaturation, -2, 2));
+  s->set_wb_mode(s, constrain(cfg.camWbMode, 0, 4));
+}
+static String imageJson() {
+  return String("\"ae_level\":") + cfg.camAeLevel + ",\"gain_ceiling\":" + cfg.camGainCeil + ",\"aec2\":" + (cfg.camAec2 ? "true" : "false") +
+         ",\"brightness\":" + cfg.camBrightness + ",\"contrast\":" + cfg.camContrast + ",\"saturation\":" + cfg.camSaturation + ",\"wb_mode\":" + cfg.camWbMode + ",\"xclk_mhz\":" + cfg.camXclkMhz;
+}
 
 static bool camInit(int xclkHz = 10000000) {
   camera_config_t c = {};
@@ -182,7 +198,8 @@ static bool camInit(int xclkHz = 10000000) {
   c.pin_d4 = CAM_PIN_D4; c.pin_d5 = CAM_PIN_D5; c.pin_d6 = CAM_PIN_D6; c.pin_d7 = CAM_PIN_D7;
   c.pin_xclk = CAM_PIN_XCLK; c.pin_pclk = CAM_PIN_PCLK; c.pin_vsync = CAM_PIN_VSYNC; c.pin_href = CAM_PIN_HREF;
   c.pin_sccb_sda = CAM_PIN_SIOD; c.pin_sccb_scl = CAM_PIN_SIOC; c.pin_pwdn = CAM_PIN_PWDN; c.pin_reset = CAM_PIN_RESET;
-  // 10 MHz แทน 20 MHz: นาฬิกากล้องรบกวน WiFi ของ ESP32-CAM เอง (2026-10-24 ที่สวน อัปโหลด 43 kB ใช้ 7–25 วิ) · fps ไม่สำคัญกับงานนี้
+  // xclk ตั้งได้ (cmd/img xclk_mhz): 10 MHz ช่วย WiFi (2026-10-24 อัปโหลด 43 kB ใช้ 7–25 วิที่ 20 MHz) แต่ทำให้ส่วนสว่างกลางแดด
+  // เป็นสีชมพูทึบ 6–18% ของภาพ (2026-10-25) → ค่าเริ่ม 20 MHz · อัปโหลดค้างมี uploadWatchdog ดูแลแล้ว
   c.xclk_freq_hz = xclkHz; c.pixel_format = PIXFORMAT_JPEG;
   c.frame_size = psramFound() ? sizeFromCfg() : FRAMESIZE_VGA;
   c.jpeg_quality = psramFound() ? 15 : 17;   // เลขมาก = ไฟล์เล็ก · 12 → 15 ลดราว 30% ให้อัปโหลดทันบนลิงก์อ่อน
@@ -192,7 +209,7 @@ static bool camInit(int xclkHz = 10000000) {
   esp_err_t err = esp_camera_init(&c);
   if (err != ESP_OK) { Serial.printf("[cam] init failed 0x%x\n", err); return false; }
   sensor_t* s = esp_camera_sensor_get();
-  applyFlip();
+  applyFlip(); applyImage();
   Serial.printf("[cam] ok psram=%d size=%s\n", psramFound(), cfg.camSize.c_str());
   return true;
 }
@@ -201,7 +218,7 @@ static bool camInit(int xclkHz = 10000000) {
  *  (2026-10-24: หลังลง 0.8.5 ผ่านหน้าเว็บ cam.ok = false ถ่ายไม่ได้เลย) → ปิด-เปิด PWDN แล้วลองใหม่ · ครั้งสุดท้ายใช้ 20 MHz */
 static bool camInitRetry() {
   for (int i = 0; i < 3; i++) {
-    if (camInit(i < 2 ? 10000000 : 20000000)) return true;
+    if (camInit(i < 2 ? constrain(cfg.camXclkMhz, 8, 24) * 1000000 : 20000000)) return true;
     esp_camera_deinit();
     pinMode(CAM_PIN_PWDN, OUTPUT); digitalWrite(CAM_PIN_PWDN, HIGH); delay(200); digitalWrite(CAM_PIN_PWDN, LOW); delay(300);
   }
@@ -428,7 +445,7 @@ void roleMeta(JsonObject meta) {
   JsonObject cam = meta["cam"].to<JsonObject>();
   String ip = WiFi.localIP().toString();
   cam["stream"] = "http://" + ip + ":81/stream"; cam["snapshot"] = "http://" + ip + ":81/snapshot";
-  cam["interval_s"] = cfg.intervalS; cam["size"] = cfg.camSize; cam["ok"] = camOk; cam["flash"] = cfg.camFlash; cam["vflip"] = cfg.camVflip; cam["mirror"] = cfg.camMirror;
+  cam["interval_s"] = cfg.intervalS; cam["size"] = cfg.camSize; cam["ok"] = camOk; cam["ae_level"] = cfg.camAeLevel; cam["gain_ceiling"] = cfg.camGainCeil; cam["wb_mode"] = cfg.camWbMode; cam["aec2"] = cfg.camAec2; cam["xclk_mhz"] = cfg.camXclkMhz; cam["flash"] = cfg.camFlash; cam["vflip"] = cfg.camVflip; cam["mirror"] = cfg.camMirror;
   cam["servo"] = cfg.servoPin >= 0; cam["angle"] = cfg.servoAngle; cam["speed"] = cfg.servoSpeed; cam["hold_ms"] = cfg.servoHoldMs; cam["pan_min"] = cfg.panMin; cam["pan_max"] = cfg.panMax; cam["pan_invert"] = cfg.servoInvert; cam["tilt_invert"] = cfg.tiltInvert;
   cam["pan_mode"] = cfg.panCont ? "continuous" : "position"; cam["stop_us"] = cfg.stopUs; cam["cont_us"] = cfg.contUs; cam["cont_ms"] = cfg.contMs; cam["cont_limit"] = cfg.contLimit; cam["cont_pos"] = cfg.contPos;
   cam["tilt"] = hasTilt(); if (hasTilt()) { cam["tilt_angle"] = cfg.tiltAngle; cam["tilt_min"] = cfg.tiltMin; cam["tilt_max"] = cfg.tiltMax; }
@@ -554,6 +571,19 @@ bool roleCommand(const String& sub, const String& payload) {
     if (p != cfg.servoAngle || (t >= 0 && t != cfg.tiltAngle)) moveTo(p != cfg.servoAngle ? p : -1, (t >= 0 && t != cfg.tiltAngle) ? t : -1, false);
     configSave(); mqttPublishMeta();
     mqttEvent("servo_cfg", "\"speed\":" + String(cfg.servoSpeed) + ",\"pan_min\":" + cfg.panMin + ",\"pan_max\":" + cfg.panMax + ",\"tilt_min\":" + cfg.tiltMin + ",\"tilt_max\":" + cfg.tiltMax + "," + anglesJson());
+    return true;
+  }
+  if (sub == "cmd/img") {   // {"ae_level":-2,"gain_ceiling":2,"aec2":false,"brightness":0,"contrast":0,"saturation":0,"wb_mode":1,"xclk_mhz":10}
+    JsonDocument d;
+    if (deserializeJson(d, payload)) { mqttEvent("img_error", "\"msg\":\"bad json\""); return true; }
+    auto geti = [&](const char* k, int& dst, int lo, int hi) { if (d[k].is<int>()) dst = constrain(d[k].as<int>(), lo, hi); };
+    geti("ae_level", cfg.camAeLevel, -2, 2); geti("gain_ceiling", cfg.camGainCeil, 0, 6); geti("brightness", cfg.camBrightness, -2, 2);
+    geti("contrast", cfg.camContrast, -2, 2); geti("saturation", cfg.camSaturation, -2, 2); geti("wb_mode", cfg.camWbMode, 0, 4);
+    if (d["aec2"].is<bool>()) cfg.camAec2 = d["aec2"].as<bool>();
+    bool rebootNeeded = false;
+    if (d["xclk_mhz"].is<int>()) { int v = constrain(d["xclk_mhz"].as<int>(), 8, 24); if (v != cfg.camXclkMhz) { cfg.camXclkMhz = v; rebootNeeded = true; } }
+    applyImage(); configSave(); mqttPublishMeta();
+    mqttEvent("img", imageJson() + (rebootNeeded ? ",\"reboot_needed\":true" : ""));
     return true;
   }
   if (sub == "cmd/flip") {

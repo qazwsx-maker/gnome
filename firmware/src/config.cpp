@@ -54,6 +54,7 @@ void configToJson(JsonObject o, bool includeSecrets) {
   o["interval_s"] = cfg.intervalS; o["i2c_sda"] = cfg.i2cSda; o["i2c_scl"] = cfg.i2cScl; o["dht_pin"] = cfg.dhtPin; o["soil_power_pin"] = cfg.soilPowerPin;
   o["failsafe_s"] = cfg.failsafeS; o["oled"] = cfg.oled; o["board"] = GNOME_BOARD; o["thirsty_pct"] = cfg.thirstyPct; o["hot_c"] = cfg.hotC;
   o["hut_url"] = cfg.hutUrl; o["cam_size"] = cfg.camSize; o["cam_flash"] = cfg.camFlash; o["cam_vflip"] = cfg.camVflip; o["cam_mirror"] = cfg.camMirror;
+  o["cam_ae_level"] = cfg.camAeLevel; o["cam_gain_ceiling"] = cfg.camGainCeil; o["cam_aec2"] = cfg.camAec2; o["cam_brightness"] = cfg.camBrightness; o["cam_contrast"] = cfg.camContrast; o["cam_saturation"] = cfg.camSaturation; o["cam_wb_mode"] = cfg.camWbMode; o["cam_xclk_mhz"] = cfg.camXclkMhz;
   o["servo_pin"] = cfg.servoPin; o["servo_min_us"] = cfg.servoMinUs; o["servo_max_us"] = cfg.servoMaxUs; o["servo_angle"] = cfg.servoAngle; o["servo_invert"] = cfg.servoInvert; o["servo_speed"] = cfg.servoSpeed; o["servo_hold_ms"] = cfg.servoHoldMs;
   o["tilt_pin"] = cfg.tiltPin; o["tilt_angle"] = cfg.tiltAngle; o["tilt_invert"] = cfg.tiltInvert; o["tilt_min"] = cfg.tiltMin; o["tilt_max"] = cfg.tiltMax; o["pan_min"] = cfg.panMin; o["pan_max"] = cfg.panMax; o["pan_mode"] = cfg.panCont ? "continuous" : "position"; o["stop_us"] = cfg.stopUs; o["cont_us"] = cfg.contUs; o["cont_ms"] = cfg.contMs; o["cont_limit"] = cfg.contLimit; o["cont_pos"] = cfg.contPos;
   JsonArray pre = o["presets"].to<JsonArray>();
@@ -93,6 +94,8 @@ bool configApplyJson(JsonObjectConst o) {
   setS("hut_url", cfg.hutUrl); if (o["cam_size"].is<const char*>()) { String v = o["cam_size"].as<String>(); if (v == "vga" || v == "svga" || v == "xga" || v == "uxga") { if (v != cfg.camSize) { cfg.camSize = v; changed = true; } } }
   if (o["cam_flash"].is<bool>()) { cfg.camFlash = o["cam_flash"].as<bool>(); changed = true; } if (o["cam_vflip"].is<bool>()) { cfg.camVflip = o["cam_vflip"].as<bool>(); changed = true; }
   if (o["cam_mirror"].is<bool>()) { cfg.camMirror = o["cam_mirror"].as<bool>(); changed = true; }
+  setI("cam_ae_level", cfg.camAeLevel); setI("cam_gain_ceiling", cfg.camGainCeil); setI("cam_brightness", cfg.camBrightness); setI("cam_contrast", cfg.camContrast); setI("cam_saturation", cfg.camSaturation); setI("cam_wb_mode", cfg.camWbMode); setI("cam_xclk_mhz", cfg.camXclkMhz);
+  if (o["cam_aec2"].is<bool>()) { cfg.camAec2 = o["cam_aec2"].as<bool>(); changed = true; }
   if (o["cam_flip"].is<bool>()) { cfg.camVflip = cfg.camMirror = o["cam_flip"].as<bool>(); changed = true; }   // คีย์เก่า = หมุน 180°
   setI("servo_pin", cfg.servoPin); setI("servo_speed", cfg.servoSpeed); setI("servo_hold_ms", cfg.servoHoldMs); setI("servo_min_us", cfg.servoMinUs); setI("servo_max_us", cfg.servoMaxUs); setI("servo_angle", cfg.servoAngle);
   if (o["servo_invert"].is<bool>()) { cfg.servoInvert = o["servo_invert"].as<bool>(); changed = true; }

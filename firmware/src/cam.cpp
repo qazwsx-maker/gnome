@@ -187,7 +187,7 @@ static void applyImage() {
   s->set_wb_mode(s, constrain(cfg.camWbMode, 0, 4));
 }
 static String imageJson() {
-  return String("\"ae_level\":") + cfg.camAeLevel + ",\"gain_ceiling\":" + cfg.camGainCeil + ",\"aec2\":" + (cfg.camAec2 ? "true" : "false") +
+  return String("\"snap_flash\":") + (cfg.camFlash ? "true" : "false") + ",\"ae_level\":" + cfg.camAeLevel + ",\"gain_ceiling\":" + cfg.camGainCeil + ",\"aec2\":" + (cfg.camAec2 ? "true" : "false") +
          ",\"brightness\":" + cfg.camBrightness + ",\"contrast\":" + cfg.camContrast + ",\"saturation\":" + cfg.camSaturation + ",\"wb_mode\":" + cfg.camWbMode + ",\"xclk_mhz\":" + cfg.camXclkMhz;
 }
 
@@ -277,6 +277,14 @@ static String hutBase() { String b = cfg.hutUrl.length() ? cfg.hutUrl : ("http:/
 static String hutBaseResolved() { return netResolveUrl(hutBase()); }
 
 static void setFlash(bool on) { flashOn = on; pinMode(CAM_FLASH_PIN, OUTPUT); digitalWrite(CAM_FLASH_PIN, on ? HIGH : LOW); }
+// ปุ่มแฟลชบน dashboard: เปิดแล้วดับเองใน N วิ (ค่าเริ่ม 10) ถ้าไม่ได้กดปิด — นับถอยหลังในตัว node เอง เผื่อ Hut/เบราว์เซอร์หายไป LED ก็ไม่ค้าง
+static uint32_t flashOffAt = 0;
+static void flashCmd(bool on, int secs) {
+  setFlash(on); flashOffAt = on && secs > 0 ? millis() + (uint32_t)secs * 1000 : 0;
+  mqttEvent("flash", String("\"on\":") + (on ? "true" : "false") + ",\"off_in_s\":" + (on ? secs : 0));
+  mqttPublishMeta();
+}
+static void flashLoop() { if (flashOffAt && (int32_t)(millis() - flashOffAt) >= 0) { flashOffAt = 0; flashCmd(false, 0); } }
 
 // ถ่าย + ส่งขึ้น Hut
 // ---- อัปโหลดเบื้องหลัง ----
@@ -407,7 +415,7 @@ static int patrol(const char* reason) {
 }
 
 void roleLoop() {
-  uploadReport(); uploadWatchdog();
+  uploadReport(); uploadWatchdog(); flashLoop();
   // กล้องเริ่มไม่ขึ้น: ลองใหม่ทุก 30 วิ · 4 รอบแล้วยังไม่ได้ → รีสตาร์ท (แจ้ง Hut ก่อน)
   if (!camOk && camRetryAt && millis() > camRetryAt) {
     camRetries++;
@@ -445,7 +453,7 @@ void roleMeta(JsonObject meta) {
   JsonObject cam = meta["cam"].to<JsonObject>();
   String ip = WiFi.localIP().toString();
   cam["stream"] = "http://" + ip + ":81/stream"; cam["snapshot"] = "http://" + ip + ":81/snapshot";
-  cam["interval_s"] = cfg.intervalS; cam["size"] = cfg.camSize; cam["ok"] = camOk; cam["ae_level"] = cfg.camAeLevel; cam["gain_ceiling"] = cfg.camGainCeil; cam["wb_mode"] = cfg.camWbMode; cam["aec2"] = cfg.camAec2; cam["xclk_mhz"] = cfg.camXclkMhz; cam["flash"] = cfg.camFlash; cam["vflip"] = cfg.camVflip; cam["mirror"] = cfg.camMirror;
+  cam["interval_s"] = cfg.intervalS; cam["size"] = cfg.camSize; cam["ok"] = camOk; cam["ae_level"] = cfg.camAeLevel; cam["gain_ceiling"] = cfg.camGainCeil; cam["wb_mode"] = cfg.camWbMode; cam["aec2"] = cfg.camAec2; cam["xclk_mhz"] = cfg.camXclkMhz; cam["flash"] = flashOn; cam["snap_flash"] = cfg.camFlash; cam["vflip"] = cfg.camVflip; cam["mirror"] = cfg.camMirror;
   cam["servo"] = cfg.servoPin >= 0; cam["angle"] = cfg.servoAngle; cam["speed"] = cfg.servoSpeed; cam["hold_ms"] = cfg.servoHoldMs; cam["pan_min"] = cfg.panMin; cam["pan_max"] = cfg.panMax; cam["pan_invert"] = cfg.servoInvert; cam["tilt_invert"] = cfg.tiltInvert;
   cam["pan_mode"] = cfg.panCont ? "continuous" : "position"; cam["stop_us"] = cfg.stopUs; cam["cont_us"] = cfg.contUs; cam["cont_ms"] = cfg.contMs; cam["cont_limit"] = cfg.contLimit; cam["cont_pos"] = cfg.contPos;
   cam["tilt"] = hasTilt(); if (hasTilt()) { cam["tilt_angle"] = cfg.tiltAngle; cam["tilt_min"] = cfg.tiltMin; cam["tilt_max"] = cfg.tiltMax; }
@@ -498,7 +506,14 @@ bool roleCommand(const String& sub, const String& payload) {
     liveSize(secs > 0);
     return true;
   }
-  if (sub == "cmd/flash") { String p = payload; p.trim(); p.toUpperCase(); setFlash(p == "ON" || p == "1"); return true; }
+  if (sub == "cmd/flash") {   // "ON" = เปิด 10 วิแล้วดับเอง · "ON:30" / "30" = เปิด N วิ (1–120) · "OFF" · "HOLD" = เปิดค้าง
+    String p = payload; p.trim(); p.toUpperCase(); int secs = 10;
+    int c = p.indexOf(':'); if (c > 0) { secs = p.substring(c + 1).toInt(); p = p.substring(0, c); }
+    else if (p.length() && isDigit(p[0])) { secs = p.toInt(); p = secs > 0 ? "ON" : "OFF"; }
+    if (p == "HOLD") { flashCmd(true, 0); return true; }
+    flashCmd(p == "ON" || p == "1", constrain(secs, 1, 120));
+    return true;
+  }
   if (sub == "cmd/pan") {
     String p = payload; p.trim();
     if (cfg.servoPin < 0) { mqttEvent("pan_failed", "\"msg\":\"no servo\""); return true; }
@@ -580,8 +595,16 @@ bool roleCommand(const String& sub, const String& payload) {
     geti("ae_level", cfg.camAeLevel, -2, 2); geti("gain_ceiling", cfg.camGainCeil, 0, 6); geti("brightness", cfg.camBrightness, -2, 2);
     geti("contrast", cfg.camContrast, -2, 2); geti("saturation", cfg.camSaturation, -2, 2); geti("wb_mode", cfg.camWbMode, 0, 4);
     if (d["aec2"].is<bool>()) cfg.camAec2 = d["aec2"].as<bool>();
+    if (d["snap_flash"].is<bool>()) cfg.camFlash = d["snap_flash"].as<bool>();   // เปิดแฟลชเฉพาะตอนถ่าย (กลางคืน)
     bool rebootNeeded = false;
-    if (d["xclk_mhz"].is<int>()) { int v = constrain(d["xclk_mhz"].as<int>(), 8, 24); if (v != cfg.camXclkMhz) { cfg.camXclkMhz = v; rebootNeeded = true; } }
+    if (d["xclk_mhz"].is<int>()) {   // เปลี่ยนนาฬิกาสด (ไดรเวอร์มี set_xclk) — 10 MHz รับแสงกลางคืนได้นานกว่า · 20 MHz สีกลางวันถูก
+      int v = constrain(d["xclk_mhz"].as<int>(), 8, 24);
+      if (v != cfg.camXclkMhz) {
+        cfg.camXclkMhz = v; sensor_t* s = esp_camera_sensor_get();
+        if (s && s->set_xclk && xSemaphoreTake(camLock, pdMS_TO_TICKS(3000)) == pdTRUE) { s->set_xclk(s, LEDC_TIMER_0, v); xSemaphoreGive(camLock); }
+        else rebootNeeded = true;
+      }
+    }
     applyImage(); configSave(); mqttPublishMeta();
     mqttEvent("img", imageJson() + (rebootNeeded ? ",\"reboot_needed\":true" : ""));
     return true;

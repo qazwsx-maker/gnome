@@ -124,6 +124,7 @@
       <div class="row">
         <button class="small" data-snap="1" ${c.online ? '' : 'disabled'}>📸 ถ่ายตอนนี้</button>
         <button class="small" data-live="1" ${c.online ? '' : 'disabled'}>▶ ดูสด</button>
+        <button class="small" data-flash="1" ${c.online ? '' : 'disabled'} title="เปิดไฟแฟลชของกล้อง 10 วิ แล้วดับเอง · กดซ้ำ = ปิดทันที">${c.cam?.flash ? '🔦 ปิดแฟลช' : '🔦 แฟลช'}</button>
         <button class="small${c.cam?.vflip ? ' on' : ''}" data-vflip="1" ${c.online ? '' : 'disabled'} title="กลับภาพบน-ล่าง (มีผลทันที ไม่รีบูต)">↕ ${c.cam?.vflip ? 'บน-ล่าง ✓' : 'บน-ล่าง'}</button>
         <button class="small${c.cam?.mirror ? ' on' : ''}" data-mirror="1" ${c.online ? '' : 'disabled'} title="กลับภาพซ้าย-ขวา (มีผลทันที ไม่รีบูต)">↔ ${c.cam?.mirror ? 'ซ้าย-ขวา ✓' : 'ซ้าย-ขวา'}</button>
         <select class="small cam-day" title="เลือกวัน"><option value="">— time-lapse: เลือกวัน —</option></select>
@@ -191,6 +192,15 @@
   }
   // ปุ่มหัน/ก้มเงย/preset: กด 1 ครั้ง = สั่ง 1 ครั้ง แล้ว "กำลังทำงาน" ล็อกปุ่มไว้ จนกล้องรายงานมุมใหม่กลับมา (WS cam_pose) ค่อยกดต่อได้
   // (เดิมกดค้างยิงซ้ำทุก 350 ms — บนลิงก์ช้าที่สวนคำสั่งไปกองรอ กล้องหมุนต่อเองหลังปล่อยนิ้ว 2026-10-24) · ไม่มีคำตอบใน 30 วิ → ปลดล็อก + เตือน
+  // ปุ่มแฟลช: แสดงนับถอยหลังจนกล้องแจ้ง event flash off (หรือครบเวลาฝั่งนี้)
+  const flashTimers = {};
+  const flashUi = (node, on, secs) => {
+    const card = $(`.cam-card[data-node="${node}"]`); const b = card && $('[data-flash]', card); if (!b) return;
+    clearInterval(flashTimers[node]); b.classList.toggle('on', on);
+    if (!on) { b.textContent = '🔦 แฟลช'; return; }
+    let left = secs; const draw = () => { b.textContent = `🔦 ปิดแฟลช (${left} วิ)`; };
+    draw(); flashTimers[node] = setInterval(() => { left--; if (left <= 0) { clearInterval(flashTimers[node]); flashUi(node, false, 0); } else draw(); }, 1000);
+  };
   const padApply = (node) => {
     const card = $(`.cam-card[data-node="${node}"]`); if (!card) return;
     const b = camState.busy[node]; const c = camState.list.find((x) => x.node === node);
@@ -263,6 +273,11 @@
       else if (btn.dataset.patrol) { await api(`/cam/${node}/pan`, { method: 'POST', body: { patrol: true } }); toast('กำลังถ่ายทุกมุม…'); }
       else if (btn.dataset.delday) { const day = camState.day[node]; if (!day) return toast('เลือกวันใน time-lapse ก่อน', true); if (!confirm(`ลบภาพของ ${node} วันที่ ${day} ทั้งหมด?`)) return; const r = await api(`/cam/${node}/snapshots?day=${day}`, { method: 'DELETE' }); toast(`ลบ ${r.deleted} ภาพ`); renderCam(); }
       else if (btn.dataset.delall) { if (!confirm(`ลบภาพทั้งหมดของ ${node}? (กู้คืนไม่ได้)`)) return; const r = await api(`/cam/${node}/snapshots`, { method: 'DELETE' }); toast(`ลบ ${r.deleted} ภาพ`); renderCam(); }
+      else if (btn.dataset.flash) {   // แฟลช: node ดับเองใน 10 วิ (นับถอยหลังในตัวกล้อง) · กดซ้ำระหว่างติด = ปิด
+        const on = !btn.classList.contains('on');
+        await api(`/nodes/${node}/cmd`, { method: 'POST', body: { cmd: 'flash', payload: on ? 'ON' : 'OFF' } });
+        flashUi(node, on, on ? 10 : 0);
+      }
       else if (btn.dataset.live) {
         closeVideo(card); const img = $('.cam-img', card), ts = $('.cam-ts', card);
         if (camState.live?.[node]) { img.src = camState.live[node]; camState.live[node] = null; btn.textContent = '▶ ดูสด'; ts.textContent = 'หยุดดูสดแล้ว'; return; }
@@ -1078,7 +1093,8 @@
         case 'snapshot': onSnapshot(m); break;
         case 'glance': onGlance(m); break;
         case 'sage': onSageProgress(m); break;
-        case 'event': events.unshift({ id: m.id, ts: m.ts, node: m.node, type: m.event, payload: m.payload }); events = events.slice(0, 200); if ($('#tab-events').classList.contains('active')) renderEvents(); break;
+        case 'event': if (m.event === 'flash' && m.payload) flashUi(m.node, !!m.payload.on, Number(m.payload.off_in_s) || 0);
+          events.unshift({ id: m.id, ts: m.ts, node: m.node, type: m.event, payload: m.payload }); events = events.slice(0, 200); if ($('#tab-events').classList.contains('active')) renderEvents(); break;
         case 'rules': if ($('#tab-rules').classList.contains('active')) loadRules(); break;
       }
     };

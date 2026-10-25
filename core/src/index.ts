@@ -10,6 +10,7 @@ import { startHeartbeat } from './heartbeat.ts';
 import { loadSettings } from './settings.ts';
 import { startSonoff } from './sonoff.ts';
 import { startVibe } from './vibe.ts';
+import { startCamLight } from './camlight.ts';
 import { startHttp } from './http.ts';
 
 const log = logger('core');
@@ -27,6 +28,7 @@ async function main() {
   startRetention();
   startHeartbeat();
   await startVibe();
+  startCamLight();
   const app = await startHttp();
 
   setInterval(() => void healthTick(), config.healthTickMs).unref();

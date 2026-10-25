@@ -13,7 +13,7 @@ const nodeJson = (n: NodeState) => ({ ...nodeToJson(n), vibe: getVibe(n.node) })
 import { mqttConnected, sendSwitch, sendCmd, clearRetained } from './mqtt.ts';
 import { listRules, reloadRules, validateRule, activeRunsJson } from './rules.ts';
 import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs';
-import { registerCam } from './cam.ts';
+import { registerCam, camLinkOk } from './cam.ts';
 import { registerSage } from './sage.ts';
 import { registerAuth } from './auth.ts';
 import { discordSettings, saveDiscordSettings, glanceSettings, saveGlanceSettings } from './settings.ts';
@@ -178,9 +178,11 @@ export async function startHttp() {
     return { publicUrl: config.publicUrl, firmware: list, nodes: per };
   });
 
-  app.post<{ Params: { node: string }; Body: { env?: string } }>('/api/nodes/:node/ota', async (req, reply) => {
+  app.post<{ Params: { node: string }; Body: { env?: string; force?: boolean } }>('/api/nodes/:node/ota', async (req, reply) => {
     const n = nodes.get(req.params.node);
     if (!n) return bad(reply, 'node not found', 404);
+    // กล้อง: OTA บล็อกทั้ง node ระหว่างดาวน์โหลด ถ้าลิงก์แย่จะค้างเป็นชั่วโมง → ปฏิเสธเว้นแต่ force
+    if (n.role === 'cam' && !req.body?.force) { const l = camLinkOk(n.node); if (!l.ok) return reply.code(409).send({ error: `ลิงก์กล้องไม่พร้อม OTA: ${l.why} — รอให้ส่งภาพได้เร็วก่อน หรือส่ง {"force":true}` }); }
     const list = firmwareList();
     const env = req.body?.env || envForNode(n);
     if (!env || !list[env]) return bad(reply, `no firmware for env ${env}`);

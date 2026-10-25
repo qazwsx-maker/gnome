@@ -199,7 +199,13 @@
     clearInterval(flashTimers[node]); b.classList.toggle('on', on);
     if (!on) { b.textContent = '🔦 แฟลช'; return; }
     let left = secs; const draw = () => { b.textContent = `🔦 ปิดแฟลช (${left} วิ)`; };
-    draw(); flashTimers[node] = setInterval(() => { left--; if (left <= 0) { clearInterval(flashTimers[node]); flashUi(node, false, 0); } else draw(); }, 1000);
+    draw(); flashTimers[node] = setInterval(() => {
+      left--;
+      if (left <= 0) {   // ครบเวลา: ส่ง OFF ซ้ำจากฝั่งนี้ด้วย (เฟิร์มแวร์ < 0.8.15 ไม่ดับเอง) — ซ้ำกับที่ node ดับเองก็ไม่เป็นไร
+        clearInterval(flashTimers[node]); flashUi(node, false, 0);
+        api(`/nodes/${node}/cmd`, { method: 'POST', body: { cmd: 'flash', payload: 'OFF' } }).catch(() => {});
+      } else draw();
+    }, 1000);
   };
   const padApply = (node) => {
     const card = $(`.cam-card[data-node="${node}"]`); if (!card) return;

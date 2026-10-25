@@ -15,6 +15,17 @@ import { glanceOnSnapshot } from './glance.ts';
 
 const log = logger('cam');
 const NODE_RE = /^[a-z0-9-]+$/;
+// คุณภาพลิงก์ของกล้อง = เวลาที่ใช้ส่งภาพล่าสุด (วัดจาก request ทั้งก้อน) — ใช้กันสั่ง OTA ตอนลิงก์แย่
+// (2026-10-25 ค่ำ: OTA 1.1 MB บนลิงก์ที่ส่งภาพใช้ 28 วิ → กล้องค้างในขั้นดาวน์โหลด 77 นาที ping ไม่ตอบ รีสตาร์ทจากไกลไม่ได้)
+const linkStat = new Map<string, { ms: number; ts: number; bytes: number }>();
+export function camLinkOk(node: string, maxMs = 3000, maxAgeMs = 15 * 60_000): { ok: boolean; why: string } {
+  const l = linkStat.get(node);
+  if (!l) return { ok: false, why: 'ยังไม่เคยเห็นภาพจากกล้องนี้ตั้งแต่ Hut เริ่ม' };
+  const age = Date.now() - l.ts;
+  if (age > maxAgeMs) return { ok: false, why: `ภาพล่าสุดเมื่อ ${Math.round(age / 60000)} นาทีก่อน` };
+  if (l.ms > maxMs) return { ok: false, why: `ส่งภาพล่าสุด ${Math.round(l.bytes / 1024)} kB ใช้ ${(l.ms / 1000).toFixed(1)} วิ (ลิงก์ช้า)` };
+  return { ok: true, why: `ส่งภาพล่าสุดใช้ ${(l.ms / 1000).toFixed(1)} วิ` };
+}
 
 function stamp(d: Date): { day: string; file: string } {
   const p = (n: number) => String(n).padStart(2, '0');
@@ -43,6 +54,7 @@ export async function registerCam(app: FastifyInstance): Promise<void> {
     const r = await query<{ id: number }>('INSERT INTO snapshots(ts, node, path, bytes, reason, angle, tilt) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id',
       [now, node, rel, buf.length, reason, Number.isFinite(angle as number) ? angle : null, Number.isFinite(tilt as number) ? tilt : null]);
     const n = getNode(node); if (!n.role) n.role = 'cam'; touch(node);
+    { const ms = (reply as any).elapsedTime ?? (reply as any).getResponseTime?.() ?? 0; if (ms > 0) linkStat.set(node, { ms, ts: Date.now(), bytes: buf.length }); }
     const url = `/cam/${rel}`;
     bus.live({ type: 'snapshot', node, ts: now.toISOString(), url, bytes: buf.length, id: r.rows[0].id, angle, tilt } as any);
     glanceOnSnapshot(node, r.rows[0].id, rel);     // โหมดคิด — ทำเบื้องหลัง ไม่ให้ node รอ
@@ -75,6 +87,7 @@ export async function registerCam(app: FastifyInstance): Promise<void> {
     const { node } = req.params; const buf = req.body as Buffer;
     if (!NODE_RE.test(node) || !Buffer.isBuffer(buf) || buf.length < 500 || buf[0] !== 0xff || buf[1] !== 0xd8) return reply.code(400).send({ error: 'not a jpeg' });
     liveFrame.set(node, { buf, ts: Date.now() }); touch(node);
+    { const ms = (reply as any).elapsedTime ?? (reply as any).getResponseTime?.() ?? 0; if (ms > 0) linkStat.set(node, { ms, ts: Date.now(), bytes: buf.length }); }
     for (const fn of liveWatchers.get(node) || []) fn(buf);
     if (!liveWatchers.get(node)?.size) stopLiveIfIdle(node);     // ไม่มีใครดูแล้ว (เช่น Hut รีสตาร์ท) → บอกกล้องให้หยุด
     return { ok: true };

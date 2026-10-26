@@ -18,6 +18,7 @@ export const T = {
   humidPct: 65,                                     // ≥ ชื้น, ต่ำกว่า แห้ง
   rainPct: 50,                                      // raindrop เปียก
   soilDryPct: 35,                                   // ดินแห้ง
+  staleMs: 15 * 60_000,                             // ค่าล่าสุดเก่ากว่านี้ = เซ็นเซอร์ไม่ตอบ (node ออนไลน์แต่อ่านไม่ได้ — earth 2026-10-26 ค้าง 🥵 ทั้งคืน)
 };
 
 export type Vibe = { icon: string; label: string; detail: string; mood: string; ts: string };
@@ -56,6 +57,12 @@ export function computeVibe(n: NodeState): Vibe {
     return { icon: '🔛', label: `${k} เปิดอยู่`, detail: on.join(', '), mood: 'happy', ts };
   }
 
+  // ค่าค้าง: node ยังออนไลน์ (MQTT) แต่ไม่มีค่าใหม่มานาน → บอกตรงๆ แทนที่จะโชว์หน้าจากค่าเก่า
+  const newest = Math.max(0, ...[...n.latest.values()].map((v) => (typeof v.ts === 'number' ? v.ts : Date.parse(String(v.ts))) || 0));
+  if (n.latest.size && newest && Date.now() - newest > T.staleMs) {
+    const at = new Date(newest).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' });
+    return { icon: '🤒', label: 'เซ็นเซอร์ไม่ตอบ', detail: `ค่าล่าสุดเมื่อ ${at} · node ยังออนไลน์`, mood: 'sick', ts };
+  }
   const lux = num(n, 'lux'); const temp = num(n, 'temp_c', 'dht_temp_c', 'bme_temp_c'); const rh = num(n, 'rh_pct', 'dht_rh_pct', 'bme_rh_pct');
   const rain = num(n, 'rain_pct');
   const soil = [...n.latest.entries()].filter(([k]) => k.endsWith('_pct') && !/^(rh|dht|bme|rain)/.test(k)).map(([k, v]) => ({ k, v: v.value }));

@@ -19,7 +19,7 @@
 | Server: status/logs/webapp/automation/Discord | กลาง | สแต็คที่มีอยู่แล้วบนเครื่องรองรับหมด |
 | Public access + login | ง่าย | Cloudflare Tunnel + Access (มี cloudflared อยู่แล้ว) ไม่ต้อง forward port |
 
-**สิ่งที่พบบนเครื่อง (2026-09-26):** Mac mini M4 / 16GB / macOS 26.4, Docker 28, Node 25, Python 3.14, PlatformIO 6.1.19, cloudflared 2026.6, ollama 0.33, PostgreSQL 17 (Homebrew, รันอยู่แล้ว)
+**สิ่งที่พบบนเครื่อง (2026-09-26):** Mac mini M4 / 16GB / macOS 26.4, Docker 28, Node 25, Python 3.14, PlatformIO 6.1.19, cloudflared 2026.6 (อัปเกรดเป็น 2026.10.4 เมื่อ 2026-10-27 ตามประกาศ Cloudflare เรื่องใบรับรอง eMudhra/emSign — LaunchAgent com.gnome.tunnel รีสตาร์ทแล้ว), ollama 0.33, PostgreSQL 17 (Homebrew, รันอยู่แล้ว)
 **ข้อจำกัด:** ดิสก์เหลือ **4.6 GB** → ต้องทำ retention/downsample ตั้งแต่วันแรก และเลือกใช้ Postgres ที่มีอยู่แทนเปิด container DB เพิ่ม
 
 ---

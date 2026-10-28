@@ -51,7 +51,7 @@ void configToJson(JsonObject o, bool includeSecrets) {
   o["wifi_ssid"] = cfg.wifiSsid; if (includeSecrets) o["wifi_pass"] = cfg.wifiPass; else o["wifi_pass_set"] = cfg.wifiPass.length() > 0;
   o["mqtt_host"] = cfg.mqttHost; o["mqtt_port"] = cfg.mqttPort; o["mqtt_user"] = cfg.mqttUser;
   if (includeSecrets) o["mqtt_pass"] = cfg.mqttPass; else o["mqtt_pass_set"] = cfg.mqttPass.length() > 0;
-  o["interval_s"] = cfg.intervalS; o["i2c_sda"] = cfg.i2cSda; o["i2c_scl"] = cfg.i2cScl; o["dht_pin"] = cfg.dhtPin; o["soil_power_pin"] = cfg.soilPowerPin;
+  o["interval_s"] = cfg.intervalS; o["i2c_sda"] = cfg.i2cSda; o["i2c_scl"] = cfg.i2cScl; o["dht_pin"] = cfg.dhtPin; o["dht_power_pin"] = cfg.dhtPowerPin; o["soil_power_pin"] = cfg.soilPowerPin;
   o["failsafe_s"] = cfg.failsafeS; o["oled"] = cfg.oled; o["board"] = GNOME_BOARD; o["thirsty_pct"] = cfg.thirstyPct; o["hot_c"] = cfg.hotC;
   o["hut_url"] = cfg.hutUrl; o["cam_size"] = cfg.camSize; o["cam_flash"] = cfg.camFlash; o["cam_vflip"] = cfg.camVflip; o["cam_mirror"] = cfg.camMirror;
   o["cam_ae_level"] = cfg.camAeLevel; o["cam_gain_ceiling"] = cfg.camGainCeil; o["cam_aec2"] = cfg.camAec2; o["cam_brightness"] = cfg.camBrightness; o["cam_contrast"] = cfg.camContrast; o["cam_saturation"] = cfg.camSaturation; o["cam_wb_mode"] = cfg.camWbMode; o["cam_xclk_mhz"] = cfg.camXclkMhz;
@@ -90,7 +90,7 @@ bool configApplyJson(JsonObjectConst o) {
   if (o["node"].is<const char*>()) { String n = sanitizeNode(o["node"].as<String>()); if (n.length() == 0) n = defaultNodeName(); if (n != cfg.node) { cfg.node = n; changed = true; } }
   setS("wifi_ssid", cfg.wifiSsid); setS("wifi_pass", cfg.wifiPass);
   setS("mqtt_host", cfg.mqttHost); setI("mqtt_port", cfg.mqttPort); setS("mqtt_user", cfg.mqttUser); setS("mqtt_pass", cfg.mqttPass);
-  setI("interval_s", cfg.intervalS); setI("i2c_sda", cfg.i2cSda); setI("i2c_scl", cfg.i2cScl); setI("dht_pin", cfg.dhtPin); setI("soil_power_pin", cfg.soilPowerPin); setI("failsafe_s", cfg.failsafeS); setI("thirsty_pct", cfg.thirstyPct); setI("hot_c", cfg.hotC);
+  setI("interval_s", cfg.intervalS); setI("i2c_sda", cfg.i2cSda); setI("i2c_scl", cfg.i2cScl); setI("dht_pin", cfg.dhtPin); setI("dht_power_pin", cfg.dhtPowerPin); setI("soil_power_pin", cfg.soilPowerPin); setI("failsafe_s", cfg.failsafeS); setI("thirsty_pct", cfg.thirstyPct); setI("hot_c", cfg.hotC);
   setS("hut_url", cfg.hutUrl); if (o["cam_size"].is<const char*>()) { String v = o["cam_size"].as<String>(); if (v == "vga" || v == "svga" || v == "xga" || v == "uxga") { if (v != cfg.camSize) { cfg.camSize = v; changed = true; } } }
   if (o["cam_flash"].is<bool>()) { cfg.camFlash = o["cam_flash"].as<bool>(); changed = true; } if (o["cam_vflip"].is<bool>()) { cfg.camVflip = o["cam_vflip"].as<bool>(); changed = true; }
   if (o["cam_mirror"].is<bool>()) { cfg.camMirror = o["cam_mirror"].as<bool>(); changed = true; }

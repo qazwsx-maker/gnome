@@ -70,6 +70,7 @@ struct Config {
   int thirstyPct = 35;     // ดินต่ำกว่านี้ = หน้ากระหาย (json: thirsty_pct)
   int hotC = 34;           // ร้อนกว่านี้ = หน้าร้อน (json: hot_c)
   int dhtPin = -1;
+  int dhtPowerPin = -1;    // จ่ายไฟ DHT จากขานี้แทน 3V3 → ค้างแล้ว firmware ตัดไฟรีเซ็ตเองได้ (AM2301A ค้างตอนชื้น > 80% — earth 2026-10-25/27) · -1 = ต่อ 3V3 ตรง
   int soilPowerPin = -1;   // จ่ายไฟหัววัด analog เฉพาะตอนวัด (ลดการกร่อนของหัว resistive) -1 = ไม่ใช้
   SoilCfg soil[GNOME_MAX_SOIL]; int soilCount = 0;
   SwitchCfg sw[GNOME_MAX_SWITCH]; int swCount = 0;

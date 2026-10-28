@@ -14,6 +14,27 @@ static String i2cFound;   // แอดเดรสที่เจอบนบั
 static DHT* dht = nullptr;
 static uint32_t lastPub = 0, lastErrEvent = 0, retryAt = 0;
 static bool dhtRetryPending = false;
+// DHT ค้าง (AM2301A ค้างตอนความชื้นสูง อ่านได้แต่ NaN จนกว่าจะตัดไฟ — earth 2026-10-25 22:30 / 10-27 21:17)
+// ถ้าตั้ง dht_power_pin: ล้ม DHT_RESET_AFTER รอบติด → ตัดไฟ 3 วิ (ดึง DATA ลง LOW ด้วย ไม่งั้นไฟรั่วผ่าน pull-up เลี้ยงชิปไว้)
+// → จ่ายไฟ รอ 2 วิ ให้ชิปตื่น → begin() ใหม่ · ทำแบบไม่บล็อก · เว้นอย่างน้อย DHT_RESET_GAP_MS ระหว่างรอบ กันตัดไฟรัว
+#define DHT_RESET_AFTER 3
+#define DHT_RESET_GAP_MS 300000UL
+static int dhtFailStreak = 0, dhtResets = 0;
+static uint8_t dhtPwr = 0;          // 0 ปกติ · 1 ตัดไฟอยู่ · 2 จ่ายไฟแล้วรอชิปตื่น
+static uint32_t dhtPwrAt = 0, dhtLastReset = 0;
+static void dhtPowerOn() { if (cfg.dhtPowerPin < 0) return; pinMode(cfg.dhtPowerPin, OUTPUT); digitalWrite(cfg.dhtPowerPin, HIGH); }
+static void dhtStartReset(const char* why) {
+  if (cfg.dhtPowerPin < 0 || cfg.dhtPin < 0 || dhtPwr) return;
+  if (dhtLastReset && millis() - dhtLastReset < DHT_RESET_GAP_MS) return;
+  dhtLastReset = millis(); dhtResets++; dhtPwr = 1; dhtPwrAt = millis() + 3000;
+  digitalWrite(cfg.dhtPowerPin, LOW); pinMode(cfg.dhtPin, OUTPUT); digitalWrite(cfg.dhtPin, LOW);
+  Serial.printf("[scout] DHT power-cycle #%d (%s)\n", dhtResets, why);
+  mqttEvent("dht_reset", String("\"why\":\"") + why + "\",\"streak\":" + dhtFailStreak + ",\"resets\":" + dhtResets);
+}
+static void dhtPowerLoop() {
+  if (dhtPwr == 1 && (int32_t)(millis() - dhtPwrAt) >= 0) { pinMode(cfg.dhtPin, INPUT_PULLUP); dhtPowerOn(); dhtPwr = 2; dhtPwrAt = millis() + 2000; }
+  else if (dhtPwr == 2 && (int32_t)(millis() - dhtPwrAt) >= 0) { dhtPwr = 0; if (dht) dht->begin(); lastPub = 0; Serial.println("[scout] DHT powered back"); }
+}
 
 struct Reading { String key, unit, src; float value = NAN; bool valid = false; };
 static Reading last[16]; static int lastCount = 0;
@@ -38,7 +59,10 @@ void roleRescan() {
   for (uint8_t a : {0x23, 0x5C}) if (!hasBh && bh.begin(BH1750::CONTINUOUS_HIGH_RES_MODE, a, &Wire)) hasBh = true;
   for (uint8_t a : {0x76, 0x77}) if (!hasBme && bme.begin(a, &Wire)) hasBme = true;
   if (dht) { delete dht; dht = nullptr; }
-  if (cfg.dhtPin >= 0) { dht = new DHT(cfg.dhtPin, DHT22); dht->begin(); }
+  if (cfg.dhtPin >= 0) {
+    if (cfg.dhtPowerPin >= 0 && !dhtPwr) { dhtPowerOn(); delay(1200); }   // ชิปต้องการ ~1 วิหลังได้ไฟ (ครั้งเดียวตอนเริ่ม/สแกนใหม่)
+    dht = new DHT(cfg.dhtPin, DHT22); dht->begin();
+  }
   for (int i = 0; i < cfg.soilCount; i++) { pinMode(cfg.soil[i].pin, INPUT); analogSetPinAttenuation(cfg.soil[i].pin, ADC_11db); }
   if (cfg.soilPowerPin >= 0) { pinMode(cfg.soilPowerPin, OUTPUT); digitalWrite(cfg.soilPowerPin, LOW); }
   analogReadResolution(12);
@@ -57,13 +81,18 @@ static void readAll(bool publish) {
   if (hasBme) { float t = bme.readTemperature(), h = bme.readHumidity(), p = bme.readPressure() / 100.0f;
     if (!hasSht) { setLast("temp_c", "°C", "bme280", t); setLast("rh_pct", "%", "bme280", h); } setLast("press_hpa", "hPa", "bme280", p); }
   if (hasBh) { float l = bh.readLightLevel(); if (l < 0) { err = true; l = NAN; } setLast("lux", "lx", "bh1750", l); }
-  if (dht) {
+  if (dht && !dhtPwr) {   // ระหว่างตัดไฟรีเซ็ตไม่อ่าน (ไม่นับเป็น error)
     float t = dht->readTemperature(), h = dht->readHumidity();
     if (isnan(t) || isnan(h)) {
       err = true;
       // สายยาว / ไม่มี pull-up ภายนอก มักพลาดครั้งแรก → นัดอ่านซ้ำใน 2.5 s (ไม่บล็อก web/MQTT)
       if (publish && !dhtRetryPending) { dhtRetryPending = true; retryAt = millis() + 2500; }
-    } else dhtRetryPending = false;
+      else { dhtRetryPending = false; if (++dhtFailStreak >= DHT_RESET_AFTER) dhtStartReset("no reading"); }   // ล้มทั้งรอบ (รวมอ่านซ้ำ) — นับแม้ MQTT หลุด
+    } else {
+      dhtRetryPending = false;
+      if (dhtFailStreak >= DHT_RESET_AFTER && dhtResets) mqttEvent("dht_ok", String("\"after_resets\":") + dhtResets);
+      dhtFailStreak = 0;
+    }
     setLast("dht_temp_c", "°C", "dht22", t); setLast("dht_rh_pct", "%", "dht22", h);
   }
   if (cfg.soilCount) {
@@ -81,6 +110,7 @@ static void readAll(bool publish) {
 }
 
 void roleLoop() {
+  dhtPowerLoop();
   uint32_t iv = (uint32_t)cfg.intervalS * 1000;
   if (retryAt && (int32_t)(millis() - retryAt) >= 0) { retryAt = 0; readAll(mqttIsConnected()); return; }
   if (millis() - lastPub >= iv || lastPub == 0) { lastPub = millis(); dhtRetryPending = false; readAll(mqttIsConnected()); }
@@ -103,6 +133,7 @@ void roleStatus(JsonObject st) {
   JsonObject s = st["sensors"].to<JsonObject>();
   for (int i = 0; i < lastCount; i++) { JsonObject o = s[last[i].key].to<JsonObject>(); if (last[i].valid) o["value"] = last[i].value; else o["value"] = nullptr; o["unit"] = last[i].unit; o["src"] = last[i].src; }
   st["i2c_found"] = i2cFound;
+  st["dht_power_pin"] = cfg.dhtPowerPin; st["dht_fail_streak"] = dhtFailStreak; st["dht_resets"] = dhtResets;
   st["detected"] = String(hasSht ? "sht3x " : "") + (hasBh ? "bh1750 " : "") + (hasBme ? "bme280 " : "") + (dht ? "dht22 " : "");
 }
 

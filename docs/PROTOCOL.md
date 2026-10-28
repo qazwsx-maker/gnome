@@ -57,7 +57,7 @@ soil `_pct` = map(raw, dry→0, wet→100) clamp; calibration `dry`/`wet` ต่
 ```json
 { "node":"air", "role":"scout", "wifi_ssid":"...", "wifi_pass":"...",
   "mqtt_host":"192.168.1.10", "mqtt_port":1883, "mqtt_user":"gnome", "mqtt_pass":"...",
-  "interval_s":30, "i2c_sda":21, "i2c_scl":22, "dht_pin":-1,
+  "interval_s":30, "i2c_sda":21, "i2c_scl":22, "dht_pin":-1, "dht_power_pin":-1,
   "soil_power_pin":-1, "soil":[{"pin":34,"key":"soil1","dry":3100,"wet":1300},{"pin":33,"key":"rain","dry":3000,"wet":1500}],
   "switches":[{"key":"drip","pin":26,"active_low":true,"max_on_s":600,"exclusive":["mist"]}],
   "failsafe_s":120 }

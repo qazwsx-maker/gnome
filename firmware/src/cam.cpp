@@ -317,11 +317,25 @@ static void uploadTask(void* arg) {
   vTaskDelete(nullptr);
 }
 
+// ลิงก์ช้า → บีบภาพแรงขึ้นชั่วคราว: ส่งครั้งก่อนเกิน 6 วิ ใช้ quality 24 (ไฟล์เล็กลงราวครึ่ง) · กลับค่าเดิมเมื่อส่งได้ใน 3 วิ
+// (2026-10-31 ส่ง 22 kB ใช้ median 7.7 วิ p90 16 วิ) · ไม่แตะเฟรมดูสด (ใช้ QVGA อยู่แล้ว)
+static int qualityNow = -1;
+static void adaptQuality() {
+  if (liveSmall) return;
+  int base = psramFound() ? 15 : 17;
+  int want = lastUploadDur > 6000 ? 24 : lastUploadDur && lastUploadDur < 3000 ? base : (qualityNow < 0 ? base : qualityNow);
+  if (want == qualityNow) return;
+  sensor_t* s = esp_camera_sensor_get(); if (!s) return;
+  s->set_quality(s, want); qualityNow = want;
+  Serial.printf("[cam] jpeg quality -> %d (last upload %lu ms)\n", want, (unsigned long)lastUploadDur);
+}
+
 /** ถ่าย 1 เฟรม แล้วส่งเบื้องหลัง — คืน true ถ้าเริ่มงานได้ (ผลส่งจริงดูจาก event ทีหลัง) */
 static bool snapAndUpload(const char* reason) {
   if (!camOk || !netWifiConnected()) return false;
   if (upBusy) { Serial.println("[cam] upload still running, skip"); return false; }
   bool flash = cfg.camFlash && strcmp(reason, "live") != 0;
+  if (strcmp(reason, "live") != 0) adaptQuality();
   if (flash) { setFlash(true); delay(120); }
   if (xSemaphoreTake(camLock, pdMS_TO_TICKS(3000)) != pdTRUE) { if (flash) setFlash(false); return false; }
   camera_fb_t* fb = esp_camera_fb_get();

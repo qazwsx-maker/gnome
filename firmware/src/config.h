@@ -78,6 +78,7 @@ struct Config {
   String oled = "sh1106";   // sh1106 | ssd1306 | none (auto-detect 0x3C/0x3D บน I2C)
   // Watcher (cam)
   String hutUrl;            // ว่าง = http://<mqtt_host>:8080
+  String wifiMode = "bgn";  // "bgn" ปกติ · "bg" ตัด 11n · "b" เฉพาะ 1–11 Mbps (ทนระยะไกล/สัญญาณอ่อนที่สุด แต่กินอากาศนานกว่า) · ต้องรีบูต
   String camSize = "svga";  // vga | svga | xga | uxga
   bool camFlash = false;    // เปิดไฟแฟลช GPIO4 ตอนถ่าย
   bool camVflip = false;    // กลับบน-ล่าง

@@ -99,6 +99,7 @@ main{padding:14px 16px 60px}
 .nudge{width:52px;height:40px;font-size:18px;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 .nudge:active{background:var(--leaf);color:#fff;border-color:var(--leaf)}
 [data-flash].on{background:#b8860b;color:#fff;border-color:#b8860b}
+.bright{display:inline-flex;align-items:center;gap:4px}.bright .small{min-width:30px;padding:4px 8px}.bright-val{min-width:24px;text-align:center;font-variant-numeric:tabular-nums}.bright i{margin-left:4px}
 .pad-status{min-height:18px;margin:0 0 4px 66px}.pad.busy .nudge,.pad.busy [data-preset],.pad.busy [data-patrol]{opacity:.45}
 @keyframes padpulse{50%{opacity:.35}}.pad.busy .pad-status{color:var(--leaf);animation:padpulse 1.2s ease-in-out infinite}.pose{min-width:48px;text-align:center;font-variant-numeric:tabular-nums}
 /* กล้อง: แผงตั้งค่า servo */

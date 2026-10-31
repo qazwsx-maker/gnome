@@ -13,6 +13,7 @@ import { bus } from './bus.ts';
 import { nodes, touch, getNode } from './state.ts';
 import { sendCmd } from './mqtt.ts';
 import { glanceOnSnapshot } from './glance.ts';
+import { effectiveBrightness, camLightState } from './camlight.ts';
 
 const log = logger('cam');
 const NODE_RE = /^[a-z0-9-]+$/;
@@ -201,6 +202,7 @@ export async function registerCam(app: FastifyInstance): Promise<void> {
     const seen = new Set<string>();
     for (const r of latest.rows) { seen.add(r.node); const n = nodes.get(r.node); out.push({ node: r.node, online: n?.online ?? false, ip: n?.ip ?? null, cam: n?.meta?.cam ?? null, latest: { ts: r.ts.toISOString(), url: `/cam/${r.path}`, bytes: r.bytes, caption: r.caption, mood: r.mood }, count: Number(r.cnt), angles: byNode.get(r.node) || [], last_glance: lastGlance.get(r.node) || null }); }
     for (const n of nodes.values()) if (n.role === 'cam' && !seen.has(n.node)) out.push({ node: n.node, online: n.online, ip: n.ip, cam: n.meta?.cam ?? null, latest: null, count: 0, angles: [], last_glance: null });
+    for (const o of out) { o.brightness = effectiveBrightness(o.node); o.profile = camLightState().profile; }   // ☀️ ค่าที่แสดงบนการ์ด
     return out.sort((a, b) => a.node.localeCompare(b.node));
   });
 

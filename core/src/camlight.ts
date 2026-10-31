@@ -7,6 +7,7 @@ import { bus } from './bus.ts';
 import { nodes, recordEvent } from './state.ts';
 import { sendCmd } from './mqtt.ts';
 import { logger } from './log.ts';
+import { camImageOffset } from './settings.ts';
 
 const log = logger('camlight');
 
@@ -22,6 +23,15 @@ let current: Profile | null = null;
 let lastLux: number | null = null;
 
 export function camLightState(): { profile: Profile | null; lux: number | null } { return { profile: current, lux: lastLux }; }
+const clampB = (v: number) => Math.max(-2, Math.min(2, v));
+/** ความสว่างที่ส่งให้กล้องจริง = โปรไฟล์ (กลางวัน 0 / กลางคืน +1) + ค่าที่ผู้ใช้ปรับ (จำไว้) · เซนเซอร์รับ −2..2 */
+export function effectiveBrightness(node: string, profile: Profile | null = current): number {
+  return clampB((profile ? PROFILES[profile].brightness : 0) + camImageOffset(node).brightness);
+}
+/** ส่งความสว่างปัจจุบันให้กล้องทันที (หลังผู้ใช้กด ☀️) */
+export async function pushBrightness(node: string): Promise<number> {
+  const b = effectiveBrightness(node); await sendCmd(node, 'img', { brightness: b }); return b;
+}
 
 function camNodes(): string[] { return [...nodes.values()].filter((n) => n.role === 'cam').map((n) => n.node); }
 
@@ -29,7 +39,7 @@ async function apply(profile: Profile, why: string, only?: string): Promise<void
   const targets = only ? [only] : camNodes();
   for (const node of targets) {
     try {
-      await sendCmd(node, 'img', { ...PROFILES[profile] });
+      await sendCmd(node, 'img', { ...PROFILES[profile], brightness: effectiveBrightness(node, profile) });
       await recordEvent(node, 'cam_profile', { profile, lux: lastLux, why });
       log.info(`${node} -> ${profile} (${why}, lux ${lastLux ?? '?'})`);
     } catch (e) { log.warn(`${node} apply ${profile}: ${(e as Error).message}`); }

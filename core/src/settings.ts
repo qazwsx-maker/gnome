@@ -114,3 +114,22 @@ export async function saveGlanceSettings(patch: Partial<GlanceSettings>): Promis
   cache.set('glance', next);
   return next;
 }
+
+// ---- ค่าชดเชยภาพต่อกล้อง (ผู้ใช้กด ☀️−/+ บนการ์ด) — บวกทับโปรไฟล์กลางวัน/กลางคืนของ camlight แล้วถูกเก็บไว้ข้ามการสลับโปรไฟล์ ----
+export type CamImageOffset = { brightness: number };
+export function camImageOffset(node: string): CamImageOffset {
+  const all = (cache.get('cam_image_offsets') || {}) as Record<string, Partial<CamImageOffset>>;
+  const o = all[node] || {};
+  return { brightness: Math.max(-4, Math.min(4, Number(o.brightness) || 0)) };
+}
+export async function saveCamImageOffset(node: string, patch: Partial<CamImageOffset>): Promise<CamImageOffset> {
+  const all = { ...((cache.get('cam_image_offsets') || {}) as Record<string, Partial<CamImageOffset>>) };
+  all[node] = { ...camImageOffset(node), ...patch };
+  await query(
+    `INSERT INTO settings(key, value) VALUES ('cam_image_offsets', $1::jsonb)
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
+    [JSON.stringify(all)],
+  );
+  cache.set('cam_image_offsets', all);
+  return camImageOffset(node);
+}

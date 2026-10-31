@@ -14,6 +14,8 @@ import { mqttConnected, sendSwitch, sendCmd, clearRetained } from './mqtt.ts';
 import { listRules, reloadRules, validateRule, activeRunsJson } from './rules.ts';
 import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs';
 import { registerCam, camLinkOk } from './cam.ts';
+import { effectiveBrightness, pushBrightness, camLightState } from './camlight.ts';
+import { camImageOffset, saveCamImageOffset } from './settings.ts';
 import { registerSage } from './sage.ts';
 import { registerAuth } from './auth.ts';
 import { discordSettings, saveDiscordSettings, glanceSettings, saveGlanceSettings } from './settings.ts';
@@ -311,6 +313,17 @@ export async function startHttp() {
     return { ...rest, webhook_set: !!url, webhook_id: webhookId(url), from_env: !s.webhook_url && !!config.discordWebhookUrl };
   };
 
+  // ☀️ ความสว่างภาพกล้อง: {delta:+1|-1} หรือ {reset:true} → ปรับค่าชดเชยที่จำไว้ แล้วส่งให้กล้องทันที
+  app.post<{ Params: { node: string }; Body: { delta?: number; reset?: boolean } }>('/api/cam/:node/brightness', async (req, reply) => {
+    const n = nodes.get(req.params.node); if (!n || n.role !== 'cam') return bad(reply, 'ไม่พบกล้อง', 404);
+    if (!n.online) return reply.code(409).send({ error: 'กล้องหลุดการเชื่อมต่ออยู่' });
+    const cur = camImageOffset(n.node).brightness; const base = effectiveBrightness(n.node) - cur;
+    let next = req.body?.reset ? 0 : cur + Math.sign(Number(req.body?.delta) || 0);
+    next = Math.max(-2 - base, Math.min(2 - base, next));   // ให้ค่ารวมอยู่ใน −2..2 เสมอ
+    await saveCamImageOffset(n.node, { brightness: next });
+    const b = await pushBrightness(n.node);
+    return { ok: true, brightness: b, offset: next, profile: camLightState().profile };
+  });
   app.get('/api/settings/discord', async () => publicDiscord());
 
   app.put<{ Body: Record<string, unknown> }>('/api/settings/discord', async (req, reply) => {

@@ -2,6 +2,7 @@
 #include "improv.h"
 #include "web_ui.h"
 #include <WiFi.h>
+#include <esp_wifi.h>
 #include <WebServer.h>
 #include <DNSServer.h>
 #include <ESPmDNS.h>
@@ -83,6 +84,10 @@ static void stopPortal() {
 static bool connectSta(const String& ssid, const String& pass, uint32_t timeoutMs) {
   if (ssid.length() == 0) return false;
   Serial.printf("[net] connecting to %s ...\n", ssid.c_str());
+  // โหมดวิทยุ: ตัด 11n/11g ออกเมื่อสัญญาณอ่อน — อัตราต่ำ (1–11 Mbps) รับ-ส่งได้ไกลกว่า (ESP32-CAM เสา PCB อ่อน; 2026-10-31 กล้องหลุด 103 ครั้ง/วัน)
+  WiFi.mode(WIFI_STA);
+  esp_wifi_set_protocol(WIFI_IF_STA, cfg.wifiMode == "b" ? WIFI_PROTOCOL_11B : cfg.wifiMode == "bg" ? (WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G) : (WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N));
+  WiFi.setTxPower(WIFI_POWER_19_5dBm);
   WiFi.begin(ssid.c_str(), pass.c_str());
 #if defined(GNOME_ROLE_CAM)
   // Watcher ใช้ไฟบ้าน + ต้องรับการเชื่อมต่อขาเข้า (:81 stream/snapshot) → ปิด modem-sleep

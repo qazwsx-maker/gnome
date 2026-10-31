@@ -44,6 +44,7 @@ export async function discord(content: string, cat: DiscordCat = 'rule'): Promis
       body: JSON.stringify({ content: text }),
     });
     if (!res.ok) log.warn(`webhook ${res.status}: ${await res.text()}`);
+    else log.info(`sent [${cat}] ${text.replace(/\n/g, ' | ').slice(0, 120)}`);   // ไว้ยืนยันว่าส่งถึงจริง (เดิมลง log เฉพาะตอนพลาด)
     return res.ok;
   } catch (e) {
     log.error('webhook failed', (e as Error).message);

@@ -22,17 +22,18 @@ static bool dhtRetryPending = false;
 static int dhtFailStreak = 0, dhtResets = 0;
 static uint8_t dhtPwr = 0;          // 0 ปกติ · 1 ตัดไฟอยู่ · 2 จ่ายไฟแล้วรอชิปตื่น
 static uint32_t dhtPwrAt = 0, dhtLastReset = 0;
-static void dhtPowerOn() { if (cfg.dhtPowerPin < 0) return; pinMode(cfg.dhtPowerPin, OUTPUT); digitalWrite(cfg.dhtPowerPin, HIGH); }
+// ขับขาจ่ายไฟแรงสุด (40 mA) ให้แรงดันตกน้อยสุดบนสายยาว — AM2301A ต้องการ ≥ 3.3 V (2026-10-31 เลี้ยงจาก D25 แล้วอ่านได้ 7 นาทีก่อนเงียบ)
+static void dhtPowerOn() { if (cfg.dhtPowerPin < 0) return; pinMode(cfg.dhtPowerPin, OUTPUT); gpio_set_drive_capability((gpio_num_t)cfg.dhtPowerPin, GPIO_DRIVE_CAP_3); digitalWrite(cfg.dhtPowerPin, HIGH); }
 static void dhtStartReset(const char* why) {
   if (cfg.dhtPowerPin < 0 || cfg.dhtPin < 0 || dhtPwr) return;
   if (dhtLastReset && millis() - dhtLastReset < DHT_RESET_GAP_MS) return;
-  dhtLastReset = millis(); dhtResets++; dhtPwr = 1; dhtPwrAt = millis() + 3000;
+  dhtLastReset = millis(); dhtResets++; dhtPwr = 1; dhtPwrAt = millis() + 6000;   // ตัดไฟ 6 วิ ให้ตัวเก็บประจุในเซ็นเซอร์คายหมด
   digitalWrite(cfg.dhtPowerPin, LOW); pinMode(cfg.dhtPin, OUTPUT); digitalWrite(cfg.dhtPin, LOW);
   Serial.printf("[scout] DHT power-cycle #%d (%s)\n", dhtResets, why);
   mqttEvent("dht_reset", String("\"why\":\"") + why + "\",\"streak\":" + dhtFailStreak + ",\"resets\":" + dhtResets);
 }
 static void dhtPowerLoop() {
-  if (dhtPwr == 1 && (int32_t)(millis() - dhtPwrAt) >= 0) { pinMode(cfg.dhtPin, INPUT_PULLUP); dhtPowerOn(); dhtPwr = 2; dhtPwrAt = millis() + 2000; }
+  if (dhtPwr == 1 && (int32_t)(millis() - dhtPwrAt) >= 0) { pinMode(cfg.dhtPin, INPUT_PULLUP); dhtPowerOn(); dhtPwr = 2; dhtPwrAt = millis() + 3000; }   // รอชิปตื่น 3 วิ (datasheet ≥ 2 วิ)
   else if (dhtPwr == 2 && (int32_t)(millis() - dhtPwrAt) >= 0) { dhtPwr = 0; if (dht) dht->begin(); lastPub = 0; Serial.println("[scout] DHT powered back"); }
 }
 
@@ -60,7 +61,7 @@ void roleRescan() {
   for (uint8_t a : {0x76, 0x77}) if (!hasBme && bme.begin(a, &Wire)) hasBme = true;
   if (dht) { delete dht; dht = nullptr; }
   if (cfg.dhtPin >= 0) {
-    if (cfg.dhtPowerPin >= 0 && !dhtPwr) { dhtPowerOn(); delay(1200); }   // ชิปต้องการ ~1 วิหลังได้ไฟ (ครั้งเดียวตอนเริ่ม/สแกนใหม่)
+    if (cfg.dhtPowerPin >= 0 && !dhtPwr) { dhtPowerOn(); delay(2500); }   // ชิปต้องการ ~1 วิหลังได้ไฟ (ครั้งเดียวตอนเริ่ม/สแกนใหม่)
     dht = new DHT(cfg.dhtPin, DHT22); dht->begin();
   }
   for (int i = 0; i < cfg.soilCount; i++) { pinMode(cfg.soil[i].pin, INPUT); analogSetPinAttenuation(cfg.soil[i].pin, ADC_11db); }

@@ -610,8 +610,15 @@
         nodes.delete(node); renderStatus(); toast(`ลบ ${node} แล้ว`);
       } else if (btn.dataset.ota) {
         if (!confirm(`ส่ง OTA (${btn.dataset.ota}) ไปที่ ${node}? node จะรีบูตเมื่ออัปเดตเสร็จ`)) return;
-        const r = await api(`/nodes/${node}/ota`, { method: 'POST', body: { env: btn.dataset.ota } });
-        toast(`ส่ง OTA ${r.version} → ${node}`); fwAt = 0;
+        try {
+          const r = await api(`/nodes/${node}/ota`, { method: 'POST', body: { env: btn.dataset.ota } });
+          toast(`ส่ง OTA ${r.version} → ${node}`); fwAt = 0;
+        } catch (err) {
+          if (!/ลิงก์กล้องไม่พร้อม/.test(err.message)) throw err;
+          // กล้องลิงก์แย่: ให้ Hut จำไว้แล้วส่งเองเมื่อส่งภาพได้เร็ว (กันค้างกลางทางเป็นชั่วโมง)
+          const q = await api(`/nodes/${node}/ota`, { method: 'POST', body: { env: btn.dataset.ota, when_ok: true } });
+          toast(`ลิงก์กล้องยังช้า — Hut จะส่ง OTA ${q.version} ให้เองเมื่อกล้องส่งภาพได้ใน 3 วิ`);
+        }
       } else if (btn.dataset.cmd) {
         if (btn.dataset.cmd === 'reboot' && !confirm(`reboot ${node}?`)) return;
         await api(`/nodes/${node}/cmd`, { method: 'POST', body: { cmd: btn.dataset.cmd } });

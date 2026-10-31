@@ -40,6 +40,17 @@ function postSnapshotToDiscord(node: string, id: number, rel: string, buf: Buffe
 // คุณภาพลิงก์ของกล้อง = เวลาที่ใช้ส่งภาพล่าสุด (วัดจาก request ทั้งก้อน) — ใช้กันสั่ง OTA ตอนลิงก์แย่
 // (2026-10-25 ค่ำ: OTA 1.1 MB บนลิงก์ที่ส่งภาพใช้ 28 วิ → กล้องค้างในขั้นดาวน์โหลด 77 นาที ping ไม่ตอบ รีสตาร์ทจากไกลไม่ได้)
 const linkStat = new Map<string, { ms: number; ts: number; bytes: number }>();
+// OTA ที่รอลิงก์ดี: Hut จำไว้ แล้วส่งเองทันทีที่กล้องส่งภาพได้เร็ว (ผู้ใช้ไม่ต้องจับจังหวะเอง — คืนสัญญาณแย่ OTA ค้าง 77 นาที)
+const pendingOta = new Map<string, { url: string; version: string; since: number }>();
+export function queueOtaWhenOk(node: string, url: string, version: string): void { pendingOta.set(node, { url, version, since: Date.now() }); log.info(`${node} OTA ${version} queued until link ok`); }
+function noteUpload(node: string, ms: number, bytes: number): void {
+  linkStat.set(node, { ms, ts: Date.now(), bytes });
+  const p = pendingOta.get(node); if (!p) return;
+  const l = camLinkOk(node); if (!l.ok) return;
+  pendingOta.delete(node);
+  void sendCmd(node, 'ota', p.url).then(() => query('INSERT INTO events (ts, node, type, payload) VALUES (now(), $1, $2, $3)', [node, 'ota_sent', JSON.stringify({ version: p.version, url: p.url, queued_s: Math.round((Date.now() - p.since) / 1000), link: l.why })]))
+    .then(() => log.info(`${node} queued OTA ${p.version} sent (${l.why})`)).catch((e) => log.warn(`${node} queued OTA: ${(e as Error).message}`));
+}
 export function camLinkOk(node: string, maxMs = 3000, maxAgeMs = 15 * 60_000): { ok: boolean; why: string } {
   const l = linkStat.get(node);
   if (!l) return { ok: false, why: 'ยังไม่เคยเห็นภาพจากกล้องนี้ตั้งแต่ Hut เริ่ม' };
@@ -76,7 +87,7 @@ export async function registerCam(app: FastifyInstance): Promise<void> {
     const r = await query<{ id: number }>('INSERT INTO snapshots(ts, node, path, bytes, reason, angle, tilt) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id',
       [now, node, rel, buf.length, reason, Number.isFinite(angle as number) ? angle : null, Number.isFinite(tilt as number) ? tilt : null]);
     const n = getNode(node); if (!n.role) n.role = 'cam'; touch(node);
-    { const ms = (reply as any).elapsedTime ?? (reply as any).getResponseTime?.() ?? 0; if (ms > 0) linkStat.set(node, { ms, ts: Date.now(), bytes: buf.length }); }
+    { const ms = (reply as any).elapsedTime ?? (reply as any).getResponseTime?.() ?? 0; if (ms > 0) noteUpload(node, ms, buf.length); }
     const url = `/cam/${rel}`;
     bus.live({ type: 'snapshot', node, ts: now.toISOString(), url, bytes: buf.length, id: r.rows[0].id, angle, tilt } as any);
     glanceOnSnapshot(node, r.rows[0].id, rel);     // โหมดคิด — ทำเบื้องหลัง ไม่ให้ node รอ

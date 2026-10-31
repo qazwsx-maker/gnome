@@ -316,7 +316,7 @@ export async function startHttp() {
   app.put<{ Body: Record<string, unknown> }>('/api/settings/discord', async (req, reply) => {
     const b = req.body || {};
     const patch: Record<string, unknown> = {};
-    const bools = ['enabled', 'node_status', 'sensor_error', 'rules', 'daily_summary'];
+    const bools = ['enabled', 'node_status', 'sensor_error', 'rules', 'daily_summary', 'cam_snapshot'];
     for (const k of bools) if (typeof b[k] === 'boolean') patch[k] = b[k];
     if (b.node_debounce_s !== undefined) {
       const n = Number(b.node_debounce_s);

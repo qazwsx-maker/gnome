@@ -7,6 +7,7 @@ import { spawn, execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { config } from './config.ts';
 import { logger } from './log.ts';
+import { discordFile } from './discord.ts';
 import { query } from './db.ts';
 import { bus } from './bus.ts';
 import { nodes, touch, getNode } from './state.ts';
@@ -15,6 +16,26 @@ import { glanceOnSnapshot } from './glance.ts';
 
 const log = logger('cam');
 const NODE_RE = /^[a-z0-9-]+$/;
+// ส่งภาพเข้า Discord ทุกครั้งที่ถ่ายได้ (ตั้งปิดได้ที่ตั้งค่า Discord → "ภาพจากกล้อง") — รอคำบรรยายโหมดคิดก่อนสูงสุด 25 วิ
+// ถ้าโหมดคิดไม่ทำ (ติดคูลดาวน์) ก็ส่งภาพเปล่าพร้อมมุม/เหตุผล · ไม่ส่งเฟรมดูสด (ไม่ใช่ snapshot)
+const REASON_TH: Record<string, string> = { interval: 'ตามรอบ', cmd: 'กดถ่าย', web: 'หน้าเว็บ node', pan: 'หลังหัน', tilt: 'หลังก้มเงย', patrol: 'ถ่ายทุกมุม', glance: 'โหมดคิด', live: 'ดูสด' };
+const pendingPost = new Map<number, (g: { caption_th?: string | null; caption?: string; mood?: string } | null) => void>();
+bus.on('live', (m: any) => { if (m.type === 'glance' && m.id && pendingPost.has(m.id)) pendingPost.get(m.id)!(m); });
+function postSnapshotToDiscord(node: string, id: number, rel: string, buf: Buffer, info: { reason: string; angle: number | null; tilt: number | null; ts: Date }): void {
+  const waitGlance = new Promise<{ caption_th?: string | null; caption?: string; mood?: string } | null>((resolve) => {
+    const t = setTimeout(() => { pendingPost.delete(id); resolve(null); }, 25_000);
+    pendingPost.set(id, (g) => { clearTimeout(t); pendingPost.delete(id); resolve(g); });
+  });
+  void waitGlance.then((g) => {
+    const when = info.ts.toLocaleString('th-TH', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: config.tz });
+    const pose = [info.angle != null ? `หัน ${info.angle}°` : '', info.tilt != null ? `ก้มเงย ${info.tilt}°` : ''].filter(Boolean).join(' ');
+    const line1 = [`📷 **${node}** ${when}`, pose, REASON_TH[info.reason] || info.reason, `${Math.round(buf.length / 1024)} kB`].filter(Boolean).join(' · ');
+    const MOOD: Record<string, string> = { happy: '🙂', hot: '🥵', sleepy: '😴', thirsty: '🥀', rain: '🌧', sick: '🤒' };
+    const line2 = g && (g.caption_th || g.caption) ? `${MOOD[g.mood || ''] || '💬'} ${g.caption_th || g.caption}` : '';
+    void discordFile([line1, line2].filter(Boolean).join('\n'), buf, rel.split('/').pop() || 'snapshot.jpg', 'snapshot');
+  });
+}
+
 // คุณภาพลิงก์ของกล้อง = เวลาที่ใช้ส่งภาพล่าสุด (วัดจาก request ทั้งก้อน) — ใช้กันสั่ง OTA ตอนลิงก์แย่
 // (2026-10-25 ค่ำ: OTA 1.1 MB บนลิงก์ที่ส่งภาพใช้ 28 วิ → กล้องค้างในขั้นดาวน์โหลด 77 นาที ping ไม่ตอบ รีสตาร์ทจากไกลไม่ได้)
 const linkStat = new Map<string, { ms: number; ts: number; bytes: number }>();
@@ -58,6 +79,7 @@ export async function registerCam(app: FastifyInstance): Promise<void> {
     const url = `/cam/${rel}`;
     bus.live({ type: 'snapshot', node, ts: now.toISOString(), url, bytes: buf.length, id: r.rows[0].id, angle, tilt } as any);
     glanceOnSnapshot(node, r.rows[0].id, rel);     // โหมดคิด — ทำเบื้องหลัง ไม่ให้ node รอ
+    postSnapshotToDiscord(node, r.rows[0].id, rel, buf, { reason, angle: Number.isFinite(angle as number) ? (angle as number) : null, tilt: Number.isFinite(tilt as number) ? (tilt as number) : null, ts: now });
     log.info(`${node} snapshot ${buf.length} B -> ${rel}${reason ? ' (' + reason + ')' : ''}`);
     return { ok: true, id: r.rows[0].id, url, bytes: buf.length };
   });

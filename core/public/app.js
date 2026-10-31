@@ -1128,6 +1128,7 @@
       $('#ds-sensor').checked = !!d.sensor_error;
       $('#ds-rules').checked = !!d.rules;
       $('#ds-summary').checked = !!d.daily_summary;
+      $('#ds-cam').checked = d.cam_snapshot !== false;
       $('#ds-debounce').value = d.node_debounce_s ?? 180;
       $('#ds-summary-time').value = d.summary_time || '07:00';
       $('#ds-quiet-start').value = d.quiet_start || '';
@@ -1147,6 +1148,7 @@
       sensor_error: $('#ds-sensor').checked,
       rules: $('#ds-rules').checked,
       daily_summary: $('#ds-summary').checked,
+      cam_snapshot: $('#ds-cam').checked,
       node_debounce_s: Number($('#ds-debounce').value || 0),
       summary_time: $('#ds-summary-time').value || '07:00',
       quiet_start: $('#ds-quiet-start').value || null,

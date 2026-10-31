@@ -14,6 +14,8 @@ export type DiscordSettings = {
   sensor_error: boolean;
   rules: boolean;
   daily_summary: boolean;
+  /** ส่งภาพจากกล้อง (พร้อมมุม/เหตุผล/คำบรรยายโหมดคิด) ทุกครั้งที่ถ่ายได้ */
+  cam_snapshot: boolean;
   /** เวลาสรุปประจำวัน HH:MM ตามโซนเวลาของ Hut */
   summary_time: string;
   /** ช่วงเวลาที่ไม่อยากถูกรบกวน (เฉพาะ node/sensor_error) — null = ไม่ตั้ง */
@@ -29,6 +31,7 @@ const DISCORD_DEFAULTS: DiscordSettings = {
   sensor_error: true,
   rules: true,
   daily_summary: true,
+  cam_snapshot: true,
   summary_time: '07:00',
   quiet_start: null,
   quiet_end: null,

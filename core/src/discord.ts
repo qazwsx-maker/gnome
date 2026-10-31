@@ -5,7 +5,7 @@ import { discordSettings, inQuietHours } from './settings.ts';
 const log = logger('discord');
 
 /** หมวดของข้อความ — ใช้ตัดสินว่าผู้ใช้เปิดรับหมวดนี้ไหม */
-export type DiscordCat = 'node' | 'sensor_error' | 'rule' | 'summary' | 'test';
+export type DiscordCat = 'node' | 'sensor_error' | 'rule' | 'summary' | 'snapshot' | 'test';
 
 /** หมวดที่เคารพช่วงห้ามรบกวน (สรุปรายวันกับกฎที่ผู้ใช้เขียนเองไม่ถูกกลั้น) */
 const QUIETABLE: DiscordCat[] = ['node', 'sensor_error'];
@@ -23,6 +23,7 @@ export function discordAllows(cat: DiscordCat): { ok: boolean; why?: string } {
     if (cat === 'sensor_error' && !s.sensor_error) return { ok: false, why: 'ปิดหมวดเซ็นเซอร์ผิดพลาด' };
     if (cat === 'rule' && !s.rules) return { ok: false, why: 'ปิดหมวดกฎอัตโนมัติ' };
     if (cat === 'summary' && !s.daily_summary) return { ok: false, why: 'ปิดสรุปประจำวัน' };
+    if (cat === 'snapshot' && !s.cam_snapshot) return { ok: false, why: 'ปิดภาพจากกล้อง' };
     if (QUIETABLE.includes(cat) && inQuietHours(s)) return { ok: false, why: 'อยู่ในช่วงห้ามรบกวน' };
   }
   if (!webhookUrl()) return { ok: false, why: 'ยังไม่ได้ตั้ง webhook' };
@@ -50,4 +51,20 @@ export async function discord(content: string, cat: DiscordCat = 'rule'): Promis
     log.error('webhook failed', (e as Error).message);
     return false;
   }
+}
+
+/** ส่งข้อความพร้อมไฟล์แนบ (ภาพจากกล้อง) — Discord รับ multipart: payload_json + files[0] · ไฟล์ ≤ 8 MB */
+export async function discordFile(content: string, file: Buffer, filename: string, cat: DiscordCat = 'snapshot'): Promise<boolean> {
+  const text = content.length > 1900 ? content.slice(0, 1897) + '...' : content;
+  const gate = discordAllows(cat);
+  if (!gate.ok) { log.info(`[${cat}/${gate.why}] ${text.replace(/\n/g, ' | ')}`); return false; }
+  try {
+    const form = new FormData();
+    form.append('payload_json', JSON.stringify({ content: text }));
+    form.append('files[0]', new Blob([new Uint8Array(file)], { type: 'image/jpeg' }), filename);
+    const res = await fetch(webhookUrl(), { method: 'POST', body: form });
+    if (!res.ok) log.warn(`webhook(file) ${res.status}: ${await res.text()}`);
+    else log.info(`sent [${cat}] ${filename} ${Math.round(file.length / 1024)} kB · ${text.replace(/\n/g, ' | ').slice(0, 100)}`);
+    return res.ok;
+  } catch (e) { log.error('webhook(file) failed', (e as Error).message); return false; }
 }

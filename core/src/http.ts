@@ -14,8 +14,9 @@ import { mqttConnected, sendSwitch, sendCmd, clearRetained } from './mqtt.ts';
 import { listRules, reloadRules, validateRule, activeRunsJson } from './rules.ts';
 import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs';
 import { registerCam, camLinkOk, queueOtaWhenOk } from './cam.ts';
-import { effectiveBrightness, pushBrightness, camLightState } from './camlight.ts';
-import { camImageOffset, saveCamImageOffset } from './settings.ts';
+import { effectiveBrightness, pushBrightness, camLightState, reapplyCamLight } from './camlight.ts';
+import { camImageOffset, saveCamImageOffset, camSchedule, saveCamSchedule } from './settings.ts';
+import { houseState, computeHouse } from './house.ts';
 import { registerSage } from './sage.ts';
 import { registerAuth } from './auth.ts';
 import { discordSettings, saveDiscordSettings, glanceSettings, saveGlanceSettings } from './settings.ts';
@@ -334,6 +335,15 @@ export async function startHttp() {
     await saveCamImageOffset(n.node, { brightness: next });
     const b = await pushBrightness(n.node);
     return { ok: true, brightness: b, offset: next, profile: camLightState().profile };
+  });
+  // สถานะบ้าน (กลางวัน/กลางคืน · แดด/ร่ม/ฝน) จากเซ็นเซอร์ + ตำแหน่งดวงอาทิตย์
+  app.get('/api/house', async () => houseState() ?? computeHouse());
+  // รอบถ่ายกล้องตามช่วงวัน (นาที) — บันทึกแล้วส่งให้กล้องทันที
+  app.get('/api/settings/cam-schedule', async () => ({ ...camSchedule(), now: camLightState() }));
+  app.put<{ Body: { day_interval_min?: number; night_interval_min?: number } }>('/api/settings/cam-schedule', async (req) => {
+    const s = await saveCamSchedule({ day_interval_min: req.body?.day_interval_min, night_interval_min: req.body?.night_interval_min });
+    await reapplyCamLight('schedule changed');
+    return { ok: true, ...s, now: camLightState() };
   });
   app.get('/api/settings/discord', async () => publicDiscord());
 

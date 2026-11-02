@@ -9,6 +9,7 @@ export type LiveMessage =
   | { type: 'debug'; node: string; debug: Record<string, unknown>; ts: string }
   | { type: 'node'; node: string; ts: string }
   | { type: 'rules'; ts: string }
+  | { type: 'house'; phase: string; sky: string; icon: string; label: string; [k: string]: unknown }
   | { type: 'vibe'; node: string; icon: string; label: string; detail: string; mood: string; ts: string }
   | { type: 'plots'; ts: string };
 

@@ -9,6 +9,7 @@ import { bus } from './bus.ts';
 import { nodes, type NodeState } from './state.ts';
 import { query } from './db.ts';
 import { logger } from './log.ts';
+import { houseState } from './house.ts';
 
 const log = logger('vibe');
 
@@ -75,10 +76,16 @@ export function computeVibe(n: NodeState): Vibe {
   const dry = soil.find((s) => s.v < T.soilDryPct);
   if (dry) return { icon: '🥀', label: 'ดินแห้ง กระหายน้ำ', detail, mood: 'thirsty', ts };
 
-  if (lux !== null) {
-    const sky = lux >= T.lux.bright ? ['☀️', 'แดดจัด'] : lux >= T.lux.cloudy ? ['⛅', 'แดดครึ้ม'] : lux >= T.lux.dim ? ['🌥', 'รำไร'] : ['🌙', 'กลางคืน'];
-    const mood = lux < T.lux.dim ? 'sleepy' : temp !== null && temp >= T.hotC ? 'hot' : 'happy';
-    return { icon: sky[0], label: sky[1] + (temp !== null && temp >= T.hotC ? ' ร้อน' : ''), detail, mood, ts };
+  if (lux !== null) {   // การ์ดที่มีเซ็นเซอร์แสง = สภาพฟ้าของบ้าน (house.ts: เซ็นเซอร์ + ตำแหน่งดวงอาทิตย์ เทียบกับฟ้าใสของเซ็นเซอร์ตัวนี้)
+    const h = houseState();
+    const hot = temp !== null && temp >= T.hotC;
+    if (h) {
+      const mood = h.sky === 'rain' || h.sky === 'maybe_rain' ? 'rain' : h.phase === 'night' ? 'sleepy' : hot ? 'hot' : 'happy';
+      const extra = [h.ratio !== null && h.phase === 'day' ? `${Math.round(h.ratio * 100)}% ของฟ้าใส` : '', h.phase === 'day' ? `ตก ${h.sunset}` : `ขึ้น ${h.sunrise}`].filter(Boolean).join(' · ');
+      return { icon: h.icon, label: h.label + (hot ? ' ร้อน' : ''), detail: [detail, extra].filter(Boolean).join(' · '), mood, ts };
+    }
+    const mood = lux < T.lux.dim ? 'sleepy' : hot ? 'hot' : 'happy';
+    return { icon: lux < T.lux.dim ? '🌙' : '🌥', label: lux < T.lux.dim ? 'กลางคืน' : 'สว่าง', detail, mood, ts };
   }
   if (temp !== null || rh !== null) {
     const hot = temp !== null ? temp >= T.hotC : null; const humid = rh !== null ? rh >= T.humidPct : null;
@@ -118,6 +125,7 @@ export async function startVibe(): Promise<void> {
       case 'reading': case 'switch': case 'status': case 'debug': case 'node': refreshVibe(m.node); break;
       case 'glance': glanceOf.set(m.node, { caption: m.caption, caption_th: m.caption_th ?? null, mood: m.mood, ts: new Date().toISOString() }); refreshVibe(m.node); break;
       case 'cam_pose': refreshVibe(m.node); break;
+      case 'house': for (const n of nodes.values()) if (n.latest.has('lux')) refreshVibe(n.node); break;
       case 'plots': void loadPlots().then(() => { for (const n of nodes.values()) if (n.role === 'cam') refreshVibe(n.node); }); break;
     }
   });

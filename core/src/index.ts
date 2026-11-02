@@ -11,6 +11,7 @@ import { loadSettings } from './settings.ts';
 import { startSonoff } from './sonoff.ts';
 import { startVibe } from './vibe.ts';
 import { startCamLight } from './camlight.ts';
+import { startHouse } from './house.ts';
 import { startHttp } from './http.ts';
 
 const log = logger('core');
@@ -28,6 +29,7 @@ async function main() {
   startRetention();
   startHeartbeat();
   await startVibe();
+  await startHouse();
   startCamLight();
   const app = await startHttp();
 

@@ -187,7 +187,7 @@ static void applyImage() {
   s->set_wb_mode(s, constrain(cfg.camWbMode, 0, 4));
 }
 static String imageJson() {
-  return String("\"snap_flash\":") + (cfg.camFlash ? "true" : "false") + ",\"ae_level\":" + cfg.camAeLevel + ",\"gain_ceiling\":" + cfg.camGainCeil + ",\"aec2\":" + (cfg.camAec2 ? "true" : "false") +
+  return String("\"interval_s\":") + cfg.intervalS + ",\"snap_flash\":" + (cfg.camFlash ? "true" : "false") + ",\"ae_level\":" + cfg.camAeLevel + ",\"gain_ceiling\":" + cfg.camGainCeil + ",\"aec2\":" + (cfg.camAec2 ? "true" : "false") +
          ",\"brightness\":" + cfg.camBrightness + ",\"contrast\":" + cfg.camContrast + ",\"saturation\":" + cfg.camSaturation + ",\"wb_mode\":" + cfg.camWbMode + ",\"xclk_mhz\":" + cfg.camXclkMhz;
 }
 
@@ -610,6 +610,10 @@ bool roleCommand(const String& sub, const String& payload) {
     geti("contrast", cfg.camContrast, -2, 2); geti("saturation", cfg.camSaturation, -2, 2); geti("wb_mode", cfg.camWbMode, 0, 4);
     if (d["aec2"].is<bool>()) cfg.camAec2 = d["aec2"].as<bool>();
     if (d["snap_flash"].is<bool>()) cfg.camFlash = d["snap_flash"].as<bool>();   // เปิดแฟลชเฉพาะตอนถ่าย (กลางคืน)
+    if (d["interval_s"].is<int>()) {   // รอบถ่ายเปลี่ยนสด (Hut สลับกลางวัน/กลางคืน) — ไม่รีบูต · รอบถัดไปนับจากภาพล่าสุด
+      int v = constrain(d["interval_s"].as<int>(), 60, 86400);
+      if (v != cfg.intervalS) { Serial.printf("[cam] interval %d -> %d s\n", cfg.intervalS, v); cfg.intervalS = v; }
+    }
     bool rebootNeeded = false;
     if (d["xclk_mhz"].is<int>()) {   // เปลี่ยนนาฬิกาสด (ไดรเวอร์มี set_xclk) — 10 MHz รับแสงกลางคืนได้นานกว่า · 20 MHz สีกลางวันถูก
       int v = constrain(d["xclk_mhz"].as<int>(), 8, 24);

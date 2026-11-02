@@ -125,6 +125,7 @@
         <button class="small" data-snap="1" ${c.online ? '' : 'disabled'}>📸 ถ่ายตอนนี้</button>
         <button class="small" data-live="1" ${c.online ? '' : 'disabled'}>▶ ดูสด</button>
         <button class="small" data-flash="1" ${c.online ? '' : 'disabled'} title="เปิดไฟแฟลชของกล้อง 10 วิ แล้วดับเอง · กดซ้ำ = ปิดทันที">${c.cam?.flash ? '🔦 ปิดแฟลช' : '🔦 แฟลช'}</button>
+        <span class="sched" title="รอบถ่ายตามช่วงวันของบ้าน (กลางวัน/กลางคืน ตัดสินจากเซ็นเซอร์ + เวลา)">📅 กลางวันทุก <input type="number" min="1" max="720" class="sched-day" value="${c.schedule?.day_interval_min ?? 30}"> นาที · กลางคืนทุก <input type="number" min="1" max="720" class="sched-night" value="${c.schedule?.night_interval_min ?? 60}"> นาที <button class="small" data-sched="1">บันทึก</button>${c.phase ? `<i class="muted small">ตอนนี้${c.phase === 'night' ? 'กลางคืน' : 'กลางวัน'}</i>` : ''}</span>
         <span class="bright" title="ความสว่างภาพ (เซนเซอร์ −2…+2) · บวกทับโปรไฟล์กลางวัน/กลางคืนอัตโนมัติ · จำค่าไว้">☀️ <button class="small" data-bright="-1" ${c.online ? '' : 'disabled'}>−</button><b class="bright-val">${c.brightness > 0 ? '+' + c.brightness : (c.brightness ?? 0)}</b><button class="small" data-bright="1" ${c.online ? '' : 'disabled'}>+</button>${c.profile ? `<i class="muted small">${c.profile === 'night' ? 'กลางคืน' : 'กลางวัน'}</i>` : ''}</span>
         <button class="small${c.cam?.vflip ? ' on' : ''}" data-vflip="1" ${c.online ? '' : 'disabled'} title="กลับภาพบน-ล่าง (มีผลทันที ไม่รีบูต)">↕ ${c.cam?.vflip ? 'บน-ล่าง ✓' : 'บน-ล่าง'}</button>
         <button class="small${c.cam?.mirror ? ' on' : ''}" data-mirror="1" ${c.online ? '' : 'disabled'} title="กลับภาพซ้าย-ขวา (มีผลทันที ไม่รีบูต)">↔ ${c.cam?.mirror ? 'ซ้าย-ขวา ✓' : 'ซ้าย-ขวา'}</button>
@@ -193,6 +194,13 @@
   }
   // ปุ่มหัน/ก้มเงย/preset: กด 1 ครั้ง = สั่ง 1 ครั้ง แล้ว "กำลังทำงาน" ล็อกปุ่มไว้ จนกล้องรายงานมุมใหม่กลับมา (WS cam_pose) ค่อยกดต่อได้
   // (เดิมกดค้างยิงซ้ำทุก 350 ms — บนลิงก์ช้าที่สวนคำสั่งไปกองรอ กล้องหมุนต่อเองหลังปล่อยนิ้ว 2026-10-24) · ไม่มีคำตอบใน 30 วิ → ปลดล็อก + เตือน
+  // 🏠 สถานะบ้าน (กลางวัน/กลางคืน · แดด/ร่ม/ฝน) จาก /api/house + WS house
+  const renderHouse = (h) => {
+    const el = $('#house'); if (!el || !h) return;
+    const sun = h.phase === 'day' ? `ตก ${h.sunset ?? '?'}` : `ขึ้น ${h.sunrise ?? '?'}`;
+    el.textContent = `🏠 ${h.phase === 'night' ? 'กลางคืน' : 'กลางวัน'} · ${h.icon} ${h.label} · ☀ ${h.sun_alt}° ${sun}${h.lux != null ? ` · ${Math.round(h.lux).toLocaleString()} lx` : ''}`;
+  };
+  api('/house').then(renderHouse).catch(() => {});
   // ปุ่มแฟลช: แสดงนับถอยหลังจนกล้องแจ้ง event flash off (หรือครบเวลาฝั่งนี้)
   const flashTimers = {};
   const flashUi = (node, on, secs) => {
@@ -280,6 +288,11 @@
       else if (btn.dataset.patrol) { await api(`/cam/${node}/pan`, { method: 'POST', body: { patrol: true } }); toast('กำลังถ่ายทุกมุม…'); }
       else if (btn.dataset.delday) { const day = camState.day[node]; if (!day) return toast('เลือกวันใน time-lapse ก่อน', true); if (!confirm(`ลบภาพของ ${node} วันที่ ${day} ทั้งหมด?`)) return; const r = await api(`/cam/${node}/snapshots?day=${day}`, { method: 'DELETE' }); toast(`ลบ ${r.deleted} ภาพ`); renderCam(); }
       else if (btn.dataset.delall) { if (!confirm(`ลบภาพทั้งหมดของ ${node}? (กู้คืนไม่ได้)`)) return; const r = await api(`/cam/${node}/snapshots`, { method: 'DELETE' }); toast(`ลบ ${r.deleted} ภาพ`); renderCam(); }
+      else if (btn.dataset.sched) {   // 📅 รอบถ่าย: Hut บันทึกและส่งให้กล้องทันที
+        const day = Number($('.sched-day', card).value), night = Number($('.sched-night', card).value);
+        const r = await api('/settings/cam-schedule', { method: 'PUT', body: { day_interval_min: day, night_interval_min: night } });
+        toast(`บันทึกแล้ว · กลางวันทุก ${r.day_interval_min} นาที · กลางคืนทุก ${r.night_interval_min} นาที`);
+      }
       else if (btn.dataset.bright) {   // ☀️ ความสว่าง: Hut จำค่าชดเชยและส่งให้กล้องทันที
         const r = await api(`/cam/${node}/brightness`, { method: 'POST', body: { delta: Number(btn.dataset.bright) } });
         const v = $('.bright-val', card); if (v) v.textContent = r.brightness > 0 ? '+' + r.brightness : String(r.brightness);
@@ -1098,6 +1111,7 @@
         case 'debug': if (!n) return loadNodes(); n.debug = { ...m.debug, ts: m.ts }; if (m.debug.ip) n.ip = m.debug.ip; n.last_seen = m.ts; renderStatus(); break;
         case 'node': loadNodes(); break;
         case 'vibe': updateVibe(m); break;
+        case 'house': renderHouse(m); break;
         case 'cam_pose': {   // มุมจริงของกล้องหลังหัน/ก้มเงย → ขยับ slider + ตัวเลขบนการ์ดกล้องตาม
           const card = $(`.cam-card[data-node="${m.node}"]`); if (!card) break;
           const c = camState.list.find((x) => x.node === m.node); if (c?.cam) { c.cam.angle = m.angle; c.cam.tilt_angle = m.tilt; }

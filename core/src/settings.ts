@@ -133,3 +133,23 @@ export async function saveCamImageOffset(node: string, patch: Partial<CamImageOf
   cache.set('cam_image_offsets', all);
   return camImageOffset(node);
 }
+
+// ---- รอบถ่ายกล้องตามช่วงวัน (กลางวัน/กลางคืน ตัดสินโดย house.ts) ----
+export type CamSchedule = { day_interval_min: number; night_interval_min: number };
+const SCHED_DEFAULTS: CamSchedule = { day_interval_min: 30, night_interval_min: 60 };
+const clampMin = (v: unknown, d: number) => { const n = Math.round(Number(v)); return Number.isFinite(n) ? Math.max(1, Math.min(720, n)) : d; };
+export function camSchedule(): CamSchedule {
+  const s = { ...SCHED_DEFAULTS, ...((cache.get('cam_schedule') || {}) as Partial<CamSchedule>) };
+  return { day_interval_min: clampMin(s.day_interval_min, 30), night_interval_min: clampMin(s.night_interval_min, 60) };
+}
+export async function saveCamSchedule(patch: Partial<CamSchedule>): Promise<CamSchedule> {
+  const next = { ...camSchedule(), ...patch };
+  const clean = { day_interval_min: clampMin(next.day_interval_min, 30), night_interval_min: clampMin(next.night_interval_min, 60) };
+  await query(
+    `INSERT INTO settings(key, value) VALUES ('cam_schedule', $1::jsonb)
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
+    [JSON.stringify(clean)],
+  );
+  cache.set('cam_schedule', clean);
+  return clean;
+}

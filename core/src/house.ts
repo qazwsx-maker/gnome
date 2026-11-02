@@ -26,7 +26,7 @@ export type Phase = 'day' | 'night';
 export type Sky = 'sunny' | 'partly' | 'shade' | 'maybe_rain' | 'rain' | 'night' | 'twilight' | 'unknown';
 export type House = {
   phase: Phase; sky: Sky; icon: string; label: string;
-  sun_alt: number; lux: number | null; clear_lux: number | null; ratio: number | null; rain_pct: number | null; rh: number | null;
+  sun_alt: number; lux: number | null; lux_10min: number | null; clear_lux: number | null; ratio: number | null; rain_pct: number | null; rh: number | null;
   sunrise: string | null; sunset: string | null; dark: boolean; ts: string;
 };
 
@@ -85,10 +85,29 @@ function latest(...keys: string[]): number | null {
 
 let state: House | null = null;
 let phase: Phase | null = null;
+// ทำให้นิ่ง: เมฆลอยผ่านทำให้ lux แกว่งทุกนาที → ใช้มัธยฐาน lux 10 นาทีล่าสุด + ขอบเข้า/ออกห่างกัน (hysteresis)
+// (2026-11-02 11:34–11:58 สลับ แดดออก⇄แดดอ่อน 8 ครั้งใน 25 นาที)
+const SMOOTH_MS = 10 * 60_000;
+const luxWin: { ts: number; v: number }[] = [];
+function smoothLux(raw: number | null): number | null {
+  const now = Date.now();
+  if (raw !== null && (!luxWin.length || luxWin[luxWin.length - 1].v !== raw || now - luxWin[luxWin.length - 1].ts > 30_000)) luxWin.push({ ts: now, v: raw });
+  while (luxWin.length && now - luxWin[0].ts > SMOOTH_MS) luxWin.shift();
+  if (!luxWin.length) return raw;
+  const a = luxWin.map((x) => x.v).sort((x, y) => x - y); return a[Math.floor(a.length / 2)];
+}
+// ขอบของแต่ละระดับ: [เข้าเมื่อ ≥, ออกเมื่อ <]
+const BAND = { sunny: [0.65, 0.55], partly: [0.33, 0.27] } as const;
+function skyFromRatio(r: number, prev: Sky | undefined): Sky {
+  if (prev === 'sunny') return r >= BAND.sunny[1] ? 'sunny' : r >= BAND.partly[0] ? 'partly' : 'shade';
+  if (prev === 'partly') return r >= BAND.sunny[0] ? 'sunny' : r >= BAND.partly[1] ? 'partly' : 'shade';
+  if (prev === 'shade' || prev === 'maybe_rain') return r >= BAND.sunny[0] ? 'sunny' : r >= BAND.partly[0] ? 'partly' : 'shade';
+  return r >= 0.6 ? 'sunny' : r >= 0.3 ? 'partly' : 'shade';
+}
 export function houseState(): House | null { return state; }
 
 export function computeHouse(now = new Date()): House {
-  const alt = sunAltitude(now), lux = latest('lux'), rain = latest('rain_pct'), rh = latest('rh_pct', 'dht_rh_pct', 'bme_rh_pct');
+  const alt = sunAltitude(now), rawLux = latest('lux'), lux = smoothLux(rawLux), rain = latest('rain_pct'), rh = latest('rh_pct', 'dht_rh_pct', 'bme_rh_pct');
   // ช่วงวัน: เวลาเป็นหลัก แสงตัดสินช่วงรอยต่อ (hysteresis)
   let p: Phase;
   if (alt >= 6) p = 'day';
@@ -104,11 +123,11 @@ export function computeHouse(now = new Date()): House {
   else if (alt < 6) sky = 'twilight';
   else if (ratio === null) sky = 'unknown';
   else if (ratio < 0.2 && rh !== null && rh >= 90) sky = 'maybe_rain';
-  else sky = ratio >= 0.6 ? 'sunny' : ratio >= 0.3 ? 'partly' : 'shade';
+  else sky = skyFromRatio(ratio, state?.sky);
   const t = sunTimes(now), fmt = (d?: Date) => (d ? d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: config.tz }) : null);
   return {
     phase: p, sky, icon: SKY_TH[sky][0], label: SKY_TH[sky][1],
-    sun_alt: Math.round(alt * 10) / 10, lux, clear_lux: clear ? Math.round(clear) : null, ratio: ratio !== null ? Math.round(ratio * 100) / 100 : null,
+    sun_alt: Math.round(alt * 10) / 10, lux: rawLux, lux_10min: lux, clear_lux: clear ? Math.round(clear) : null, ratio: ratio !== null ? Math.round(ratio * 100) / 100 : null,
     rain_pct: rain, rh, sunrise: fmt(t?.sunrise), sunset: fmt(t?.sunset), dark: lux !== null ? lux < NIGHT_LUX : p === 'night', ts: now.toISOString(),
   };
 }
@@ -130,6 +149,10 @@ function refresh(why: string): void {
 
 export async function startHouse(): Promise<void> {
   await learnClearSky();
+  try {   // เติมหน้าต่าง 10 นาทีจากฐานข้อมูล ไม่ให้เริ่มจากค่าเดียวหลัง Hut รีสตาร์ท
+    const r = await query<{ ts: Date; value: number }>(`SELECT ts, value FROM readings WHERE key = 'lux' AND ts > now() - interval '10 minutes' ORDER BY ts`);
+    for (const x of r.rows) luxWin.push({ ts: x.ts.getTime(), v: x.value });
+  } catch (e) { log.warn('seed lux window', (e as Error).message); }
   refresh('start');
   bus.on('live', (m: any) => { if (m.type === 'reading' && ['lux', 'rain_pct', 'rh_pct', 'dht_rh_pct', 'bme_rh_pct'].includes(m.key)) refresh(`${m.key} ${Math.round(m.value)}`); });
   setInterval(() => refresh('clock'), 60_000).unref();                 // ดวงอาทิตย์เคลื่อนแม้ไม่มีค่าใหม่

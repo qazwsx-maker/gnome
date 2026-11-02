@@ -9,7 +9,7 @@ import { nodes, recordEvent } from './state.ts';
 import { sendCmd } from './mqtt.ts';
 import { logger } from './log.ts';
 import { camImageOffset, camSchedule } from './settings.ts';
-import { houseState, onHouseChange, type House, type Phase } from './house.ts';
+import { houseState, onHouseChange, freshLux, type House, type Phase } from './house.ts';
 
 const log = logger('camlight');
 
@@ -21,6 +21,11 @@ export type Profile = keyof typeof PROFILES;
 
 let current: Profile | null = null;
 let currentPhase: Phase | null = null;
+// มืดเกินจะมองเห็น (lux สด < min_lux): กล้อง fw ≥ 0.8.19 หยุดรอบถ่ายเอง (interval 1 วัน) ไม่ต้องถ่าย-ส่งให้เปลืองลิงก์
+// fw เก่ากว่าไม่แตะ (เปลี่ยนรอบต้องรีบูต) — Hut ทิ้งภาพตามรอบที่มืดแทน (cam.ts)
+let paused = false;
+const PAUSE_S = 86400;
+function darkNow(): boolean { const m = camSchedule().min_lux; const l = freshLux(); return m > 0 && l !== null && l < m; }
 
 export function camLightState(): { profile: Profile | null; phase: Phase | null; lux: number | null } {
   return { profile: current, phase: currentPhase, lux: houseState()?.lux ?? null };
@@ -34,6 +39,7 @@ export function effectiveBrightness(node: string, profile: Profile | null = curr
 export function intervalFor(phase: Phase | null = currentPhase): number {
   const s = camSchedule(); return (phase === 'night' ? s.night_interval_min : s.day_interval_min) * 60;
 }
+export function camPaused(): boolean { return paused; }
 /** ส่งความสว่างปัจจุบันให้กล้องทันที (หลังผู้ใช้กด ☀️) */
 export async function pushBrightness(node: string): Promise<number> {
   const b = effectiveBrightness(node); await sendCmd(node, 'img', { brightness: b }); return b;
@@ -49,17 +55,17 @@ const fwAtLeast = (fw: unknown, want: [number, number, number]) => {
 
 async function apply(why: string, only?: string): Promise<void> {
   if (!current) return;
-  const iv = intervalFor();
   for (const node of only ? [only] : camNodes()) {
     try {
-      await sendCmd(node, 'img', { ...PROFILES[current], brightness: effectiveBrightness(node), interval_s: iv });
       const n = nodes.get(node); const fwNew = fwAtLeast(n?.meta?.fw, [0, 8, 19]); const have = Number(n?.meta?.cam?.interval_s);
+      const iv = paused && fwNew ? PAUSE_S : intervalFor();
+      await sendCmd(node, 'img', { ...PROFILES[current], brightness: effectiveBrightness(node), interval_s: iv });
       if (!fwNew && have !== iv) {   // firmware เก่าไม่รู้จัก interval_s ใน cmd/img → ตั้งผ่าน config (กล้องรีบูต)
         await sendCmd(node, 'config', { interval_s: iv });
         log.info(`${node} interval ${have}→${iv}s via cmd/config (fw ${n?.meta?.fw ?? '?'} < 0.8.19 — reboots)`);
       }
-      await recordEvent(node, 'cam_profile', { profile: current, phase: currentPhase, interval_s: iv, lux: houseState()?.lux ?? null, why });
-      log.info(`${node} -> ${current} · ${currentPhase} every ${iv / 60} min (${why})`);
+      await recordEvent(node, 'cam_profile', { profile: current, phase: currentPhase, interval_s: iv, paused_dark: paused, lux: houseState()?.lux ?? null, why });
+      log.info(`${node} -> ${current} · ${currentPhase} ${iv === PAUSE_S ? 'paused (dark)' : `every ${iv / 60} min`} (${why})`);
     } catch (e) { log.warn(`${node} apply ${current}: ${(e as Error).message}`); }
   }
 }
@@ -75,8 +81,10 @@ export function startCamLight(): void {
     const d = decide(h);
     if (d.profile !== current || d.phase !== currentPhase) { current = d.profile; currentPhase = d.phase; void apply(`${h.phase} · ${h.label} · lux ${h.lux ?? '?'} · sun ${h.sun_alt}°`); }
   });
-  // กล้องบูตใหม่ → ส่งโปรไฟล์ + รอบถ่ายซ้ำ (หลัง 8 วิ ให้กล้องพร้อม)
+  paused = darkNow();
+  // กล้องบูตใหม่ → ส่งโปรไฟล์ + รอบถ่ายซ้ำ (หลัง 8 วิ ให้กล้องพร้อม) · แสงข้ามเกณฑ์ min_lux → หยุด/กลับมาถ่าย
   bus.on('live', (m: any) => {
+    if (m.type === 'reading' && m.key === 'lux') { const d = darkNow(); if (d !== paused) { paused = d; void apply(d ? `dark ${Math.round(m.value)} lx < ${camSchedule().min_lux}` : `light ${Math.round(m.value)} lx ≥ ${camSchedule().min_lux}`); } }
     if (m.type === 'event' && m.type_ === 'boot' && current && nodes.get(m.node)?.role === 'cam') setTimeout(() => void apply('boot', m.node), 8_000).unref();
   });
   log.info(`started — ${current ?? 'undecided'} · ${currentPhase ?? '?'} · day every ${camSchedule().day_interval_min} min · night every ${camSchedule().night_interval_min} min`);

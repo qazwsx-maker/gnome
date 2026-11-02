@@ -135,16 +135,20 @@ export async function saveCamImageOffset(node: string, patch: Partial<CamImageOf
 }
 
 // ---- รอบถ่ายกล้องตามช่วงวัน (กลางวัน/กลางคืน ตัดสินโดย house.ts) ----
-export type CamSchedule = { day_interval_min: number; night_interval_min: number };
-const SCHED_DEFAULTS: CamSchedule = { day_interval_min: 30, night_interval_min: 60 };
+/** min_lux: ภาพตามรอบจะไม่ถ่าย/ไม่เก็บเมื่อแสงจาก sky (ค่าล่าสุดไม่เกิน 15 นาที) ต่ำกว่านี้ · 0 = ถ่ายเสมอ
+ *  (2026-11-02 ครีเชอร์เทียบ 920 ภาพกับ lux: < 30 มืดใช้ไม่ได้ · 30–45 เห็นแค่กลุ่มใบ · ≥ 60 เห็นใบ/ดอกตูม → คุณพิชเลือก 50) */
+export type CamSchedule = { day_interval_min: number; night_interval_min: number; min_lux: number };
+const SCHED_DEFAULTS: CamSchedule = { day_interval_min: 30, night_interval_min: 60, min_lux: 50 };
 const clampMin = (v: unknown, d: number) => { const n = Math.round(Number(v)); return Number.isFinite(n) ? Math.max(1, Math.min(720, n)) : d; };
 export function camSchedule(): CamSchedule {
   const s = { ...SCHED_DEFAULTS, ...((cache.get('cam_schedule') || {}) as Partial<CamSchedule>) };
-  return { day_interval_min: clampMin(s.day_interval_min, 30), night_interval_min: clampMin(s.night_interval_min, 60) };
+  const ml = Number(s.min_lux);
+  return { day_interval_min: clampMin(s.day_interval_min, 30), night_interval_min: clampMin(s.night_interval_min, 60), min_lux: Number.isFinite(ml) ? Math.max(0, Math.min(100000, Math.round(ml))) : 50 };
 }
 export async function saveCamSchedule(patch: Partial<CamSchedule>): Promise<CamSchedule> {
   const next = { ...camSchedule(), ...patch };
-  const clean = { day_interval_min: clampMin(next.day_interval_min, 30), night_interval_min: clampMin(next.night_interval_min, 60) };
+  const ml = Number(next.min_lux);
+  const clean = { day_interval_min: clampMin(next.day_interval_min, 30), night_interval_min: clampMin(next.night_interval_min, 60), min_lux: Number.isFinite(ml) ? Math.max(0, Math.min(100000, Math.round(ml))) : 50 };
   await query(
     `INSERT INTO settings(key, value) VALUES ('cam_schedule', $1::jsonb)
        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,

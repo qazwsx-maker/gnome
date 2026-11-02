@@ -72,6 +72,8 @@ async function learnClearSky(): Promise<void> {
 
 // ---- อ่านค่าล่าสุดจากทุก node (ไม่ผูกกับชื่อ node) ----
 const FRESH_MS = 15 * 60_000;
+/** แสงล่าสุดที่ยังสด (≤ 15 นาที) จาก node ไหนก็ได้ที่มี lux · null = ไม่มี/เก่าเกิน */
+export function freshLux(): number | null { return latest('lux'); }
 function latest(...keys: string[]): number | null {
   let best: { v: number; ts: number } | null = null;
   for (const n of nodes.values()) for (const k of keys) {

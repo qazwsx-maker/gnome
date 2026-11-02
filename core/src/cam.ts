@@ -15,6 +15,9 @@ import { sendCmd } from './mqtt.ts';
 import { glanceOnSnapshot } from './glance.ts';
 import { effectiveBrightness, camLightState } from './camlight.ts';
 import { camSchedule } from './settings.ts';
+import { freshLux } from './house.ts';
+/** นับภาพตามรอบที่ทิ้งเพราะมืด (ต่อกล้อง ตั้งแต่ Hut เริ่ม) — แสดงบนการ์ด */
+export const darkSkips = new Map<string, number>();
 
 const log = logger('cam');
 const NODE_RE = /^[a-z0-9-]+$/;
@@ -78,6 +81,14 @@ export async function registerCam(app: FastifyInstance): Promise<void> {
     if (!NODE_RE.test(node)) return reply.code(400).send({ error: 'bad node' });
     const buf = req.body as Buffer;
     if (!Buffer.isBuffer(buf) || buf.length < 1000 || buf[0] !== 0xff || buf[1] !== 0xd8) return reply.code(400).send({ error: 'not a jpeg' });
+    // มืดเกินจะมองเห็น: ภาพตามรอบไม่เก็บ ไม่ส่ง Discord ไม่ให้โหมดคิดดู (ภาพที่ผู้ใช้สั่งถ่ายเองยังเก็บตามปกติ)
+    // ตอบ 200 ให้กล้องถือว่าส่งสำเร็จ (ไม่นับเป็นความล้มเหลว ไม่ไปกระตุ้น selfheal) · ไม่มีค่า lux สดๆ → เก็บตามปกติ
+    { const reason0 = String(req.headers['x-reason'] || ''); const minLux = camSchedule().min_lux; const lux = freshLux();
+      if (reason0 === 'interval' && minLux > 0 && lux !== null && lux < minLux) {
+        touch(node); darkSkips.set(node, (darkSkips.get(node) ?? 0) + 1);
+        log.info(`${node} interval snapshot skipped — dark (${Math.round(lux)} lx < ${minLux}) · ${Math.round(buf.length / 1024)} kB discarded`);
+        return { ok: true, skipped: 'dark', lux, min_lux: minLux };
+      } }
     const now = new Date(); const { day, file } = stamp(now);
     const rel = join(node, day, file); const abs = join(config.camDir, rel);
     mkdirSync(dirname(abs), { recursive: true });
@@ -215,7 +226,8 @@ export async function registerCam(app: FastifyInstance): Promise<void> {
     for (const r of latest.rows) { seen.add(r.node); const n = nodes.get(r.node); out.push({ node: r.node, online: n?.online ?? false, ip: n?.ip ?? null, cam: n?.meta?.cam ?? null, latest: { ts: r.ts.toISOString(), url: `/cam/${r.path}`, bytes: r.bytes, caption: r.caption, mood: r.mood }, count: Number(r.cnt), angles: byNode.get(r.node) || [], last_glance: lastGlance.get(r.node) || null }); }
     for (const n of nodes.values()) if (n.role === 'cam' && !seen.has(n.node)) out.push({ node: n.node, online: n.online, ip: n.ip, cam: n.meta?.cam ?? null, latest: null, count: 0, angles: [], last_glance: null });
     const sched = camSchedule(); const cl = camLightState();
-    for (const o of out) { o.brightness = effectiveBrightness(o.node); o.profile = cl.profile; o.phase = cl.phase; o.schedule = sched; }   // ☀️ + 📅 ค่าที่แสดงบนการ์ด
+    const lx = freshLux();
+    for (const o of out) { o.brightness = effectiveBrightness(o.node); o.profile = cl.profile; o.phase = cl.phase; o.schedule = sched; o.dark_skip = { lux: lx, active: sched.min_lux > 0 && lx !== null && lx < sched.min_lux, skipped: darkSkips.get(o.node) ?? 0 }; }   // ☀️ + 📅 ค่าที่แสดงบนการ์ด
     return out.sort((a, b) => a.node.localeCompare(b.node));
   });
 

@@ -340,8 +340,8 @@ export async function startHttp() {
   app.get('/api/house', async () => houseState() ?? computeHouse());
   // รอบถ่ายกล้องตามช่วงวัน (นาที) — บันทึกแล้วส่งให้กล้องทันที
   app.get('/api/settings/cam-schedule', async () => ({ ...camSchedule(), now: camLightState() }));
-  app.put<{ Body: { day_interval_min?: number; night_interval_min?: number } }>('/api/settings/cam-schedule', async (req) => {
-    const s = await saveCamSchedule({ day_interval_min: req.body?.day_interval_min, night_interval_min: req.body?.night_interval_min });
+  app.put<{ Body: { day_interval_min?: number; night_interval_min?: number; min_lux?: number } }>('/api/settings/cam-schedule', async (req) => {
+    const s = await saveCamSchedule({ day_interval_min: req.body?.day_interval_min, night_interval_min: req.body?.night_interval_min, ...(req.body?.min_lux !== undefined ? { min_lux: req.body.min_lux } : {}) });
     await reapplyCamLight('schedule changed');
     return { ok: true, ...s, now: camLightState() };
   });

@@ -148,10 +148,27 @@ async function onSwitchMeta(node: string, key: string, meta: any): Promise<void>
   ).catch((e) => log.error('switch meta', e.message));
 }
 
+// ค่าที่เป็นไปไม่ได้ทางกายภาพ → ทิ้ง ไม่เก็บ ไม่โชว์ ไม่เข้ากฎ (2026-11-05 AM2301A ของ earth เปียกน้ำ ส่ง −50 °C ผ่าน checksum ทุกนาที)
+//   *_c = อุณหภูมิ: ช่วงวัดของ AM2301A/DHT22 คือ −40…80 °C · *_pct = เปอร์เซ็นต์ 0…100
+function plausible(key: string, value: number): boolean {
+  if (key.endsWith('_c')) return value >= -40 && value <= 80;
+  if (key.endsWith('_pct')) return value >= 0 && value <= 100;
+  return true;
+}
+export const rejectedReadings = new Map<string, { n: number; last: number; value: number }>();
+
 function onSensorState(node: string, key: string, payload: string): void {
   const value = Number(payload.trim());
   if (!Number.isFinite(value)) {
     log.warn(`${node}/${key} non-numeric "${payload.slice(0, 40)}"`);
+    return;
+  }
+  if (!plausible(key, value)) {
+    const id = `${node}/${key}`; const r = rejectedReadings.get(id) ?? { n: 0, last: 0, value };
+    r.n++; r.value = value;
+    if (Date.now() - r.last > 10 * 60_000) { r.last = Date.now(); log.warn(`${id} implausible ${value} dropped (${r.n} so far)`); }
+    rejectedReadings.set(id, r);
+    touch(node);
     return;
   }
   const now = Date.now();
